@@ -132,6 +132,14 @@ dialog::backdrop{background:#090613bb;backdrop-filter:blur(6px)}
 .guide-item p{font-size:.76rem;line-height:1.33;color:var(--muted);margin:0}
 .guide-intro,.guide-tip{font-size:.82rem;line-height:1.5;color:var(--muted);margin:0 0 13px}
 .guide-tip{margin:14px 0 0}
+.level-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(54px,1fr));gap:7px}
+.level-pick{position:relative;border:1px solid var(--line);border-radius:10px;background:transparent;
+  color:var(--text);font:650 .82rem ui-monospace,monospace;padding:9px 2px 15px;min-height:48px}
+.level-pick:disabled{opacity:.32}
+.level-pick[aria-current="step"]{border-color:var(--accent);background:var(--wash);color:var(--accent)}
+.level-pick i{position:absolute;left:0;right:0;bottom:4px;font-style:normal;font-size:.64rem;
+  letter-spacing:.06em;color:var(--accent)}
+.level-pick:disabled i{color:var(--muted)}
 .records{display:grid;gap:7px}
 .record{display:flex;justify-content:space-between;gap:10px;font:500 .82rem ui-monospace,monospace;
   border:1px solid var(--line);border-radius:9px;padding:9px 11px}

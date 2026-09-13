@@ -42,6 +42,8 @@ export function create(services) {
     score: 0,
     lives: LIVES.start,
     nextLifeScore: LIVES.scoreStep,
+    fromStart: true,        // a partida começou na arena 1?
+    levelStartScore: 0,     // pontuação ao entrar na arena atual
     remaining: 0,
     broken: 0,
     combo: 0,
@@ -77,6 +79,7 @@ export function create(services) {
   const lowEffects = () => settings.effectsLevel === 'low' || reducedMotion;
 
   let ballId = 0;
+  let pendingRun = null;
   let hudDirty = true;
   let levelCleared = false;
   let pendingLifeLoss = false;
@@ -214,6 +217,8 @@ export function create(services) {
     }
 
     S.remaining = countRemaining();
+    S.levelStartScore = S.score;
+    markUnlocked(S.levelIndex);
     theme.setAuto(S.phase.palette);
     renderer.invalidate();
     S.paddle.x = S.paddle.target = FIELD.w / 2;
@@ -813,9 +818,50 @@ export function create(services) {
     else if (pendingLifeLoss) loseLife();
   }
 
+  // --------------------------------------------------- partida em andamento
+  //
+  // O ponto de gravação é a virada de arena, nunca o meio dela: restaurar
+  // bolas em voo, cápsulas caindo e cronômetros de efeito seria frágil e
+  // devolveria o jogador a uma situação que não é a que ele deixou.
+  const RUN_KEY = 'run-v1';
+
+  function saveRunAt(levelIndex) {
+    store.set(RUN_KEY, {
+      mode: S.mode, levelIndex, score: S.score, lives: S.lives,
+      nextLifeScore: S.nextLifeScore, seed: S.seed, fromStart: S.fromStart,
+      day: S.mode === 'daily' ? todaySeedLabel() : null
+    });
+  }
+  const saveRun = () => saveRunAt(S.levelIndex);
+  const clearRun = () => store.remove(RUN_KEY);
+
+  function loadRun() {
+    const r = store.get(RUN_KEY, null);
+    if (!r || typeof r !== 'object' || !MODES[r.mode]) return null;
+    // O desafio diário de ontem não continua hoje: a semente é outra.
+    if (r.mode === 'daily' && r.day !== todaySeedLabel()) return null;
+    const total = MODES[r.mode].phases;
+    const last = Number.isFinite(total) ? total - 1 : Number.MAX_SAFE_INTEGER;
+    if (!Number.isInteger(r.levelIndex) || r.levelIndex < 0 || r.levelIndex > last) return null;
+    if (!Number.isFinite(r.score) || r.score < 0) return null;
+    if (!Number.isInteger(r.lives) || r.lives < 1 || r.lives > LIVES.max) return null;
+    if (!Number.isInteger(r.seed)) return null;
+    return r;
+  }
+
+  const unlockedIndex = () => Math.min(PHASES.length - 1, Math.max(0, store.get('unlocked', 0)));
+
+  function markUnlocked(index) {
+    if (S.mode !== 'campaign') return;
+    if (index > store.get('unlocked', 0)) store.set('unlocked', Math.min(PHASES.length - 1, index));
+  }
+
   function recordKey() { return 'best:' + S.mode; }
 
+  // O recorde do modo só conta partida iniciada na arena 1. Sem isso, poder
+  // começar na arena 20 esvaziaria o placar.
   function saveRecord() {
+    if (!S.fromStart) return false;
     const best = store.get(recordKey(), { score: 0, level: 0 });
     if (S.score > best.score || S.levelIndex + 1 > best.level) {
       store.set(recordKey(), {
@@ -825,6 +871,16 @@ export function create(services) {
       return true;
     }
     return false;
+  }
+
+  // Já a melhor pontuação DENTRO de uma arena vale sempre: é o número que dá
+  // sentido a treinar uma arena isolada.
+  function saveArenaBest() {
+    if (S.mode !== 'campaign') return;
+    const earned = S.score - S.levelStartScore;
+    const map = store.get('arenaBest', {});
+    const key = String(S.levelIndex);
+    if ((map[key] || 0) < earned) { map[key] = earned; store.set('arenaBest', map); }
   }
 
   function saveStars(stars) {
@@ -843,6 +899,7 @@ export function create(services) {
     S.score += bonus + chain + flawless;
     const stars = S.levelDeaths === 0 ? (S.maxCombo >= 8 ? 3 : 2) : 1;
     saveStars(stars);
+    saveArenaBest();
     // Recuperação: terminar a fase sem falhar devolve uma vida, mas só até
     // o número inicial. Ajuda quem está atrás sem inflar quem vai bem.
     const recovered = S.levelDeaths === 0 && S.lives < LIVES.start && grantLife('fase sem falhas');
@@ -862,6 +919,7 @@ export function create(services) {
     if (last) {
       S.state = 'win';
       saveRecord();
+      clearRun();
       hud.showOverlay({
         tag: 'Missão completa', title: 'Você é uma supernova!',
         text: `${S.score.toLocaleString('pt-BR')} pontos. Você venceu as ${total} arenas.`,
@@ -869,6 +927,8 @@ export function create(services) {
       });
     } else {
       S.state = 'between';
+      markUnlocked(S.levelIndex + 1);
+      saveRunAt(S.levelIndex + 1);
       const next = currentPhaseData(S.levelIndex + 1);
       hud.showOverlay({
         tag: detail, title: 'Próxima: ' + next.name, text: next.hint,
@@ -903,6 +963,7 @@ export function create(services) {
     } else {
       S.state = 'over';
       const isRecord = saveRecord();
+      clearRun();
       hud.showOverlay({
         tag: isRecord ? 'Novo recorde' : 'Fim de jogo', title: 'Só mais uma?',
         text: `Você fez ${S.score.toLocaleString('pt-BR')} pontos e chegou à arena ${S.phase.name}.`,
@@ -913,32 +974,87 @@ export function create(services) {
   }
 
   // ----------------------------------------------------------- controle/UI
-  function newGame() {
+  function freshSeed() {
+    return S.mode === 'daily'
+      ? hashSeed('neon-break:' + todaySeedLabel())
+      : (Math.random() * 0xffffffff) >>> 0;
+  }
+
+  function newGame(fromIndex = 0) {
     S.score = 0;
     S.lives = LIVES.start;
     S.nextLifeScore = LIVES.scoreStep;
-    S.levelIndex = 0;
-    S.seed = S.mode === 'daily'
-      ? hashSeed('neon-break:' + todaySeedLabel())
-      : (Math.random() * 0xffffffff) >>> 0;
+    S.levelIndex = fromIndex;
+    S.fromStart = fromIndex === 0;
+    S.seed = freshSeed();
+    levelCleared = false;
+    pendingLifeLoss = false;
+    clearRun();
+    setupLevel();
+    startPlaying(`Arena ${fromIndex + 1}. ${S.phase.name}. Jogo iniciado.`);
+  }
+
+  // Retoma a partida guardada no começo da arena em que ela parou. Vidas e
+  // pontuação voltam como estavam; continuar não perdoa nada.
+  function continueRun(run) {
+    if (run.mode !== S.mode) { S.mode = run.mode; store.set('mode', run.mode); }
+    S.score = run.score;
+    S.lives = run.lives;
+    S.nextLifeScore = Number.isFinite(run.nextLifeScore) ? run.nextLifeScore : LIVES.scoreStep;
+    S.seed = run.seed;
+    S.levelIndex = run.levelIndex;
+    S.fromStart = !!run.fromStart;
     levelCleared = false;
     pendingLifeLoss = false;
     setupLevel();
-    startPlaying('Fase 1. ' + S.phase.name + '. Jogo iniciado.');
+    startPlaying(`Partida retomada na arena ${S.levelIndex + 1}. ${S.phase.name}.`);
   }
 
   function startPlaying(announcement) {
     audio.resume();
     input.reset();
     S.state = 'playing';
+    // Grava aqui, e não ao montar a arena: assim a montagem do boot não
+    // sobrescreve a partida guardada, e um relançamento após perder vida
+    // atualiza o checkpoint com as vidas que sobraram.
+    saveRun();
     hud.hideOverlay();
     hudDirty = true;
     if (announcement) hud.announce(announcement);
   }
 
+  // Tela inicial: oferece retomar quando existe partida guardada do modo atual.
+  function showIntro() {
+    S.state = 'intro';
+    pendingRun = loadRun();
+    const run = pendingRun && pendingRun.mode === S.mode ? pendingRun : null;
+    pendingRun = run;
+    if (run) {
+      const phase = run.mode === 'campaign'
+        ? PHASES[Math.min(run.levelIndex, PHASES.length - 1)]
+        : currentPhaseData(run.levelIndex);
+      hud.showOverlay({
+        tag: 'Partida em andamento', title: 'Continuar de onde<br>você parou',
+        text: `Arena ${run.levelIndex + 1} — ${phase.name}. ${run.score.toLocaleString('pt-BR')} pontos e ` +
+              `${run.lives} ${run.lives === 1 ? 'vida' : 'vidas'} guardadas.`,
+        action: 'Continuar',
+        secondary: 'Começar do zero',
+        note: `Modo ${MODES[run.mode].label} · a partida é guardada a cada arena`
+      });
+      return;
+    }
+    hud.showOverlay({
+      tag: 'Pronto para jogar', title: 'Mire. Rebata.<br>Quebre tudo.',
+      text: 'Deslize para rebater. Capture as cápsulas que caem e transforme o jogo.',
+      action: 'Jogar agora',
+      note: `Modo ${MODES[S.mode].label} · 25 arenas · 12 bônus · ajustes no rodapé`
+    });
+  }
+
   function primaryAction() {
     if (hud.dialogOpen) return;
-    if (S.state === 'intro' || S.state === 'over' || S.state === 'win') newGame();
+    if (S.state === 'intro') { pendingRun ? continueRun(pendingRun) : newGame(); pendingRun = null; }
+    else if (S.state === 'over' || S.state === 'win') newGame();
     else if (S.state === 'paused') resume();
     else if (S.state === 'life') startPlaying();
     else if (S.state === 'between') {
@@ -1023,13 +1139,24 @@ export function create(services) {
         daily: store.get('best:daily', { score: 0, level: 0 }),
         stars: store.get('stars', {})
       },
+      arenas: S.mode !== 'campaign' ? null : (() => {
+        const stars = store.get('stars', {});
+        const best = store.get('arenaBest', {});
+        const limit = unlockedIndex();
+        return PHASES.map((phase, index) => ({
+          index, name: phase.name, unlocked: index <= limit,
+          stars: stars[String(index)] || 0, best: best[String(index)] || 0
+        }));
+      })(),
+      currentArena: S.levelIndex,
+      onPickArena: index => { hud.closeDialog(); newGame(index); },
       onMode: value => {
         S.mode = value;
         store.set('mode', value);
         hudDirty = true;
-        if (S.state !== 'intro') {
-          hud.toast('O modo vale a partir da próxima partida', { priority: 2 });
-        }
+        // Na tela inicial a oferta de continuar é por modo, então refaz.
+        if (S.state === 'intro') showIntro();
+        else hud.toast('O modo vale a partir da próxima partida', { priority: 2 });
       },
       onControl: value => { settings.control = value; store.set('control', value); input.setMode(value); },
       onAssist: value => { settings.assist = value; store.set('assist', value); hudDirty = true; },
@@ -1080,12 +1207,7 @@ export function create(services) {
   input.setMode(settings.control);
   input.state.sensitivity = settings.sensitivity;
 
-  hud.showOverlay({
-    tag: 'Pronto para jogar', title: 'Mire. Rebata.<br>Quebre tudo.',
-    text: 'Deslize para rebater. Capture as cápsulas que caem e transforme o jogo.',
-    action: 'Jogar agora',
-    note: `Modo ${MODES[S.mode].label} · multibola · 11 bônus · ajustes no rodapé`
-  });
+  showIntro();
 
   input.on('tap', tap);
   input.on('key', e => {
@@ -1104,7 +1226,10 @@ export function create(services) {
     meta,
     update, render, resize,
     primaryAction, pause, resume, openSettings,
-    secondaryAction: () => { if (S.state === 'paused') newGame(); },
+    secondaryAction: () => {
+      if (S.state === 'paused') newGame();
+      else if (S.state === 'intro') { pendingRun = null; clearRun(); newGame(); }
+    },
     pauseToggle: () => (S.state === 'paused' ? resume() : pause()),
     onHidden: pause,
     onThemeChange: () => renderer.invalidate(),

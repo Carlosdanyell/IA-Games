@@ -87,9 +87,31 @@ function guideGrid(items) {
 }
 
 export function buildDialog(opts) {
-  const { settings, theme, audio, haptics, mode, records,
-          onMode, onControl, onAssist, onEffects, onSensitivity } = opts;
+  const { settings, theme, audio, haptics, mode, records, arenas, currentArena,
+          onMode, onControl, onAssist, onEffects, onSensitivity, onPickArena } = opts;
   const root = el('div');
+
+  // Seleção de arena: só na campanha, e só até onde o jogador já chegou.
+  if (arenas) {
+    root.appendChild(el('h3', 'guide-title', 'Arenas'));
+    root.appendChild(el('p', 'guide-intro',
+      'Escolha por onde recomeçar. Começar fora da arena 01 não conta para o recorde de campanha completa.'));
+    const grid = el('div', 'level-grid');
+    for (const arena of arenas) {
+      const button = el('button', 'level-pick', String(arena.index + 1).padStart(2, '0'));
+      button.type = 'button';
+      button.disabled = !arena.unlocked;
+      if (arena.index === currentArena) button.setAttribute('aria-current', 'step');
+      button.setAttribute('aria-label',
+        `Arena ${arena.index + 1}: ${arena.name}` +
+        (arena.unlocked ? `, ${arena.stars} de 3 estrelas` +
+          (arena.best ? `, melhor ${arena.best} pontos` : '') : ', bloqueada'));
+      button.appendChild(el('i', null, arena.unlocked ? '★'.repeat(arena.stars) + '·'.repeat(3 - arena.stars) : '—'));
+      button.addEventListener('click', () => onPickArena(arena.index));
+      grid.appendChild(button);
+    }
+    root.appendChild(grid);
+  }
 
   root.appendChild(fieldset('Modo de jogo', radioGroup('mode', [
     { value: 'campaign', label: 'Campanha' },
@@ -152,14 +174,16 @@ export function buildDialog(opts) {
     'Você só perde uma vida quando todas as bolinhas caem. Lento e turbo se substituem, assim como expansão e encolhimento. Pausar congela tudo. O ímã ⊂ segura a bola: onde ela encosta na plataforma define o ângulo de saída.'));
 
   root.appendChild(el('h3', 'guide-title', 'Recordes'));
+  root.appendChild(el('p', 'guide-intro',
+    'Só valem as partidas iniciadas na primeira arena — por isso o recorde continua significando alguma coisa.'));
   const list = el('div', 'records');
   const rec = (label, data) => {
     const row = el('div', 'record');
     row.appendChild(el('span', null, label));
-    row.appendChild(el('b', null, `${data.score.toLocaleString('pt-BR')} pts · fase ${data.level || 0}`));
+    row.appendChild(el('b', null, `${data.score.toLocaleString('pt-BR')} pts · arena ${data.level || 0}`));
     return row;
   };
-  list.appendChild(rec('Campanha', records.campaign));
+  list.appendChild(rec('Campanha completa', records.campaign));
   list.appendChild(rec('Infinito', records.endless));
   list.appendChild(rec('Diário', records.daily));
   const stars = Object.values(records.stars || {}).reduce((a, b) => a + b, 0);
@@ -167,6 +191,16 @@ export function buildDialog(opts) {
   starRow.appendChild(el('span', null, 'Estrelas da campanha'));
   starRow.appendChild(el('b', null, `${stars} / ${PHASES.length * 3}`));
   list.appendChild(starRow);
+  if (arenas) {
+    const cleared = arenas.filter(a => a.best > 0).length;
+    const bestArena = arenas.reduce((top, a) => (a.best > (top?.best || 0) ? a : top), null);
+    const arenaRow = el('div', 'record');
+    arenaRow.appendChild(el('span', null, 'Melhor arena isolada'));
+    arenaRow.appendChild(el('b', null, bestArena && bestArena.best
+      ? `${bestArena.best.toLocaleString('pt-BR')} pts · ${bestArena.name}`
+      : `— · ${cleared} concluídas`));
+    list.appendChild(arenaRow);
+  }
   root.appendChild(list);
 
   return root;
