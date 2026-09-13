@@ -1,6 +1,6 @@
 // Service worker da biblioteca: cache-first, para que os jogos abram sem rede.
 // Ao adicionar um jogo, inclua os arquivos dele em ASSETS e suba VERSION.
-const VERSION = 'ia-games-v11';
+const VERSION = 'ia-games-v12';
 const ASSETS = [
   './',
   './index.html',

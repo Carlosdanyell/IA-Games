@@ -159,7 +159,15 @@ export function step(balls, dt, events = {}) {
       b.active = false; b.vx = 0; b.vy = 0;
       b.x = hole.x; b.y = hole.y;
       events.onPocket?.(b, hole);
+      continue;
     }
+    // Correção de penetração: a varredura só resolve quem se APROXIMA da
+    // tabela. Uma bola já encostada e empurrada de lado por outra afundava no
+    // pano sem nunca disparar um contato.
+    if (b.x < TABLE.left + b.r) { b.x = TABLE.left + b.r; if (b.vx < 0) b.vx = -b.vx * BALL.railRestitution; }
+    else if (b.x > TABLE.right - b.r) { b.x = TABLE.right - b.r; if (b.vx > 0) b.vx = -b.vx * BALL.railRestitution; }
+    if (b.y < TABLE.top + b.r) { b.y = TABLE.top + b.r; if (b.vy < 0) b.vy = -b.vy * BALL.railRestitution; }
+    else if (b.y > TABLE.bottom - b.r) { b.y = TABLE.bottom - b.r; if (b.vy > 0) b.vy = -b.vy * BALL.railRestitution; }
   }
 
   return moving().length > 0;

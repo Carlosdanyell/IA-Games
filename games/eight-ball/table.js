@@ -5,7 +5,7 @@ import { TABLE, BALL, POCKETS } from './config.js';
 // "bico" da caçapa — sem ela a bola que raspa a entrada não quica como deve.
 function buildCushions() {
   const { left, right, top, bottom, jawCorner: jc, jawSide: js } = TABLE;
-  const mid = 450;
+  const mid = TABLE.midX;
   const rails = [
     // superior: normal aponta para dentro (+y)
     { axis: 'y', at: top, nx: 0, ny: 1, from: left + jc, to: mid - js },

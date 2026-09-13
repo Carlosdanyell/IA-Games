@@ -8,11 +8,28 @@
   .pool-app{width:100%;max-width:1140px}
   .pool-app .arena{aspect-ratio:auto}
 }
+/* Em paisagem de celular cada pixel de largura vira mesa: a coluna lateral
+   encolhe, o padding aperta e os campos do placar voltam a empilhar rótulo
+   sobre valor, que ocupa menos que lado a lado. */
 @media(orientation:landscape) and (max-height:560px){
-  .pool-app{grid-template-columns:min(168px,21vw) 1fr;max-width:none}
+  .pool-app{grid-template-columns:min(126px,17vw) 1fr;max-width:none;gap:7px;
+    padding:calc(7px + env(safe-area-inset-top)) 9px 7px calc(9px + env(safe-area-inset-left))}
   .pool-app .arena{aspect-ratio:auto;width:100%;justify-self:stretch}
-  .pool-app .stat .value{font-size:.92rem}
-  .pool-app .chipbar{font-size:.66rem}
+  .pool-app .topbar{gap:8px}
+  .pool-app .mark{width:28px;height:28px;border-radius:8px}
+  .pool-app .mark svg{width:16px;height:16px}
+  .pool-app .brand h1{font-size:.78rem;letter-spacing:.03em}
+  .pool-app .icon-button{width:36px;height:36px;border-radius:10px}
+  .pool-app .icon-button svg{width:19px;height:19px}
+  .pool-app .scorebar{padding:6px 2px;border-radius:12px}
+  .pool-app .stat{display:block;padding:0 7px}
+  .pool-app .stat+.stat{margin-top:5px;padding-top:5px}
+  .pool-app .stat .label{font-size:.57rem;letter-spacing:.05em;margin-bottom:1px}
+  .pool-app .stat .value{font-size:.84rem}
+  .pool-app .chipbar{font-size:.6rem;gap:4px}
+  .pool-app .chip{padding:3px 5px;border-radius:6px}
+  .pool-app .footer{font-size:.64rem;gap:3px}
+  .pool-app .link-button{font-size:.7rem;min-height:26px}
 }
 /* Em retrato o jogo mostra o aviso de girar; a arena ocupa tudo assim mesmo. */
 @media(orientation:portrait){

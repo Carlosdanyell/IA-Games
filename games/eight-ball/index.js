@@ -14,8 +14,8 @@ export const meta = {
   arenaLabel: 'Mesa de sinuca. Arraste no pano para mirar e use a barra de força para tacar.',
   logicalSize,
   stats: [
-    { id: 'turn', label: 'Vez de', accent: true, flex: '1fr' },
-    { id: 'group', label: 'Seu grupo', flex: '1fr' },
+    { id: 'turn', label: 'Vez', accent: true, flex: '1fr' },
+    { id: 'group', label: 'Grupo', flex: '1fr' },
     { id: 'left', label: 'Faltam', flex: '.8fr' }
   ]
 };
@@ -99,6 +99,9 @@ export function create(services) {
 
   // ----------------------------------------------------------------- partida
   function newMatch() {
+    // Sai de 'over' ANTES de montar a vez: beginTurn ignora chamadas com a
+    // partida encerrada, e sem isto a mesa era refeita mas o overlay ficava.
+    S.flow = 'aiming';
     rng = createRng((Math.random() * 0xffffffff) >>> 0);
     S.balls = createRack(rng.next);
     S.turn = 0;

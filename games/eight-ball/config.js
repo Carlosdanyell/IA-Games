@@ -3,25 +3,26 @@
 // O campo lógico é fixo e largo: o viewport do shell cuida da escala uniforme
 // e do letterbox, então a mesa nunca deforma seja qual for o aparelho.
 
-export const FIELD = { w: 980, h: 512, tableH: 480 };
+export const FIELD = { w: 966, h: 504, tableH: 472 };
 
 // Faixa de controle à direita da mesa: medidor de força e disparo. Fica fora
 // do pano de propósito — em paisagem é onde o polegar direito alcança.
-export const PANEL = { x: 906, y: 44, w: 62, h: 392 };
+export const PANEL = { x: 900, y: 40, w: 58, h: 392 };
 
 // Faixa de tabela em volta do pano. O retângulo de jogo é exatamente 2:1,
 // como numa mesa de verdade.
 export const TABLE = {
-  rail: 30,
-  left: 30, right: 870, top: 30, bottom: 450,
-  get width() { return this.right - this.left; },   // 840
-  get height() { return this.bottom - this.top; },  // 420
+  rail: 26,
+  left: 26, right: 866, top: 26, bottom: 446,
+  get width() { return this.right - this.left; },    // 840
+  get height() { return this.bottom - this.top; },   // 420
+  get midX() { return (this.left + this.right) / 2; },
   pocketR: 23,
   jawCorner: 27,   // quanto a tabela recua da caçapa de canto
   jawSide: 24,     // idem para a caçapa do meio
-  headX: 240,      // linha de saída: a branca fica atrás dela
-  footX: 660,      // ápice do triângulo
-  centerY: 240
+  headX: 236,      // linha de saída: a branca fica atrás dela
+  footX: 656,      // ápice do triângulo
+  centerY: 236
 };
 
 export const BALL = {
@@ -70,9 +71,9 @@ export const logicalSize = () => ({ w: FIELD.w, h: FIELD.h });
 // Caçapas: quatro de canto e duas de meio.
 export const POCKETS = [
   { x: TABLE.left,  y: TABLE.top,    corner: true },
-  { x: 450,         y: TABLE.top,    corner: false },
+  { x: TABLE.midX,  y: TABLE.top,    corner: false },
   { x: TABLE.right, y: TABLE.top,    corner: true },
   { x: TABLE.left,  y: TABLE.bottom, corner: true },
-  { x: 450,         y: TABLE.bottom, corner: false },
+  { x: TABLE.midX,  y: TABLE.bottom, corner: false },
   { x: TABLE.right, y: TABLE.bottom, corner: true }
 ];

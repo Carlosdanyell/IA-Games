@@ -44,7 +44,7 @@ export function createRenderer(viewport, theme, debug) {
       // Pano
       c.fillStyle = felt;
       c.fillRect(TABLE.left, TABLE.top, TABLE.width, TABLE.height);
-      const glow = c.createRadialGradient(450, 240, 20, 450, 240, 430);
+      const glow = c.createRadialGradient(TABLE.midX, TABLE.centerY, 20, TABLE.midX, TABLE.centerY, 430);
       glow.addColorStop(0, accent + (dark ? '16' : '10'));
       glow.addColorStop(1, accent + '00');
       c.fillStyle = glow;
@@ -298,13 +298,13 @@ export function createRenderer(viewport, theme, debug) {
     ctx.fillStyle = theme.dark ? '#7d6f8c' : '#8a7c98';
     ctx.textAlign = 'left';
     ctx.fillText('LISAS', TABLE.left, y);
-    ctx.fillText('LISTRADAS', 450, y);
+    ctx.fillText('LISTRADAS', TABLE.midX, y);
     let x = TABLE.left + 42;
     for (const b of [...solids, ...eight.filter(() => false)]) {
       ctx.drawImage(ballSprite(b.number), x, y - size / 2, size, size);
       x += size + 2;
     }
-    x = 512;
+    x = TABLE.midX + 66;
     for (const b of stripes) {
       ctx.drawImage(ballSprite(b.number), x, y - size / 2, size, size);
       x += size + 2;
@@ -362,17 +362,17 @@ export function createRenderer(viewport, theme, debug) {
       ctx.font = '700 16px ui-monospace,monospace';
       ctx.fillStyle = theme.dark ? '#100b1bdd' : '#fdfbffdd';
       const w = Math.max(210, ctx.measureText(opts.banner).width + 56);
-      rounded(ctx, 450 - w / 2, 206, w, 44, 12);
+      rounded(ctx, TABLE.midX - w / 2, TABLE.centerY - 22, w, 44, 12);
       ctx.fill();
       ctx.strokeStyle = theme.tokens.accent;
       ctx.lineWidth = 1.5;
-      rounded(ctx, 450 - w / 2, 206, w, 44, 12);
+      rounded(ctx, TABLE.midX - w / 2, TABLE.centerY - 22, w, 44, 12);
       ctx.stroke();
       ctx.fillStyle = theme.dark ? '#f6efff' : '#271c34';
       ctx.font = '700 16px ui-monospace,monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(opts.banner, 450, 229);
+      ctx.fillText(opts.banner, TABLE.midX, TABLE.centerY + 1);
       ctx.restore();
     }
 
