@@ -90,7 +90,7 @@ export function buildDialog({ settings, theme, audio, haptics, records,
   root.appendChild(el('h3', 'guide-title', 'Regras'));
   const rules = el('ul');
   [
-    'A mesa fica aberta até alguém encaçapar em jogada válida: o grupo é definido pela primeira bola que cair depois da saída.',
+    'Encaçapar na saída NÃO define o grupo: a mesa continua aberta e quem decide é a primeira bola que cair na tacada seguinte.',
     'A branca precisa acertar primeiro uma bola do seu grupo. Depois do contato, alguma bola tem de cair ou ir à tabela.',
     'Falta dá bola na mão ao adversário: branca na caçapa, contato errado ou nenhuma bola na tabela.',
     'A 8 é a última. Encaçapar a 8 antes da hora, ou junto de uma falta, perde a partida.',

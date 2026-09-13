@@ -223,6 +223,7 @@ export function create(services) {
       railBalls: shotLog.railSet.size
     };
     const shooter = S.turn;
+    const wasBreak = S.stage === 'break';
     const outcome = evaluateShot(S, log);
 
     if (outcome.respotEight) {
@@ -256,13 +257,26 @@ export function create(services) {
       showBanner('Falta · ' + playerName(S.turn) + ' com bola na mão', 2.6);
       audio.tone({ freq: 150, dur: 0.2, type: 'sawtooth', vol: 0.04 });
     } else if (outcome.keepTurn) {
-      S.message = 'Encaçapou e segue na mesa.';
       S.ballInHand = false;
-      showBanner(playerName(shooter) + ' segue na mesa', 1.6);
+      // Encaçapar na saída não define grupo: pela regra a mesa segue aberta e
+      // quem decide é a primeira bola da tacada seguinte. Sem dizer isso na
+      // hora, parece que o jogo ignorou a bola que acabou de cair.
+      if (wasBreak) {
+        S.message = 'Saída boa. A mesa segue aberta.';
+        showBanner('MESA ABERTA · o grupo sai na próxima encaçapada', 3.2);
+      } else {
+        S.message = 'Encaçapou e segue na mesa.';
+        showBanner(playerName(shooter) + ' segue na mesa', 1.6);
+      }
     } else {
       S.ballInHand = false;
       S.turn = 1 - shooter;
-      S.message = log.pocketed.length ? 'Bola do adversário caiu.' : 'Vez do outro jogador.';
+      if (wasBreak && log.pocketed.length) {
+        S.message = 'A mesa segue aberta depois da saída.';
+        showBanner('MESA ABERTA · o grupo sai na próxima encaçapada', 3.2);
+      } else {
+        S.message = log.pocketed.length ? 'Bola do adversário caiu.' : 'Vez do outro jogador.';
+      }
     }
     shotLog = null;
     aim.power = 0.55;
@@ -442,7 +456,8 @@ export function create(services) {
     const group = S.groups[S.turn];
     const cleared = group && remainingOf(S.balls, group) === 0;
     hud.setStat('turn', playerName(S.turn));
-    hud.setStat('group', group ? GROUP_LABEL[group] : 'Aberta');
+    hud.setStat('group', group ? GROUP_LABEL[group] : 'Aberta',
+      group ? `Seu grupo: ${GROUP_LABEL[group]}` : 'Mesa aberta: o grupo sai na primeira bola encaçapada');
     hud.setStat('left', cleared ? 'Bola 8' : group ? String(remainingOf(S.balls, group)) : '—',
       cleared ? 'Só falta a bola 8' : undefined);
 
