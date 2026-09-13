@@ -22,6 +22,16 @@ export const GAMES = [
     art: 'words'
   },
   {
+    id: 'neon-arrow',
+    title: 'Neon Arrow',
+    tagline: 'Acerte a maçã na cabeça. Errar tem consequência.',
+    tags: ['Mira', '25 fases', 'Sangue'],
+    accent: '#ff5f6d',
+    status: 'ready',
+    entry: './games/neon-arrow/index.js',
+    art: 'arrow'
+  },
+  {
     id: 'eight-ball',
     title: 'Neon Pool',
     tagline: 'Sinuca 8-ball. Desafie a máquina ou um amigo no mesmo Wi-Fi.',

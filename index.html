@@ -104,6 +104,28 @@
                L${242 + Math.cos(Math.PI*4/5 - Math.PI/2)*32} ${112 + Math.sin(Math.PI*4/5 - Math.PI/2)*32}"
             fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>`,
+    arrow: `<svg viewBox="0 0 320 200" aria-hidden="true">
+      <line x1="18" y1="164" x2="302" y2="164" stroke="currentColor" stroke-width="3" opacity=".5"/>
+      <g opacity=".85">
+        <circle cx="62" cy="96" r="11" fill="currentColor"/>
+        <path d="M62 108v30M62 138l-11 26M62 138l11 26M62 116l22-10" fill="none" stroke="currentColor"
+          stroke-width="7" stroke-linecap="round"/>
+        <path d="M92 78a26 26 0 0 1 0 52" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+        <path d="M92 78 78 104l14 26" fill="none" stroke="currentColor" stroke-width="2" opacity=".7"/>
+      </g>
+      <path d="M104 104h96" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity=".9"/>
+      <path d="M200 104l-13-6v12z" fill="currentColor"/>
+      <g opacity=".85">
+        <circle cx="252" cy="96" r="11" fill="currentColor"/>
+        <path d="M252 108v30M252 138l-10 26M252 138l10 26M252 116l-16 12M252 116l16 12" fill="none"
+          stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+      </g>
+      <circle cx="252" cy="66" r="15" fill="#7fe06a"/>
+      <path d="M252 51v-9" stroke="#8a5a33" stroke-width="4" stroke-linecap="round"/>
+      ${[[268,84,4],[276,96,3],[262,110,2.4],[284,120,2],[272,132,3.2]]
+        .map(([x,y,r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#e7213f" opacity=".9"/>`).join('')}
+      <ellipse cx="276" cy="164" rx="18" ry="5" fill="#c4102b" opacity=".8"/>
+    </svg>`,
     pool: `<svg viewBox="0 0 320 200" aria-hidden="true">
       <rect x="24" y="28" width="272" height="144" rx="18" fill="none" stroke="currentColor" stroke-width="3" opacity=".45"/>
       ${[[24,28],[160,28],[296,28],[24,172],[160,172],[296,172]]

@@ -9,7 +9,7 @@
 // HTTP cache do navegador.
 //
 // Ao adicionar um jogo, inclua os arquivos dele em ASSETS e suba VERSION.
-const VERSION = 'ia-games-v16';
+const VERSION = 'ia-games-v17';
 const DOC_TIMEOUT = 3500;   // HTML: vale esperar um pouco mais
 const ASSET_TIMEOUT = 1200; // módulos e CSS: rédea curta, cache logo atrás
 const ASSETS = [
@@ -46,6 +46,14 @@ const ASSETS = [
   './games/neon-words/levels.js',
   './games/neon-words/model.js',
   './games/neon-words/style.css',
+  './games/neon-arrow/index.js',
+  './games/neon-arrow/config.js',
+  './games/neon-arrow/levels.js',
+  './games/neon-arrow/world.js',
+  './games/neon-arrow/blood.js',
+  './games/neon-arrow/render.js',
+  './games/neon-arrow/ui.js',
+  './games/neon-arrow/style.css',
   './games/eight-ball/index.js',
   './games/eight-ball/config.js',
   './games/eight-ball/table.js',

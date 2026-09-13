@@ -1,0 +1,46 @@
+/* Neon Arrow: a cena é horizontal, do arqueiro ao alvo. O shell veste a arena
+   com a proporção de um celular em pé, que serve para os outros títulos e
+   desperdiça largura neste. Aqui a caixa cresce e a arena fica larga. */
+.arrow-app{width:min(100%,1040px);margin-inline:auto}
+.arrow-app .arena{touch-action:none}
+.arrow-app canvas{cursor:crosshair}
+
+/* Em tela larga o shell centraliza o conteúdo numa grade cujo item é o #root,
+   fora do alcance de .arrow-app: sem soltar esse encaixe, a caixa encolhe para
+   o conteúdo e o max-width acima nunca é usado. */
+body.arrow-body{place-items:stretch}
+body.arrow-body>*{justify-self:stretch}
+
+/* Em retrato a arena ocupa a coluna inteira (comportamento padrão do shell) e
+   o campo lógico acompanha essa proporção: a cena fica na parte de baixo e o
+   que sobra é céu desenhado, não faixa vazia. A área de arrasto também fica
+   maior, que é o que se usa para mirar. A cena é horizontal, então o jogo
+   avisa no placar que na horizontal rende mais. */
+
+/* Paisagem de celular: cada pixel de largura é campo de tiro. */
+@media(orientation:landscape) and (max-height:560px){
+  .arrow-app{grid-template-columns:min(138px,18vw) 1fr;max-width:none;gap:7px;
+    padding:calc(7px + env(safe-area-inset-top)) 9px 7px calc(9px + env(safe-area-inset-left))}
+  .arrow-app .arena{aspect-ratio:auto;width:100%;justify-self:stretch;margin-block:0}
+  .arrow-app .topbar{gap:8px}
+  .arrow-app .mark{width:28px;height:28px;border-radius:8px}
+  .arrow-app .mark svg{width:16px;height:16px}
+  .arrow-app .brand h1{font-size:.78rem;letter-spacing:.03em}
+  .arrow-app .icon-button{width:36px;height:36px;border-radius:10px}
+  .arrow-app .icon-button svg{width:19px;height:19px}
+  .arrow-app .scorebar{padding:6px 2px;border-radius:12px}
+  .arrow-app .stat{display:block;padding:0 7px}
+  .arrow-app .stat+.stat{margin-top:5px;padding-top:5px}
+  .arrow-app .stat .label{font-size:.57rem;letter-spacing:.05em;margin-bottom:1px}
+  .arrow-app .stat .value{font-size:.84rem}
+  .arrow-app .chipbar{font-size:.6rem;gap:4px}
+  .arrow-app .chip{padding:3px 5px;border-radius:6px}
+  .arrow-app .footer{font-size:.64rem;gap:3px}
+  .arrow-app .link-button{font-size:.7rem;min-height:26px}
+}
+
+/* Tela grande: 16/9 lê melhor que uma arena quase quadrada. Por último de
+   propósito, para vencer a regra de paisagem acima. */
+@media(min-width:900px) and (min-height:600px){
+  .arrow-app .arena{flex:none;aspect-ratio:16/9;max-height:100%;margin-block:auto}
+}
