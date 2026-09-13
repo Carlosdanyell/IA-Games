@@ -1,5 +1,6 @@
 import { createRng } from '../../core/rng.js';
 import { SPEED } from './config.js';
+import { PALETTE_CYCLE } from '../../core/theme.js';
 
 // Fases desenhadas à mão da campanha. Cada linha tem 7 colunas.
 export const PHASES = [
@@ -69,7 +70,7 @@ export const PHASES = [
 ];
 
 const SHAPES = ['grid', 'orbit', 'rays', 'diamonds', 'nova'];
-const PALETTES = ['purple', 'red', 'orange', 'cyan'];
+const PALETTES = PALETTE_CYCLE;
 const NAMES = ['ÓRBITA', 'QUASAR', 'PULSAR', 'ÍON', 'CINTURÃO', 'MERIDIANO', 'VÓRTICE',
                'HÉLIO', 'CRÔMIO', 'ZÊNITE', 'ÂNCORA', 'ESTREITO', 'CORONA', 'RELÍQUIA'];
 

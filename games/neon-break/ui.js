@@ -1,4 +1,5 @@
 import { POWERS, GUIDE_BRICKS } from './content.js';
+import { PALETTE_OPTIONS } from '../../core/theme.js';
 
 // Conteúdo do diálogo de ajustes. Fica separado do laço de jogo de propósito:
 // é DOM puro, criado sob demanda e descartado ao fechar.
@@ -100,13 +101,9 @@ export function buildDialog(opts) {
     { value: 'light', label: 'Claro' }
   ], theme.mode, v => theme.setMode(v))));
 
-  root.appendChild(fieldset('Cor neon', radioGroup('palette', [
-    { value: 'auto', label: 'Por fase' },
-    { value: 'purple', label: 'Roxo' },
-    { value: 'red', label: 'Vermelho' },
-    { value: 'orange', label: 'Laranja' },
-    { value: 'cyan', label: 'Ciano' }
-  ], theme.choice, v => theme.setChoice(v))));
+  // A lista vem de core/theme.js: acrescentar uma cor lá aparece nos dois jogos.
+  root.appendChild(fieldset('Cor neon',
+    radioGroup('palette', PALETTE_OPTIONS, theme.choice, v => theme.setChoice(v))));
 
   root.appendChild(fieldset('Controle', radioGroup('control', [
     { value: 'absolute', label: 'Toque direto' },

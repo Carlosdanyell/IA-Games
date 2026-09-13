@@ -597,7 +597,7 @@ const LEVELS = [
   {
     "id": 12,
     "name": "Vega",
-    "palette": "cyan",
+    "palette": "red",
     "letters": "TEMPO",
     "unlocks": [
       {
@@ -661,7 +661,7 @@ const LEVELS = [
   {
     "id": 13,
     "name": "Altair",
-    "palette": "red",
+    "palette": "orange",
     "letters": "SONHAR",
     "unlocks": [],
     "rows": 8,
@@ -720,7 +720,7 @@ const LEVELS = [
   {
     "id": 14,
     "name": "Nêmesis",
-    "palette": "orange",
+    "palette": "cyan",
     "letters": "MARTE",
     "unlocks": [
       {
@@ -794,7 +794,7 @@ const LEVELS = [
   {
     "id": 15,
     "name": "Perseu",
-    "palette": "purple",
+    "palette": "verde",
     "letters": "BARCO",
     "unlocks": [],
     "rows": 6,
@@ -853,7 +853,7 @@ const LEVELS = [
   {
     "id": 16,
     "name": "Vela",
-    "palette": "cyan",
+    "palette": "azul",
     "letters": "SALTO",
     "unlocks": [
       {
@@ -917,7 +917,7 @@ const LEVELS = [
   {
     "id": 17,
     "name": "Hydra",
-    "palette": "red",
+    "palette": "rosa",
     "letters": "CAMPO",
     "unlocks": [
       {
@@ -981,7 +981,7 @@ const LEVELS = [
   {
     "id": 18,
     "name": "Lyra",
-    "palette": "orange",
+    "palette": "ambar",
     "letters": "VIOLA",
     "unlocks": [
       {
@@ -1104,7 +1104,7 @@ const LEVELS = [
   {
     "id": 20,
     "name": "Pégaso",
-    "palette": "cyan",
+    "palette": "red",
     "letters": "PONTES",
     "unlocks": [],
     "rows": 7,
@@ -1163,7 +1163,7 @@ const LEVELS = [
   {
     "id": 21,
     "name": "Centauro",
-    "palette": "red",
+    "palette": "orange",
     "letters": "CENTRO",
     "unlocks": [],
     "rows": 9,
@@ -1222,7 +1222,7 @@ const LEVELS = [
   {
     "id": 22,
     "name": "Sirius",
-    "palette": "orange",
+    "palette": "cyan",
     "letters": "LIMPAR",
     "unlocks": [],
     "rows": 7,
@@ -1281,7 +1281,7 @@ const LEVELS = [
   {
     "id": 23,
     "name": "Andrômeda",
-    "palette": "purple",
+    "palette": "verde",
     "letters": "MEDIRA",
     "unlocks": [
       {
@@ -1345,7 +1345,7 @@ const LEVELS = [
   {
     "id": 24,
     "name": "Cassiopeia",
-    "palette": "cyan",
+    "palette": "azul",
     "letters": "SALVAR",
     "unlocks": [],
     "rows": 7,
@@ -1404,7 +1404,7 @@ const LEVELS = [
   {
     "id": 25,
     "name": "Galáxia",
-    "palette": "red",
+    "palette": "rosa",
     "letters": "CAMINHO",
     "unlocks": [],
     "rows": 8,

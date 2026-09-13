@@ -1,5 +1,6 @@
 import {LEVELS} from './levels.js';
 import {createSession, canSpell, normalizeWord} from './model.js';
+import {PALETTE_OPTIONS} from '../../core/theme.js';
 
 const LAST = LEVELS.length - 1;
 
@@ -260,7 +261,7 @@ function create({ hud, input, theme, audio, haptics, store }) {
     });
     content.appendChild(levels);
     content.appendChild(radioGroup('Aparência', 'nw-theme', [['dark', 'Escuro'], ['light', 'Claro']], theme.mode, value => theme.setMode(value)));
-    content.appendChild(radioGroup('Cor neon', 'nw-palette', [['auto', 'Por fase'], ['purple', 'Roxo'], ['red', 'Vermelho'], ['orange', 'Laranja'], ['cyan', 'Ciano']], theme.choice, value => theme.setChoice(value)));
+    content.appendChild(radioGroup('Cor neon', 'nw-palette', PALETTE_OPTIONS.map(o => [o.value, o.label]), theme.choice, value => theme.setChoice(value)));
     content.appendChild(radioGroup('Efeitos visuais', 'nw-effects', [['full', 'Suaves'], ['low', 'Mínimos']], effects, value => { effects = value; app.dataset.effects = value; store.set('effects', value); }));
     content.appendChild(radioGroup('Som', 'nw-sound', [['off', 'Desligado'], ['on', 'Ligado']], audio.enabled ? 'on' : 'off', value => { audio.setEnabled(value === 'on'); hud.setSound(audio.enabled); audio.resume(); }));
     if (haptics.supported) content.appendChild(radioGroup('Vibração', 'nw-haptics', [['off', 'Desligada'], ['on', 'Ligada']], haptics.enabled ? 'on' : 'off', value => haptics.setEnabled(value === 'on')));

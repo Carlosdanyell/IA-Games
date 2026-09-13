@@ -24,8 +24,49 @@ export const PALETTES = {
              bricks:['#63d4ff','#7ee0e0','#8bb8ff','#5fe0b8','#9ad2ff'] },
     light: { accent:'#0d6f92', button:'#0f7699', ink:'#ffffff', warn:'#b8253f',
              bricks:['#1a7a9c','#178a8a','#3a6db8','#12876a','#2f7fae'] }
+  },
+  verde: {
+    dark:  { accent:'#6ee7a5', button:'#6ee7a5', ink:'#06301c', warn:'#ff8a8a',
+             bricks:['#6ee7a5','#8ce6c4','#a8e07a','#5fd6c2','#b6eb8a'] },
+    light: { accent:'#0f7a4a', button:'#11804f', ink:'#ffffff', warn:'#b8253f',
+             bricks:['#158552','#1d8a6d','#3f8a2a','#0e7f6a','#4b8f2f'] }
+  },
+  rosa: {
+    dark:  { accent:'#ff8ad4', button:'#ff8ad4', ink:'#3a0b2a', warn:'#ffc46b',
+             bricks:['#ff8ad4','#ff9ec0','#e58cf0','#ff7fa8','#d78bff'] },
+    light: { accent:'#b01e77', button:'#b8207d', ink:'#ffffff', warn:'#8a4a05',
+             bricks:['#b92f7e','#bb3a62','#9a3fae','#c03668','#8f3fb8'] }
+  },
+  azul: {
+    dark:  { accent:'#7aa8ff', button:'#7aa8ff', ink:'#0a1b40', warn:'#ff9d7a',
+             bricks:['#7aa8ff','#93b9ff','#8fd0ff','#a396ff','#6fc4f0'] },
+    light: { accent:'#2a4fb8', button:'#2d54c0', ink:'#ffffff', warn:'#a34b10',
+             bricks:['#3557bd','#3f63c4','#2f70a8','#5350bd','#2a72a0'] }
+  },
+  ambar: {
+    dark:  { accent:'#ffd166', button:'#ffd166', ink:'#3a2a05', warn:'#ff7d7d',
+             bricks:['#ffd166','#ffc07a','#f2e08a','#ffb35c','#e8d07a'] },
+    light: { accent:'#8a6209', button:'#91670b', ink:'#ffffff', warn:'#b8253f',
+             bricks:['#96690f','#9c7413','#8a5c1a','#a06a10','#7d6317'] }
   }
 };
+
+// Lista única de opções do seletor de cor. Um jogo novo não precisa repetir
+// os nomes: monta o seletor a partir daqui.
+export const PALETTE_OPTIONS = [
+  { value: 'auto', label: 'Por fase' },
+  { value: 'purple', label: 'Roxo' },
+  { value: 'red', label: 'Vermelho' },
+  { value: 'orange', label: 'Laranja' },
+  { value: 'ambar', label: 'Âmbar' },
+  { value: 'verde', label: 'Verde' },
+  { value: 'cyan', label: 'Ciano' },
+  { value: 'azul', label: 'Azul' },
+  { value: 'rosa', label: 'Rosa' }
+];
+
+// Cores que as fases geradas podem sortear quando a escolha é "Por fase".
+export const PALETTE_CYCLE = ['purple', 'red', 'orange', 'cyan', 'verde', 'azul', 'rosa', 'ambar'];
 
 export function createTheme(store, { onChange } = {}) {
   let mode = store.get('theme', 'dark');
