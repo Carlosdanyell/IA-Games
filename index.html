@@ -100,6 +100,17 @@
                L${242 + Math.cos(Math.PI*2/5 - Math.PI/2)*32} ${112 + Math.sin(Math.PI*2/5 - Math.PI/2)*32}
                L${242 + Math.cos(Math.PI*4/5 - Math.PI/2)*32} ${112 + Math.sin(Math.PI*4/5 - Math.PI/2)*32}"
             fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`,
+    pool: `<svg viewBox="0 0 320 200" aria-hidden="true">
+      <rect x="24" y="28" width="272" height="144" rx="18" fill="none" stroke="currentColor" stroke-width="3" opacity=".45"/>
+      ${[[24,28],[160,28],[296,28],[24,172],[160,172],[296,172]]
+        .map(([x,y]) => `<circle cx="${x}" cy="${y}" r="10" fill="currentColor" opacity=".3"/>`).join('')}
+      ${[0,1,2,3].map(row => [...Array(row+1)].map((_, i) =>
+        `<circle cx="${196 + row*17}" cy="${100 + (i - row/2)*19}" r="9" fill="currentColor"
+           opacity="${0.95 - row*0.13}"/>`).join('')).join('')}
+      <circle cx="96" cy="100" r="9" fill="currentColor" opacity=".55"/>
+      <line x1="36" y1="100" x2="84" y2="100" stroke="currentColor" stroke-width="4"
+        stroke-linecap="round" opacity=".8"/>
     </svg>`
   };
 

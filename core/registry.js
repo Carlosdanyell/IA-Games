@@ -20,6 +20,16 @@ export const GAMES = [
     status: 'ready',
     entry: './games/neon-words/index.js',
     art: 'words'
+  },
+  {
+    id: 'eight-ball',
+    title: 'Neon Pool',
+    tagline: 'Sinuca 8-ball com regras completas. Jogue na horizontal.',
+    tags: ['Sinuca', 'Contra a máquina', 'Horizontal'],
+    accent: '#5fd39b',
+    status: 'ready',
+    entry: './games/eight-ball/index.js',
+    art: 'pool'
   }
 ];
 

@@ -1,0 +1,20 @@
+/* Neon Pool: a mesa é larga, então o jogo precisa de uma caixa larga.
+   O shell veste a arena com proporção 5/6 em paisagem, o que serve para os
+   outros títulos e não para este. */
+.pool-app .arena{touch-action:none}
+.pool-app canvas{cursor:crosshair}
+
+@media(orientation:landscape){
+  .pool-app{width:100%;max-width:1140px}
+  .pool-app .arena{aspect-ratio:auto}
+}
+@media(orientation:landscape) and (max-height:560px){
+  .pool-app{grid-template-columns:min(168px,21vw) 1fr;max-width:none}
+  .pool-app .arena{aspect-ratio:auto;width:100%;justify-self:stretch}
+  .pool-app .stat .value{font-size:.92rem}
+  .pool-app .chipbar{font-size:.66rem}
+}
+/* Em retrato o jogo mostra o aviso de girar; a arena ocupa tudo assim mesmo. */
+@media(orientation:portrait){
+  .pool-app .chipbar,.pool-app .scorebar{opacity:.45}
+}

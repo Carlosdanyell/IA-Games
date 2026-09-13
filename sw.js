@@ -1,6 +1,6 @@
 // Service worker da biblioteca: cache-first, para que os jogos abram sem rede.
 // Ao adicionar um jogo, inclua os arquivos dele em ASSETS e suba VERSION.
-const VERSION = 'ia-games-v9';
+const VERSION = 'ia-games-v11';
 const ASSETS = [
   './',
   './index.html',
@@ -34,7 +34,16 @@ const ASSETS = [
   './games/neon-words/index.js',
   './games/neon-words/levels.js',
   './games/neon-words/model.js',
-  './games/neon-words/style.css'
+  './games/neon-words/style.css',
+  './games/eight-ball/index.js',
+  './games/eight-ball/config.js',
+  './games/eight-ball/table.js',
+  './games/eight-ball/physics.js',
+  './games/eight-ball/rules.js',
+  './games/eight-ball/ai.js',
+  './games/eight-ball/render.js',
+  './games/eight-ball/ui.js',
+  './games/eight-ball/style.css'
 ];
 
 self.addEventListener('install', event => {
