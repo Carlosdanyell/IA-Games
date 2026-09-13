@@ -14,8 +14,8 @@ export const GAMES = [
   {
     id: 'neon-words',
     title: 'Neon Words',
-    tagline: 'Conecte letras e complete dez cruzadinhas em português.',
-    tags: ['Palavras', '10 fases', 'Offline'],
+    tagline: 'Conecte letras e complete 25 cruzadinhas em português.',
+    tags: ['Palavras', '25 fases', 'Offline'],
     accent: '#ff9c78',
     status: 'ready',
     entry: './games/neon-words/index.js',

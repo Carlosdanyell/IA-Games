@@ -12,7 +12,7 @@ Sem framework, sem build, sem dependências: HTML, CSS e JavaScript com módulos
 | Jogo | Descrição |
 |---|---|
 | **Neon Break** | Quebra-blocos com multibola, 11 cápsulas, 9 tipos de bloco, 3 modos e 5 arenas. |
-| **Neon Words** | Cruzadinha com roda de letras: 10 fases em português, dicas, desbloqueio progressivo de letras. |
+| **Neon Words** | Cruzadinha com roda de letras: 25 fases em português, dicas, desbloqueio progressivo de letras. |
 
 ---
 

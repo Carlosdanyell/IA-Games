@@ -1,6 +1,8 @@
 import {LEVELS} from './levels.js';
 import {createSession, canSpell, normalizeWord} from './model.js';
 
+const LAST = LEVELS.length - 1;
+
 const meta = {
   id: 'neon-words', title: 'NEON<span>WORDS</span>', subtitle: 'CONECTE / DESCUBRA / COMPLETE',
   arenaLabel: 'Cruzadinha de palavras e roda de letras',
@@ -25,8 +27,9 @@ function create({ hud, input, theme, audio, haptics, store }) {
   hud.el.settings.innerHTML = 'Fases &amp; ajustes <span aria-hidden="true">↗</span>';
   const saved = store.get('campaign-v1', {});
   const campaign = {
-    current: Number.isInteger(saved?.current) ? Math.max(0, Math.min(9, saved.current)) : 0,
-    unlocked: Number.isInteger(saved?.unlocked) ? Math.max(0, Math.min(9, saved.unlocked)) : 0,
+    // Limites derivados do catálogo: acrescentar fases não exige mexer aqui.
+    current: Number.isInteger(saved?.current) ? Math.max(0, Math.min(LAST, saved.current)) : 0,
+    unlocked: Number.isInteger(saved?.unlocked) ? Math.max(0, Math.min(LAST, saved.unlocked)) : 0,
     levels: saved?.levels && typeof saved.levels === 'object' && !Array.isArray(saved.levels) ? saved.levels : {}
   };
   campaign.current = Math.min(campaign.current, campaign.unlocked);
@@ -69,14 +72,14 @@ function create({ hud, input, theme, audio, haptics, store }) {
   function defaultMessage() { tell('Arraste pelas letras ou toque e confirme.', '', 0); }
   function syncHud() {
     const found = session.found.size, total = session.level.words.length, next = session.nextUnlock;
-    hud.setStat('level', `${String(campaign.current + 1).padStart(2, '0')}<small> / 10</small>`);
+    hud.setStat('level', `${String(campaign.current + 1).padStart(2, '0')}<small> / ${LEVELS.length}</small>`);
     hud.setStat('words', `${found}<small> / ${total}</small>`, `${found} de ${total} palavras`);
     hud.setStat('score', String(session.score).padStart(3, '0'));
     hud.setChips([
       { text: `${session.availableLetters().length} letras` },
       { text: next ? `+ ${next.letters.length} letra${next.letters.length > 1 ? 's' : ''} após ${next.after - found} palavra${next.after - found > 1 ? 's' : ''}` : 'Todas as letras liberadas', tone: 'flow' }
     ], next ? `Nova letra ao encontrar mais ${next.after - found} palavras.` : 'Todas as letras estão disponíveis.');
-    hud.setSubtitle('10 CONSTELAÇÕES / PALAVRAS EM PORTUGUÊS');
+    hud.setSubtitle(`${LEVELS.length} CONSTELAÇÕES / PALAVRAS EM PORTUGUÊS`);
     hud.setPause(state === 'paused', state === 'playing' || state === 'paused');
     hud.setHint('Sem pressa. <strong>Conecte as letras.</strong>');
     $('.nw-stage-name').textContent = String(campaign.current + 1).padStart(2, '0') + ' / ' + session.level.name;
@@ -161,11 +164,11 @@ function create({ hud, input, theme, audio, haptics, store }) {
   }
   function finishPhase(sound = true) {
     state = campaign.current === LEVELS.length - 1 ? 'win' : 'between';
-    campaign.unlocked = Math.max(campaign.unlocked, Math.min(9, campaign.current + 1)); save(); stopPointer();
+    campaign.unlocked = Math.max(campaign.unlocked, Math.min(LAST, campaign.current + 1)); save(); stopPointer();
     if (sound) { audio.tone({ freq: 880, dur: .22, vol: .05 }); haptics.buzz([12, 40, 18]); }
     const last = state === 'win';
     hud.showOverlay({ tag: last ? '10 constelações completas' : 'Cruzadinha completa', title: last ? 'Você ligou todas as estrelas.' : 'Mais uma constelação!',
-      text: last ? 'Todas as dez fases foram resolvidas. Você pode voltar às suas favoritas.' : `Você encontrou as ${session.level.words.length} palavras de ${session.level.name}.`,
+      text: last ? `Todas as ${LEVELS.length} fases foram resolvidas. Você pode voltar às suas favoritas.` : `Você encontrou as ${session.level.words.length} palavras de ${session.level.name}.`,
       action: last ? 'Escolher uma fase' : 'Próxima fase', note: `${session.score} pontos nesta fase · ${session.hintsLeft} dicas restantes` });
     syncHud(); showSelection();
   }
