@@ -1,6 +1,6 @@
 import { sweepCircleRect, overlapCircleRect, clamp } from '../../core/collide.js';
 import { hashSeed, todaySeedLabel } from '../../core/rng.js';
-import { FIELD, BALL, PADDLE, SPEED, BRICK, DROP, LASER, EFFECTS, SCORE, MAX_BALLS, logicalSize }
+import { FIELD, BALL, PADDLE, SPEED, BRICK, DROP, LASER, EFFECTS, SCORE, LIVES, MAX_BALLS, logicalSize }
   from './config.js';
 import { BRICKS, POWERS, brickDef } from './content.js';
 import { PHASES, generatePhase, phaseSpeed } from './levels.js';
@@ -40,7 +40,8 @@ export function create(services) {
     levelIndex: 0,
     phase: PHASES[0],
     score: 0,
-    lives: 3,
+    lives: LIVES.start,
+    nextLifeScore: LIVES.scoreStep,
     remaining: 0,
     broken: 0,
     combo: 0,
@@ -314,6 +315,8 @@ export function create(services) {
       case 'I':
         S.effects.invert = EFFECTS.invert; input.setInverted(true);
         hud.toast('CONTROLES INVERTIDOS · 5s', { priority: 2, tone }); break;
+      case 'E':
+        grantLife('cápsula ♥'); break;
     }
     S.paddle.w = paddleWidth();
     burst(S.paddle.x, S.paddle.y, power.bad ? theme.tokens.warn : theme.tokens.accent, 14);
@@ -327,7 +330,35 @@ export function create(services) {
     const amount = Math.round(n * (S.effects.fast > 0 ? 2 : 1));
     S.score += amount;
     hudDirty = true;
+    checkLifeMilestone();
     return amount;
+  }
+
+  // Marco de pontos: uma vida a cada LIVES.scoreStep. O alvo avança antes de
+  // conceder, então o bônus de vidas cheias nunca realimenta o laço.
+  function checkLifeMilestone() {
+    while (S.score >= S.nextLifeScore) {
+      S.nextLifeScore += LIVES.scoreStep;
+      grantLife('marco de ' + S.nextLifeScore.toLocaleString('pt-BR') + ' pontos');
+    }
+  }
+
+  function grantLife(reason) {
+    if (S.lives >= LIVES.max) {
+      S.score += LIVES.maxBonus;
+      hud.toast(`Vidas no máximo · +${LIVES.maxBonus} pontos`, { priority: 2 });
+      hudDirty = true;
+      return false;
+    }
+    S.lives++;
+    burst(S.paddle.x, S.paddle.y, theme.tokens.accent, 16);
+    audio.tone({ freq: 620, dur: 0.14, type: 'triangle', vol: 0.055 });
+    audio.tone({ freq: 930, dur: 0.16, type: 'triangle', vol: 0.045 });
+    haptics.buzz([12, 30, 12]);
+    hud.toast(`VIDA EXTRA · ${S.lives} vidas`, { priority: 2 });
+    hud.announce('Vida extra por ' + reason + '. Agora com ' + S.lives + ' vidas.');
+    hudDirty = true;
+    return true;
   }
 
   function burst(x, y, color, count = 10) {
@@ -356,7 +387,8 @@ export function create(services) {
     const def = brickDef(brick.kind);
     if (!def.power) return;
     S.drops.push({ x: brick.x + brick.w / 2, y: brick.y + brick.h / 2, kind: def.power,
-                   w: DROP.w, h: DROP.h, vy: DROP.vy + S.levelIndex * DROP.vyPerLevel });
+                   w: DROP.w, h: DROP.h,
+                   vy: Math.min(DROP.vyMax, DROP.vy + S.levelIndex * DROP.vyPerLevel) });
     if (!S.hintShown) {
       S.hintShown = true;
       store.set('hintShown', true);
@@ -811,6 +843,10 @@ export function create(services) {
     S.score += bonus + chain + flawless;
     const stars = S.levelDeaths === 0 ? (S.maxCombo >= 8 ? 3 : 2) : 1;
     saveStars(stars);
+    // Recuperação: terminar a fase sem falhar devolve uma vida, mas só até
+    // o número inicial. Ajuda quem está atrás sem inflar quem vai bem.
+    const recovered = S.levelDeaths === 0 && S.lives < LIVES.start && grantLife('fase sem falhas');
+    checkLifeMilestone();
 
     const total = MODES[S.mode].phases;
     const last = Number.isFinite(total) && S.levelIndex + 1 >= total;
@@ -820,7 +856,8 @@ export function create(services) {
     hudDirty = true;
 
     const detail = `+${bonus} de fase` + (chain ? ` · +${chain} de sequência` : '') +
-                   (flawless ? ` · +${flawless} sem falhas` : '');
+                   (flawless ? ` · +${flawless} sem falhas` : '') +
+                   (recovered ? ' · +1 vida' : '');
 
     if (last) {
       S.state = 'win';
@@ -878,7 +915,8 @@ export function create(services) {
   // ----------------------------------------------------------- controle/UI
   function newGame() {
     S.score = 0;
-    S.lives = 3;
+    S.lives = LIVES.start;
+    S.nextLifeScore = LIVES.scoreStep;
     S.levelIndex = 0;
     S.seed = S.mode === 'daily'
       ? hashSeed('neon-break:' + todaySeedLabel())
@@ -949,7 +987,7 @@ export function create(services) {
     hud.setStat('level',
       `${String(S.levelIndex + 1).padStart(2, '0')}<small> / ${Number.isFinite(total) ? String(total).padStart(2, '0') : '∞'}</small>`,
       `Fase ${S.levelIndex + 1}`);
-    hud.setHearts('lives', 3, S.lives);
+    hud.setHearts('lives', LIVES.max, S.lives);
 
     const chips = [
       { text: `${S.balls.length} bolinha${S.balls.length === 1 ? '' : 's'}` },

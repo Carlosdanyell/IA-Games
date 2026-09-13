@@ -80,7 +80,12 @@ export const BRICK = {
   spawnTime: 9
 };
 
-export const DROP = { w: 30, h: 24, vy: 86, vyPerLevel: 4 };
+export const DROP = { w: 30, h: 24, vy: 86, vyPerLevel: 4, vyMax: 160 };
+
+// Três formas de ganhar vida, com papéis diferentes: sorte (a cápsula que
+// cai), desempenho (marco de pontos) e recuperação (fase sem falhas quando
+// você já está abaixo do começo).
+export const LIVES = { start: 3, max: 5, scoreStep: 4000, maxBonus: 150 };
 
 export const LASER = { speed: 460, cooldown: 0.26, w: 3, h: 12 };
 

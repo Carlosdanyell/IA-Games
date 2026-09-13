@@ -1,5 +1,6 @@
 import { POWERS, GUIDE_BRICKS } from './content.js';
 import { PALETTE_OPTIONS } from '../../core/theme.js';
+import { PHASES } from './levels.js';
 
 // Conteúdo do diálogo de ajustes. Fica separado do laço de jogo de propósito:
 // é DOM puro, criado sob demanda e descartado ao fechar.
@@ -164,7 +165,7 @@ export function buildDialog(opts) {
   const stars = Object.values(records.stars || {}).reduce((a, b) => a + b, 0);
   const starRow = el('div', 'record');
   starRow.appendChild(el('span', null, 'Estrelas da campanha'));
-  starRow.appendChild(el('b', null, `${stars} / 15`));
+  starRow.appendChild(el('b', null, `${stars} / ${PHASES.length * 3}`));
   list.appendChild(starRow);
   root.appendChild(list);
 

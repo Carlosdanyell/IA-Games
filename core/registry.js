@@ -4,7 +4,7 @@ export const GAMES = [
   {
     id: 'neon-break',
     title: 'Neon Break',
-    tagline: 'Quebra-blocos com multibola, bônus e cinco arenas.',
+    tagline: 'Quebra-blocos com multibola, bônus e 25 arenas.',
     tags: ['Arcade', '1 jogador', 'Offline'],
     accent: '#bf8cff',
     status: 'ready',

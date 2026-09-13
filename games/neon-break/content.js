@@ -12,7 +12,8 @@ export const POWERS = {
   K: { symbol: '⊂',  name: 'Ímã', desc: 'A plataforma segura a bola e você mira. 12s.' },
   B: { symbol: '⊚',  name: 'Perfurante', desc: 'A bola atravessa blocos por 8 segundos.' },
   N: { symbol: '▭',  name: 'Encolher', desc: 'Plataforma menor por 8 segundos.', bad: true },
-  I: { symbol: '⇄',  name: 'Inversão', desc: 'Controles invertidos por 5 segundos.', bad: true }
+  I: { symbol: '⇄',  name: 'Inversão', desc: 'Controles invertidos por 5 segundos.', bad: true },
+  E: { symbol: '♥',  name: 'Vida extra', desc: 'Mais uma vida, até o limite de cinco.' }
 };
 
 // hp finito = destrutível. `steel` nunca entra na contagem de blocos restantes.
