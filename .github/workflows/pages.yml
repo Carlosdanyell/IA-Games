@@ -24,11 +24,9 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      # enablement: liga o GitHub Pages no modo "GitHub Actions" na primeira
-      # execução, sem depender de configuração manual em Settings.
+      # Requer Settings > Pages > Source = "GitHub Actions" (ativação única;
+      # o GITHUB_TOKEN não tem permissão para criar o site sozinho).
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:
