@@ -13,7 +13,7 @@ Sem framework, sem build, sem dependências: HTML, CSS e JavaScript com módulos
 |---|---|
 | **Neon Break** | Quebra-blocos com multibola, 12 cápsulas, 9 tipos de bloco, 3 modos e 25 arenas. Guarda a partida a cada arena. |
 | **Neon Words** | Cruzadinha com roda de letras: 25 fases em português, dicas, desbloqueio progressivo de letras. |
-| **Neon Pool** | Sinuca 8-ball com regras completas, oponente de três níveis e dois jogadores no mesmo aparelho. Só na horizontal. |
+| **Neon Pool** | Sinuca 8-ball com regras completas, máquina de três níveis, dois jogadores no mesmo aparelho ou multiplayer em aparelhos no mesmo Wi-Fi. Mesa na horizontal. |
 
 ---
 
@@ -55,6 +55,16 @@ sw.js                 Cache offline (PWA)
 ```
 
 Detalhes do contrato entre shell e jogo: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Neon Pool multiplayer
+
+Toque em **Jogar na mesma rede**. Um jogador cria a sala e envia o convite; o
+amigo gera e devolve a resposta; quem criou cola a resposta e toca em **Conectar**.
+A conexão é direta entre os aparelhos, sem instalar servidor e compatível com
+GitHub Pages. Wi-Fi com isolamento de aparelhos pode impedir a conexão.
+
+Instruções, limitações de rede, arquitetura e testes:
+[`docs/NEON-POOL-MULTIPLAYER.md`](docs/NEON-POOL-MULTIPLAYER.md).
 
 ## Rodar localmente
 

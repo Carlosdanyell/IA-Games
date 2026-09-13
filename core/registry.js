@@ -24,8 +24,8 @@ export const GAMES = [
   {
     id: 'eight-ball',
     title: 'Neon Pool',
-    tagline: 'Sinuca 8-ball com regras completas. Jogue na horizontal.',
-    tags: ['Sinuca', 'Contra a máquina', 'Horizontal'],
+    tagline: 'Sinuca 8-ball. Desafie a máquina ou um amigo no mesmo Wi-Fi.',
+    tags: ['Sinuca', 'Multiplayer LAN', 'Horizontal'],
     accent: '#5fd39b',
     status: 'ready',
     entry: './games/eight-ball/index.js',

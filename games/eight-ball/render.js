@@ -355,7 +355,7 @@ export function createRenderer(viewport, theme, debug) {
       drawCue(state, opts.aim);
     }
 
-    drawPanel(opts.aim, opts.aiming, opts.charging);
+    drawPanel(opts.aim, opts.canShoot ?? opts.aiming, opts.charging);
 
     if (opts.banner) {
       ctx.save();

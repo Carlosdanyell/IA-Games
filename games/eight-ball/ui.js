@@ -46,12 +46,16 @@ function switchRow(title, description, checked, onChange, disabled = false) {
 }
 
 export function buildDialog({ settings, theme, audio, haptics, records, duel,
-                              onMode, onLevel, onGuide, onNames, onClearDuel, duelFor }) {
+                              onMode, onLevel, onGuide, onNames, onClearDuel, duelFor, onNetwork }) {
   const root = el('div');
 
   root.appendChild(radioGroup('Partida', 'pool-mode', [
     ['cpu', 'Contra a máquina'], ['local', 'Dois jogadores']
   ], settings.mode, onMode));
+  const network = el('button', 'ghost-button', 'Multiplayer · jogar na mesma rede');
+  network.type = 'button';
+  network.addEventListener('click', onNetwork);
+  root.appendChild(network);
 
   // Nomes e placar do confronto. O placar é guardado por dupla: trocar de
   // nomes começa outra série e voltar aos mesmos recupera a anterior.
