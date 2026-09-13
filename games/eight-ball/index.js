@@ -42,11 +42,48 @@ export function create(services) {
   const app = hud.arena.closest('.app');
   app.classList.add('pool-app');
 
+  const DEFAULT_NAMES = ['Jogador 1', 'Jogador 2'];
+  // Nome curto de propósito: em paisagem o placar tem 126px de coluna.
+  const cleanName = (value, index) => {
+    const text = String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 12);
+    return text || DEFAULT_NAMES[index];
+  };
+  const storedNames = store.get('names', DEFAULT_NAMES);
   const settings = {
     mode: store.get('mode', 'cpu'),
     level: store.get('level', 'medio'),
-    guide: store.get('guide', true)
+    guide: store.get('guide', true),
+    names: [cleanName(storedNames?.[0], 0), cleanName(storedNames?.[1], 1)]
   };
+
+  // Placar do confronto, guardado por dupla de nomes. Trocar de dupla não
+  // apaga o placar anterior: voltar aos mesmos nomes recupera a série.
+  const duelKey = names => names.map(n => n.toLowerCase()).join(' \u00d7 ');
+  function duelRecord() {
+    const history = store.get('duels', {});
+    return history[duelKey(settings.names)] || { wins: [0, 0] };
+  }
+  function saveDuelWin(winner) {
+    const history = store.get('duels', {});
+    const key = duelKey(settings.names);
+    const entry = history[key] || { wins: [0, 0] };
+    entry.wins[winner] = (entry.wins[winner] || 0) + 1;
+    entry.names = [...settings.names];
+    entry.at = Date.now();
+    history[key] = entry;
+    const keys = Object.keys(history);
+    if (keys.length > 24) {
+      keys.sort((a, b) => (history[a].at || 0) - (history[b].at || 0));
+      delete history[keys[0]];
+    }
+    store.set('duels', history);
+  }
+  function clearDuel() {
+    const history = store.get('duels', {});
+    delete history[duelKey(settings.names)];
+    store.set('duels', history);
+    hudDirty = true;
+  }
 
   const S = {
     flow: 'intro',          // intro | placing | aiming | rolling | think | over
@@ -95,7 +132,7 @@ export function create(services) {
   const humanTurn = () => !MODES[settings.mode].ai || S.turn === 0;
   const playerName = i => MODES[settings.mode].ai
     ? (i === 0 ? 'Você' : 'Máquina')
-    : `Jogador ${i + 1}`;
+    : settings.names[i];
 
   // ----------------------------------------------------------------- partida
   function newMatch() {
@@ -290,7 +327,10 @@ export function create(services) {
     if (MODES[settings.mode].ai) {
       if (win === 0) record.wins++; else record.losses++;
       store.set(key, record);
+    } else {
+      saveDuelWin(win);
     }
+    const duel = duelRecord();
     audio.tone({ freq: win === 0 ? 760 : 180, dur: 0.28, type: 'sine', vol: 0.06 });
     haptics.buzz(win === 0 ? [14, 40, 22] : [30, 60, 30]);
     present({
@@ -299,7 +339,9 @@ export function create(services) {
         ? (win === 0 ? 'Você venceu!' : 'A máquina levou.')
         : `${playerName(win)} venceu!`,
       text: `${S.shots} tacadas nesta partida.` +
-            (MODES[settings.mode].ai ? ` Placar: ${record.wins} a ${record.losses}.` : ''),
+            (MODES[settings.mode].ai
+              ? ` Placar: ${record.wins} a ${record.losses}.`
+              : ` ${settings.names[0]} ${duel.wins[0]} × ${duel.wins[1]} ${settings.names[1]}.`),
       action: 'Nova partida'
     });
     hudDirty = true;
@@ -463,6 +505,10 @@ export function create(services) {
 
     const chips = [{ text: `Força ${Math.round(aim.power * 100)}%`, tone: charging ? 'accent' : '' }];
     chips.push({ text: `${S.shots} tacada${S.shots === 1 ? '' : 's'}` });
+    if (!MODES[settings.mode].ai) {
+      const d = duelRecord();
+      chips.push({ text: `Placar ${d.wins[0]}×${d.wins[1]}`, tone: 'accent' });
+    }
     if (S.ballInHand) chips.push({ text: 'Bola na mão', tone: 'warn' });
     chips.push({ text: S.message || MODES[settings.mode].label, tone: 'flow' });
     hud.setChips(chips, `Vez de ${playerName(S.turn)}. ${S.message}`);
@@ -507,9 +553,18 @@ export function create(services) {
     if (wasPlaying) pause();
     const node = buildDialog({
       settings, theme, audio, haptics,
-      records: {
-        cpu: store.get('record-cpu', { wins: 0, losses: 0 }),
-        local: store.get('record-local', { wins: 0, losses: 0 })
+      records: { cpu: store.get('record-cpu', { wins: 0, losses: 0 }) },
+      duel: duelRecord(),
+      onNames: (index, value) => {
+        settings.names[index] = cleanName(value, index);
+        store.set('names', settings.names);
+        hudDirty = true;
+        return settings.names[index];
+      },
+      onClearDuel: clearDuel,
+      duelFor: names => {
+        const history = store.get('duels', {});
+        return history[names.map(n => n.toLowerCase()).join(' \u00d7 ')] || { wins: [0, 0] };
       },
       onMode: value => {
         settings.mode = value; store.set('mode', value); hudDirty = true;

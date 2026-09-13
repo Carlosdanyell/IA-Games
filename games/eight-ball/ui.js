@@ -45,13 +45,62 @@ function switchRow(title, description, checked, onChange, disabled = false) {
   return row;
 }
 
-export function buildDialog({ settings, theme, audio, haptics, records,
-                              onMode, onLevel, onGuide }) {
+export function buildDialog({ settings, theme, audio, haptics, records, duel,
+                              onMode, onLevel, onGuide, onNames, onClearDuel, duelFor }) {
   const root = el('div');
 
   root.appendChild(radioGroup('Partida', 'pool-mode', [
     ['cpu', 'Contra a máquina'], ['local', 'Dois jogadores']
   ], settings.mode, onMode));
+
+  // Nomes e placar do confronto. O placar é guardado por dupla: trocar de
+  // nomes começa outra série e voltar aos mesmos recupera a anterior.
+  const namesField = el('fieldset');
+  const namesLegend = document.createElement('legend');
+  namesLegend.textContent = 'Dois jogadores';
+  namesField.appendChild(namesLegend);
+  const grid = el('div', 'name-grid');
+  const board = el('div', 'versus');
+  const left = el('span'), score = el('b'), right = el('span');
+  board.append(left, score, right);
+
+  const refresh = record => {
+    left.textContent = settings.names[0];
+    right.textContent = settings.names[1];
+    left.title = settings.names[0];
+    right.title = settings.names[1];
+    score.textContent = `${record.wins[0]} × ${record.wins[1]}`;
+    board.setAttribute('aria-label',
+      `Placar do confronto: ${settings.names[0]} ${record.wins[0]}, ${settings.names[1]} ${record.wins[1]}`);
+  };
+
+  [0, 1].forEach(index => {
+    const field = el('div', 'name-field');
+    field.appendChild(el('span', null, `Jogador ${index + 1}`));
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 12;
+    input.value = settings.names[index];
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.setAttribute('aria-label', `Nome do jogador ${index + 1}`);
+    const apply = () => {
+      input.value = onNames(index, input.value);
+      refresh(duelFor(settings.names));
+    };
+    input.addEventListener('change', apply);
+    input.addEventListener('blur', apply);
+    field.appendChild(input);
+    grid.appendChild(field);
+  });
+  namesField.appendChild(grid);
+  namesField.appendChild(board);
+  const reset = el('button', 'ghost-button', 'Zerar este placar');
+  reset.type = 'button';
+  reset.addEventListener('click', () => { onClearDuel(); refresh({ wins: [0, 0] }); });
+  namesField.appendChild(reset);
+  refresh(duel);
+  root.appendChild(namesField);
 
   root.appendChild(radioGroup('Nível da máquina', 'pool-level',
     Object.entries(AI.levels).map(([key, level]) => [key, level.label]),
@@ -104,6 +153,10 @@ export function buildDialog({ settings, theme, audio, haptics, records,
   row.appendChild(el('span', null, 'Contra a máquina'));
   row.appendChild(el('b', null, `${records.cpu.wins} vitórias · ${records.cpu.losses} derrotas`));
   list.appendChild(row);
+  const duelRow = el('div', 'record');
+  duelRow.appendChild(el('span', null, 'Confronto atual'));
+  duelRow.appendChild(el('b', null, `${duel.wins[0]} × ${duel.wins[1]}`));
+  list.appendChild(duelRow);
   root.appendChild(list);
 
   return root;
