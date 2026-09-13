@@ -22,7 +22,26 @@
       '<main class="app"><h1>Não foi possível carregar o jogo</h1><p><a href="./index.html">Voltar</a></p></main>';
   });
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+    // updateViaCache: 'none' garante que a checagem de build novo nunca leia o
+    // sw.js do HTTP cache. Aqui não há reload automático: trocar a página no
+    // meio de uma partida perderia o progresso — o menu cuida disso.
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+        .then(reg => {
+          // Empurra o build novo para "activated" (senão ele fica em espera
+          // enquanto o app continuar aberto); a página em si não recarrega.
+          let tries = 0;
+          const promote = () => {
+            if (tries++ > 20) return;
+            if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            if (reg.waiting || reg.installing) setTimeout(promote, 1200);
+          };
+          promote();
+          reg.addEventListener('updatefound', promote);
+          return reg.update().catch(() => {});
+        })
+        .catch(() => {});
+    });
   }
 </script>
 </body>

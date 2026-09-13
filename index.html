@@ -21,6 +21,8 @@
   .badge-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
   .badge{font:500 .72rem ui-monospace,monospace;border:1px solid var(--line);border-radius:7px;padding:4px 8px;color:var(--muted)}
   .badge[data-on="1"]{border-color:var(--accent);color:var(--accent)}
+  button.badge{background:none;cursor:pointer;font-family:ui-monospace,monospace}
+  button.badge:active{border-color:var(--accent);color:var(--accent)}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
   .card{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:18px;background:var(--surface);
     overflow:hidden;transition:transform .12s,border-color .12s}
@@ -49,6 +51,7 @@
       <div class="badge-row">
         <span class="badge" id="offlineBadge">Verificando cache…</span>
         <span class="badge" id="installBadge" hidden>Instalável na tela inicial</span>
+        <button class="badge" id="buildBadge" type="button" title="Toque para buscar a versão mais nova">build …</button>
       </div>
     </div>
     <button class="icon-button" id="themeButton" aria-label="Alternar tema" title="Alternar tema">
@@ -127,23 +130,111 @@
     `<div class="card soon"><div>Próximo título<br><span style="opacity:.7">o shell já está pronto para receber</span></div></div>`;
 
   const offlineBadge = document.getElementById('offlineBadge');
+  const buildBadge = document.getElementById('buildBadge');
+
+  // Pergunta ao service worker ativo qual build está servindo os arquivos.
+  function showBuild() {
+    const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
+    if (!sw) { buildBadge.textContent = 'build: rede'; return; }
+    const channel = new MessageChannel();
+    channel.port1.onmessage = e => {
+      const v = e.data && e.data.version;
+      if (v) buildBadge.textContent = 'build ' + String(v).replace('ia-games-', '');
+    };
+    sw.postMessage({ type: 'VERSION' }, [channel.port2]);
+  }
+
+  // Um build novo instala mas fica em "waiting" enquanto o worker antigo ainda
+  // está ocupado atendendo a página — e o navegador não tenta de novo sozinho.
+  // Daí a insistência: pede SKIP_WAITING a cada 1,5s até a troca acontecer.
+  function promote(reg) {
+    let tries = 0;
+    const tick = () => {
+      if (tries++ > 16) return;
+      if (reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        // Só o SKIP_WAITING não basta: o navegador só reavalia a troca em certos
+        // momentos, e uma checagem de update é um deles.
+        reg.update().catch(() => {});
+      }
+      // Segue observando enquanto houver build novo instalando ou esperando:
+      // o updatefound pode ter acontecido antes desta página existir.
+      if (reg.waiting || reg.installing) setTimeout(tick, 1500);
+    };
+    tick();
+  }
+
+  function nudge(reg) {
+    promote(reg);
+    reg.addEventListener('updatefound', () => {
+      promote(reg);
+      const sw = reg.installing;
+      if (sw) sw.addEventListener('statechange', () => {
+        if (sw.state === 'activated') ready();
+      });
+    });
+  }
+
+  function ready() {
+    offlineBadge.textContent = 'Disponível offline';
+    offlineBadge.dataset.on = '1';
+    showBuild();
+  }
+
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js')
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    // Se o usuário já está saindo da página (tocou num jogo) ou o app está em
+    // segundo plano, o reload seria só atrapalhar: a próxima navegação já pega
+    // os arquivos novos.
+    let leaving = false;
+    document.addEventListener('click', e => {
+      if (e.target.closest && e.target.closest('a')) leaving = true;
+    }, true);
+    window.addEventListener('pagehide', () => { leaving = true; });
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloading || leaving || document.visibilityState !== 'visible') {
+        showBuild();
+        return;
+      }
+      reloading = true;
+      location.reload();
+    });
+
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
       .then(reg => {
-        const ready = () => {
-          offlineBadge.textContent = 'Disponível offline';
-          offlineBadge.dataset.on = '1';
-        };
         if (navigator.serviceWorker.controller) ready();
-        else reg.addEventListener('updatefound', () => {
-          reg.installing?.addEventListener('statechange', e => {
-            if (e.target.state === 'activated') ready();
-          });
+        nudge(reg);
+
+        // Procura build novo ao abrir e sempre que o app volta ao primeiro plano
+        // (no PWA instalado não há navegação para disparar a checagem sozinha).
+        let lastCheck = 0;
+        const check = () => {
+          const now = Date.now();
+          if (now - lastCheck < 30000) return;
+          lastCheck = now;
+          reg.update().catch(() => {});
+        };
+        check();
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') check();
+        });
+        buildBadge.addEventListener('click', () => {
+          buildBadge.textContent = 'buscando…';
+          lastCheck = 0;
+          reg.update()
+            .then(() => new Promise(r => setTimeout(r, 900)))
+            .then(() => location.reload())
+            .catch(() => location.reload());
         });
       })
-      .catch(() => { offlineBadge.textContent = 'Offline indisponível neste contexto'; });
+      .catch(() => {
+        offlineBadge.textContent = 'Offline indisponível neste contexto';
+        buildBadge.textContent = 'build: rede';
+      });
   } else {
     offlineBadge.textContent = 'Navegador sem suporte a offline';
+    buildBadge.hidden = true;
   }
   window.addEventListener('beforeinstallprompt', () => {
     document.getElementById('installBadge').hidden = false;
