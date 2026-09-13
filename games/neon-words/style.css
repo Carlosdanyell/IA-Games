@@ -62,12 +62,11 @@
 @keyframes nw-unlock{0%{box-shadow:0 0 0 16px var(--glow);opacity:.1}100%{box-shadow:0 0 0 0 transparent;opacity:1}}
 .nw-app[data-effects="low"] *, .nw-app[data-effects="low"] *:after{animation:none!important;transition:none!important}
 @media(max-height:740px){.nw-surface{--wheel-size:174px;gap:5px;padding-top:9px;padding-bottom:5px}.nw-letter{width:44px;height:44px;font-size:1.3rem}.nw-app{gap:7px}.nw-app .scorebar{padding:7px 3px}.nw-app .edition{display:none}.nw-app .link-button{min-height:30px}.nw-app .nw-grid{gap:2px}}
-@media(max-width:350px){.nw-app .mark{display:none}.nw-app .brand h1{font-size:.88rem}.nw-app .nw-surface{padding-left:8px;padding-right:8px}.nw-composer{grid-template-columns:44px 1fr 70px}.nw-candidate{font-size:1rem;letter-spacing:.05em}.nw-app .stat{padding:0 7px}}
+@media(max-width:350px){.nw-app .brand h1{font-size:.84rem}.nw-app .nw-surface{padding-left:8px;padding-right:8px}.nw-composer{grid-template-columns:44px 1fr 70px}.nw-candidate{font-size:1rem;letter-spacing:.05em}.nw-app .stat{padding:0 7px}}
 @media(orientation:landscape) and (max-height:560px){
-  .nw-app{min-height:340px;grid-template-columns:min(160px,24vw) 1fr}.nw-app .arena{aspect-ratio:auto;width:100%;justify-self:stretch}
+  .nw-app{min-height:340px;grid-template-columns:min(186px,26vw) 1fr}.nw-app .arena{aspect-ratio:auto;width:100%;justify-self:stretch}
   .nw-surface{--wheel-size:164px;display:grid;grid-template-columns:minmax(100px,1fr) 184px;grid-template-rows:30px 1fr 44px;gap:6px;padding:10px}
-  .nw-board-area{grid-column:1;grid-row:1/4}.nw-message{grid-column:2;grid-row:1;font-size:.75rem}.nw-controls{grid-column:2;grid-row:2}.nw-composer{grid-column:2;grid-row:3;grid-template-columns:34px 1fr 55px;gap:4px}.nw-candidate{font-size:.875rem;letter-spacing:.03em}.nw-submit{font-size:.75rem;padding:5px}.nw-side{top:auto;bottom:-4px;transform:none;min-height:40px;width:36px;font-size:.65rem}.nw-side svg{width:20px;height:20px}.nw-side span{display:none}.nw-side b{right:-3px}.nw-app .mark{display:none}
+  .nw-board-area{grid-column:1;grid-row:1/4}.nw-message{grid-column:2;grid-row:1;font-size:.75rem}.nw-controls{grid-column:2;grid-row:2}.nw-composer{grid-column:2;grid-row:3;grid-template-columns:34px 1fr 55px;gap:4px}.nw-candidate{font-size:.875rem;letter-spacing:.03em}.nw-submit{font-size:.75rem;padding:5px}.nw-side{top:auto;bottom:-4px;transform:none;min-height:40px;width:36px;font-size:.65rem}.nw-side svg{width:20px;height:20px}.nw-side span{display:none}.nw-side b{right:-3px}
 }
 @media(prefers-reduced-motion:reduce){.nw-surface *{animation:none!important;transition:none!important}}
 
-.nw-app .mark{display:none}

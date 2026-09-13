@@ -138,7 +138,9 @@ dialog::backdrop{background:#090613bb;backdrop-filter:blur(6px)}
 .record b{color:var(--accent);font-weight:650}
 
 @media(min-width:700px){body{display:grid;place-items:center}.app{padding-top:22px;padding-bottom:14px}.arena{box-shadow:0 25px 90px #0003}}
-@media(max-width:380px){.mark{display:none}.app{padding-left:12px;padding-right:12px}.tools{gap:4px}
+/* Em tela estreita encolhe o título, mas nunca esconde o botão de voltar:
+   num app instalado na tela inicial não existe o "voltar" do navegador. */
+@media(max-width:380px){.brand h1{font-size:.86rem}.mark{width:28px;height:28px}.app{padding-left:12px;padding-right:12px}.tools{gap:4px}
   .icon-button{width:39px;height:39px}.stat{padding:0 8px}.chipbar{gap:4px}.chip{padding:4px 5px}}
 @media(max-height:690px){.app{gap:7px;padding-top:calc(8px + env(safe-area-inset-top))}.scorebar{padding:7px 3px}
   .panel p{margin-bottom:14px}.panel-note{margin-top:9px}.topbar .edition{display:none}.link-button{min-height:30px}.overlay{padding:14px}}
@@ -151,7 +153,7 @@ dialog::backdrop{background:#090613bb;backdrop-filter:blur(6px)}
     gap:9px;width:100%;max-width:none;min-height:280px;align-items:start;
     padding:calc(10px + env(safe-area-inset-top)) 14px 10px calc(14px + env(safe-area-inset-left))}
   .topbar{grid-column:1;grid-row:1;flex-direction:column;align-items:flex-start;gap:11px}
-  .mark{display:none}.brand h1{font-size:1.05rem}
+  .brand h1{font-size:.95rem}
   /* Coluna estreita: empilhar os campos lê melhor do que truncar rótulos. */
   .scorebar{grid-column:1;grid-row:2;grid-template-columns:1fr!important;padding:8px 2px}
   .stat{padding:0 9px;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
