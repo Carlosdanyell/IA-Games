@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0915">
+<meta name="description" content="Biblioteca de jogos offline em HTML. Leves, sem instalação e feitos para o celular.">
+<title>IA Games · Biblioteca offline</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="./assets/icon.svg">
+<link rel="apple-touch-icon" href="./assets/icon.svg">
+<link rel="stylesheet" href="./core/shell.css">
+<style>
+  body{min-height:100dvh}
+  .library{width:min(100%,760px);margin:0 auto;padding:calc(20px + env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;gap:20px}
+  .lib-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .lib-head h1{font-size:1.45rem;font-weight:850;letter-spacing:-.02em;margin:0;line-height:1.1}
+  .lib-head h1 span{color:var(--accent)}
+  .lib-head p{margin:7px 0 0;color:var(--muted);font-size:.88rem;line-height:1.45;max-width:44ch}
+  .badge-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+  .badge{font:500 .72rem ui-monospace,monospace;border:1px solid var(--line);border-radius:7px;padding:4px 8px;color:var(--muted)}
+  .badge[data-on="1"]{border-color:var(--accent);color:var(--accent)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+  .card{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:18px;background:var(--surface);
+    overflow:hidden;transition:transform .12s,border-color .12s}
+  .card:active{transform:scale(.985)}
+  .card:hover{border-color:var(--accent)}
+  .card[aria-disabled="true"]{opacity:.55;pointer-events:none}
+  .cover{aspect-ratio:16/10;background:var(--arena);border-bottom:1px solid var(--line);position:relative;overflow:hidden}
+  .cover svg{width:100%;height:100%;stroke:none}
+  .card-body{padding:14px 15px 16px}
+  .card-body h2{margin:0;font-size:1.02rem;font-weight:750;letter-spacing:-.01em}
+  .card-body p{margin:6px 0 0;font-size:.82rem;line-height:1.4;color:var(--muted)}
+  .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}
+  .tag{font:500 .68rem ui-monospace,monospace;border:1px solid var(--line);border-radius:6px;padding:3px 6px;color:var(--muted)}
+  .soon{border-style:dashed;display:grid;place-items:center;min-height:190px;color:var(--muted);
+    text-align:center;padding:22px;font-size:.84rem;line-height:1.5}
+  .lib-foot{color:var(--muted);font-size:.78rem;line-height:1.55;border-top:1px solid var(--line);padding-top:16px}
+  .lib-foot code{font-family:ui-monospace,monospace;color:var(--text);font-size:.76rem}
+</style>
+</head>
+<body>
+<main class="library">
+  <header class="lib-head">
+    <div>
+      <h1>IA <span>GAMES</span></h1>
+      <p>Biblioteca de jogos em HTML que funcionam sem internet. Abra uma vez e continue jogando offline.</p>
+      <div class="badge-row">
+        <span class="badge" id="offlineBadge">Verificando cache…</span>
+        <span class="badge" id="installBadge" hidden>Instalável na tela inicial</span>
+      </div>
+    </div>
+    <button class="icon-button" id="themeButton" aria-label="Alternar tema" title="Alternar tema">
+      <svg viewBox="0 0 24 24" id="themeIcon"></svg>
+    </button>
+  </header>
+
+  <section class="grid" id="grid" aria-label="Jogos disponíveis"></section>
+
+  <footer class="lib-foot">
+    Adicionar um jogo novo: crie <code>games/&lt;id&gt;/index.js</code> exportando <code>meta</code> e
+    <code>create(services)</code>, registre em <code>core/registry.js</code> e inclua os arquivos em <code>sw.js</code>.
+    O shell cuida de tela, entrada, som, tema, HUD e persistência.
+  </footer>
+</main>
+
+<script type="module">
+  import { GAMES } from './core/registry.js';
+  import { createStore } from './core/storage.js';
+  import { createTheme } from './core/theme.js';
+
+  const store = createStore('app');
+  const SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>';
+  const MOON = '<path d="M20 15a9 9 0 0 1-11-11 9 9 0 1 0 11 11z"/>';
+  const icon = document.getElementById('themeIcon');
+  const theme = createTheme(store, { onChange: (t, mode) => { icon.innerHTML = mode === 'dark' ? SUN : MOON; } });
+  document.getElementById('themeButton').addEventListener('click', () => theme.toggleMode());
+
+  const covers = {
+    neon: `<svg viewBox="0 0 320 200" aria-hidden="true">
+      <rect width="320" height="200" fill="none"/>
+      ${[0,1,2].map(r => [0,1,2,3,4,5].map(c =>
+        `<rect x="${28 + c*44}" y="${34 + r*26}" width="36" height="17" rx="4"
+           fill="currentColor" opacity="${0.85 - r*0.18}"/>`).join('')).join('')}
+      <circle cx="196" cy="136" r="7" fill="currentColor"/>
+      <rect x="120" y="162" width="80" height="9" rx="4.5" fill="currentColor"/>
+    </svg>`
+  };
+
+  const grid = document.getElementById('grid');
+  grid.innerHTML = GAMES.map(g => `
+    <a class="card" href="./play.html?game=${encodeURIComponent(g.id)}"${g.status !== 'ready' ? ' aria-disabled="true"' : ''}>
+      <div class="cover" style="color:${g.accent}">${covers[g.art] || ''}</div>
+      <div class="card-body">
+        <h2>${g.title}</h2>
+        <p>${g.tagline}</p>
+        <div class="tags">${g.tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+      </div>
+    </a>`).join('') +
+    `<div class="card soon"><div>Próximo título<br><span style="opacity:.7">o shell já está pronto para receber</span></div></div>`;
+
+  const offlineBadge = document.getElementById('offlineBadge');
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => {
+        const ready = () => {
+          offlineBadge.textContent = 'Disponível offline';
+          offlineBadge.dataset.on = '1';
+        };
+        if (navigator.serviceWorker.controller) ready();
+        else reg.addEventListener('updatefound', () => {
+          reg.installing?.addEventListener('statechange', e => {
+            if (e.target.state === 'activated') ready();
+          });
+        });
+      })
+      .catch(() => { offlineBadge.textContent = 'Offline indisponível neste contexto'; });
+  } else {
+    offlineBadge.textContent = 'Navegador sem suporte a offline';
+  }
+  window.addEventListener('beforeinstallprompt', () => {
+    document.getElementById('installBadge').hidden = false;
+  });
+</script>
+</body>
+</html>
