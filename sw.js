@@ -1,6 +1,6 @@
 // Service worker da biblioteca: cache-first, para que os jogos abram sem rede.
 // Ao adicionar um jogo, inclua os arquivos dele em ASSETS e suba VERSION.
-const VERSION = 'ia-games-v3';
+const VERSION = 'ia-games-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -30,7 +30,11 @@ const ASSETS = [
   './games/neon-break/content.js',
   './games/neon-break/levels.js',
   './games/neon-break/render.js',
-  './games/neon-break/ui.js'
+  './games/neon-break/ui.js',
+  './games/neon-words/index.js',
+  './games/neon-words/levels.js',
+  './games/neon-words/model.js',
+  './games/neon-words/style.css'
 ];
 
 self.addEventListener('install', event => {

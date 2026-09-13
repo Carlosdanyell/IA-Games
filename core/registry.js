@@ -10,6 +10,16 @@ export const GAMES = [
     status: 'ready',
     entry: './games/neon-break/index.js',
     art: 'neon'
+  },
+  {
+    id: 'neon-words',
+    title: 'Neon Words',
+    tagline: 'Conecte letras e complete dez cruzadinhas em português.',
+    tags: ['Palavras', '10 fases', 'Offline'],
+    accent: '#ff9c78',
+    status: 'ready',
+    entry: './games/neon-words/index.js',
+    art: 'words'
   }
 ];
 

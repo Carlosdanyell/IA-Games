@@ -86,6 +86,21 @@
       <circle cx="196" cy="136" r="7" fill="currentColor"/>
       <rect x="120" y="162" width="80" height="9" rx="4.5" fill="currentColor"/>
     </svg>`
+    ,
+    words: `<svg viewBox="0 0 320 200" aria-hidden="true">
+      ${[[0,0],[1,0],[2,0],[3,0],[1,1],[1,2],[0,3],[1,3],[2,3],[3,3],[4,3],[3,1],[3,2],[3,4]]
+        .map(([c,r]) => `<rect x="${34 + c*30}" y="${28 + r*30}" width="26" height="26" rx="5"
+             fill="currentColor" opacity="${r === 0 || c === 1 ? 0.85 : 0.4}"/>`).join('')}
+      <circle cx="242" cy="112" r="46" fill="none" stroke="currentColor" stroke-width="2" opacity=".35"/>
+      ${[0,1,2,3,4].map(i => {
+        const a = i * Math.PI * 2 / 5 - Math.PI / 2;
+        return `<circle cx="${242 + Math.cos(a)*32}" cy="${112 + Math.sin(a)*32}" r="11" fill="currentColor" opacity="${i < 3 ? 0.9 : 0.45}"/>`;
+      }).join('')}
+      <path d="M${242 + Math.cos(-Math.PI/2)*32} ${112 + Math.sin(-Math.PI/2)*32}
+               L${242 + Math.cos(Math.PI*2/5 - Math.PI/2)*32} ${112 + Math.sin(Math.PI*2/5 - Math.PI/2)*32}
+               L${242 + Math.cos(Math.PI*4/5 - Math.PI/2)*32} ${112 + Math.sin(Math.PI*4/5 - Math.PI/2)*32}"
+            fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`
   };
 
   const grid = document.getElementById('grid');
