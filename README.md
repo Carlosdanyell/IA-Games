@@ -64,6 +64,13 @@ npx http-server -p 8080 -c-1 .
 # http://localhost:8080
 ```
 
+## Publicação
+
+O site é servido pelo GitHub Pages a partir do branch `main`, pasta raiz
+(Settings → Pages → Deploy from a branch). O arquivo `.nojekyll` garante que
+os diretórios sejam servidos como estão, sem processamento do Jekyll.
+Para atualizar o site publicado, faça push em `main`.
+
 ## Adicionar um jogo
 
 1. `games/<id>/index.js` exportando `meta` e `create(services)`.
