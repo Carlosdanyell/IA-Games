@@ -12,21 +12,37 @@
 
 export const FIELD = {
   w: 640,
-  hMin: 300,        // altura lógica mínima (celular deitado)
-  hMax: 1200,       // máxima: em pé o campo acompanha a caixa e o excedente
-                    // vira céu, que é desenhado — melhor do que faixa vazia
+  hMin: 280,        // altura lógica mínima (celular deitado, tela baixa)
+  hMax: 420,        // máxima: acima disso só sobraria céu vazio
   hStep: 20,        // quantização: a barra de endereço do celular não muda o campo
-  groundRatio: 0.80,
+  groundRatio: 0.82,
   archerRatio: 0.09,
-  targetRatio: 0.91
+  targetRatio: 0.86   // deixa espaço à direita para o corpo caído caber inteiro
 };
 
-// Altura lógica em função do formato do contêiner, como nos outros jogos.
+// O jogo é só na horizontal, então a altura lógica acompanha o formato do
+// contêiner dentro de uma faixa estreita. Em retrato o jogo mostra o aviso de
+// girar e nem desenha a cena.
 export function logicalSize(aspect) {
   const raw = FIELD.w / Math.max(aspect, 0.0001);
   const clamped = Math.min(FIELD.hMax, Math.max(FIELD.hMin, raw));
   return { w: FIELD.w, h: Math.round(clamped / FIELD.hStep) * FIELD.hStep };
 }
+
+// Níveis de dificuldade. Mexem em quatro coisas ao mesmo tempo: quanto da
+// trajetória a linha de tiro mostra, o tamanho da hitbox da maçã, a força do
+// vento e do movimento do alvo, e quantas vidas você tem. O bônus de pontos
+// compensa o risco.
+export const DIFFICULTY = {
+  facil:   { label: 'Fácil',   guide: 1,    assist: 1.35, wind: 0.6,  motion: 0.6, lives: 4, apple: 1.12, bonus: 0.75,
+             note: 'Trajetória inteira, vento fraco e maçã maior.' },
+  normal:  { label: 'Normal',  guide: 0.3,  assist: 1.12, wind: 1,    motion: 1,   lives: 3, apple: 1,    bonus: 1,
+             note: 'A linha some no meio do caminho: o resto é sua leitura.' },
+  dificil: { label: 'Difícil', guide: 0.12, assist: 1,    wind: 1.35, motion: 1.35, lives: 2, apple: 0.86, bonus: 1.4,
+             note: 'Só o começo da linha, sem folga na maçã, vento forte.' },
+  mestre:  { label: 'Mestre',  guide: 0,    assist: 0.94, wind: 1.6,  motion: 1.7, lives: 1, apple: 0.72, bonus: 2,
+             note: 'Sem linha de tiro, uma vida e alvo inquieto.' }
+};
 
 export const PHYSICS = {
   gravity: 9.81,      // m/s²
@@ -58,8 +74,27 @@ export const AIM = {
   minPull: 14,        // abaixo disso o tiro é cancelado
   keyAngle: 1.1,      // rad/s no teclado
   keyPower: 0.7,      // fração/s no teclado
-  guideSteps: 26,
+  guideSteps: 30,
   guideDt: 0.055
+};
+
+// Troca de fase: a câmera afasta até a nova distância enquanto o alvo novo
+// entra caminhando. Sem isso a distância mudava num corte seco.
+export const TRAVEL = {
+  time: 1.25,         // s de afastamento
+  walkIn: 0.62,       // fração do tempo em que o alvo caminha até o lugar
+  entry: 90,          // unidades lógicas fora da tela de onde ele vem
+  parallax: 5         // unidades lógicas que o cenário desliza por metro a mais
+};
+
+// Queda do alvo atingido, no espírito do original: tomba de vez, bate no chão
+// e ainda dá um tranco antes de parar.
+export const FALL = {
+  time: 1.15,
+  angle: 1.46,        // rad: deitado
+  bounce: 0.13,
+  appleSpin: 7,
+  bitsSpeed: [70, 190]
 };
 
 export const ARROW = {

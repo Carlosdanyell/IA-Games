@@ -1,5 +1,5 @@
 import { PALETTE_OPTIONS } from '../../core/theme.js';
-import { BLOOD } from './config.js';
+import { BLOOD, DIFFICULTY } from './config.js';
 
 const el = (tag, className, html) => {
   const node = document.createElement(tag);
@@ -46,13 +46,25 @@ function switchRow(title, description, checked, onChange, disabled = false) {
 }
 
 export function buildDialog({ settings, theme, audio, haptics, modes, records,
-                              onMode, onGuide, onBlood }) {
+                              onMode, onDifficulty, onGuide, onBlood }) {
   const root = el('div');
 
   root.appendChild(radioGroup('Modo', 'arrow-mode',
     Object.entries(modes).map(([key, mode]) => [key, mode.label]), settings.mode, onMode));
 
-  // Sangue é o efeito central do jogo, mas fica sob controle de quem joga.
+  // A dificuldade mexe em quatro coisas de uma vez, então a explicação do
+  // nível escolhido fica logo abaixo e muda junto.
+  const guideNote = el('p', 'panel-note');
+  const applyNote = value => {
+    const d = DIFFICULTY[value];
+    guideNote.textContent = `${d.note} Pontos ×${d.bonus} · ${d.lives} ${d.lives === 1 ? 'vida' : 'vidas'}.`;
+  };
+  root.appendChild(radioGroup('Dificuldade', 'arrow-difficulty',
+    Object.entries(DIFFICULTY).map(([key, d]) => [key, d.label]), settings.difficulty,
+    value => { applyNote(value); onDifficulty(value); }));
+  applyNote(settings.difficulty);
+  root.appendChild(guideNote);
+
   root.appendChild(radioGroup('Sangue', 'arrow-blood',
     Object.entries(BLOOD.levels).map(([key, level]) => [key, level.label]), settings.blood, onBlood));
 
@@ -68,8 +80,9 @@ export function buildDialog({ settings, theme, audio, haptics, modes, records,
   legend.textContent = 'Preferências';
   prefs.appendChild(legend);
   prefs.appendChild(switchRow('Linha de tiro',
-    'Mostra a trajetória prevista enquanto você puxa a corda.', settings.guide, onGuide));
-  prefs.appendChild(switchRow('Som', 'Corda, impacto e maçã.',
+    'Mostra a trajetória prevista. O quanto dela aparece depende da dificuldade — no Mestre não aparece nada.',
+    settings.guide, onGuide));
+  prefs.appendChild(switchRow('Som', 'Corda, zunido da flecha, maçã e impacto.',
     audio.enabled, value => audio.setEnabled(value)));
   prefs.appendChild(switchRow('Vibração',
     haptics.supported ? 'Retorno tátil no disparo e no acerto.' : 'Não disponível neste aparelho.',
@@ -79,6 +92,7 @@ export function buildDialog({ settings, theme, audio, haptics, modes, records,
   root.appendChild(el('h3', 'guide-title', 'Como jogar'));
   const how = el('ul');
   [
+    'Só na horizontal: em pé o jogo pausa e pede para girar o aparelho.',
     'Arraste em qualquer ponto do campo para puxar a corda: a flecha sai na direção oposta ao arrasto.',
     'Quanto mais longe você arrasta, mais força. Soltar quase no ponto de partida cancela o tiro.',
     'No teclado: setas laterais ajustam o ângulo, setas verticais a força, espaço dispara.',
@@ -92,13 +106,14 @@ export function buildDialog({ settings, theme, audio, haptics, modes, records,
   [
     'Acertar a maçã passa de fase. Vale mais no centro, na primeira flecha e em sequência.',
     'Acertar a pessoa custa uma vida e zera a sequência. Errar tudo só zera a sequência.',
+    'A dificuldade multiplica os pontos: Fácil ×0,75, Normal ×1, Difícil ×1,4 e Mestre ×2.',
     'Vida extra a cada 2.500 pontos e a cada 6 acertos seguidos, até o máximo de 5.',
-    'A campanha guarda a fase: dá para fechar o jogo e continuar de onde parou.',
+    'A campanha guarda a fase e a dificuldade: dá para fechar o jogo e continuar de onde parou.',
     'O desafio diário sorteia 5 fases iguais para todo mundo no mesmo dia e não guarda progresso.'
   ].forEach(text => rules.appendChild(el('li', null, text)));
   root.appendChild(rules);
 
-  root.appendChild(el('h3', 'guide-title', 'Recordes'));
+  root.appendChild(el('h3', 'guide-title', `Recordes · ${DIFFICULTY[settings.difficulty].label}`));
   const list = el('div', 'records');
   for (const [key, mode] of Object.entries(modes)) {
     const record = records[key] || { score: 0, level: 0, streak: 0 };

@@ -55,23 +55,41 @@ export function createAudio(store) {
     } catch (_) {}
   }
 
-  function noise({ dur = 0.12, vol = 0.05, cutoff = 1200 } = {}) {
+  // Ruído com envelope e filtro opcionais. Os parâmetros extras (tipo de
+  // filtro, varredura do corte, ataque e formato do envelope) são o que separa
+  // um "tsc" de corda de um baque surdo — sem eles todo impacto soa igual.
+  function noise({ dur = 0.12, vol = 0.05, cutoff = 1200, cutoffEnd = null,
+                   filter: kind = 'lowpass', q = 1, attack = 0, curve = 'fall' } = {}) {
     if (!enabled) return;
     const c = ensure();
     if (!c || c.state !== 'running' || !budgetOk()) return;
     try {
-      const frames = Math.floor(c.sampleRate * dur);
+      const frames = Math.max(1, Math.floor(c.sampleRate * dur));
       const buffer = c.createBuffer(1, frames, c.sampleRate);
       const data = buffer.getChannelData(0);
-      for (let i = 0; i < frames; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
+      const rise = Math.max(1, Math.floor(frames * Math.min(0.9, attack)));
+      for (let i = 0; i < frames; i++) {
+        const t = i / frames;
+        let env;
+        if (curve === 'flat') env = 1;
+        else if (curve === 'rise') env = t;
+        else if (curve === 'bump') env = Math.sin(Math.PI * t);
+        else env = (1 - t) * (1 - t);
+        if (i < rise) env *= i / rise;
+        data[i] = (Math.random() * 2 - 1) * env;
+      }
       const src = c.createBufferSource();
       src.buffer = buffer;
-      const filter = c.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.value = cutoff;
+      const f = c.createBiquadFilter();
+      f.type = kind;
+      f.Q.value = q;
+      f.frequency.setValueAtTime(cutoff, c.currentTime);
+      if (cutoffEnd && cutoffEnd !== cutoff) {
+        f.frequency.exponentialRampToValueAtTime(Math.max(40, cutoffEnd), c.currentTime + dur);
+      }
       const g = c.createGain();
       g.gain.value = vol;
-      src.connect(filter); filter.connect(g); g.connect(master);
+      src.connect(f); f.connect(g); g.connect(master);
       src.start();
     } catch (_) {}
   }

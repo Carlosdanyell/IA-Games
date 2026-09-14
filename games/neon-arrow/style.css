@@ -1,6 +1,6 @@
-/* Neon Arrow: a cena é horizontal, do arqueiro ao alvo. O shell veste a arena
-   com a proporção de um celular em pé, que serve para os outros títulos e
-   desperdiça largura neste. Aqui a caixa cresce e a arena fica larga. */
+/* Neon Arrow: a cena é horizontal, do arqueiro ao alvo, e o jogo só roda
+   deitado. O shell veste a arena com a proporção de um celular em pé, que
+   serve para os outros títulos e não para este. */
 .arrow-app{width:min(100%,1040px);margin-inline:auto}
 .arrow-app .arena{touch-action:none}
 .arrow-app canvas{cursor:crosshair}
@@ -11,11 +11,12 @@
 body.arrow-body{place-items:stretch}
 body.arrow-body>*{justify-self:stretch}
 
-/* Em retrato a arena ocupa a coluna inteira (comportamento padrão do shell) e
-   o campo lógico acompanha essa proporção: a cena fica na parte de baixo e o
-   que sobra é céu desenhado, não faixa vazia. A área de arrasto também fica
-   maior, que é o que se usa para mirar. A cena é horizontal, então o jogo
-   avisa no placar que na horizontal rende mais. */
+/* Em retrato a arena mostra o aviso de girar e ocupa a coluna inteira; o
+   placar e os chips ficam apagados porque nada acontece até girar. */
+@media(orientation:portrait){
+  .arrow-app .arena{flex:1;aspect-ratio:auto}
+  .arrow-app .chipbar,.arrow-app .scorebar{opacity:.45}
+}
 
 /* Paisagem de celular: cada pixel de largura é campo de tiro. */
 @media(orientation:landscape) and (max-height:560px){

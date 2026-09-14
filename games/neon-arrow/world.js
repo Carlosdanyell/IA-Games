@@ -21,9 +21,10 @@ export function layout(view, phase) {
 
 // Posição do alvo no instante t (segundos de partida): passo horizontal e
 // oscilação vertical da plataforma, ambos em metros, convertidos para a tela.
-export function targetAt(scene, phase, t) {
-  const pace = phase.pace ? Math.sin(t * phase.pace.speed) * phase.pace.range : 0;
-  const lift = phase.lift ? (Math.sin(t * phase.lift.speed) + 1) / 2 * phase.lift.range : 0;
+// `motion` vem da dificuldade e escala os dois movimentos de uma vez.
+export function targetAt(scene, phase, t, motion = 1) {
+  const pace = phase.pace ? Math.sin(t * phase.pace.speed) * phase.pace.range * motion : 0;
+  const lift = phase.lift ? (Math.sin(t * phase.lift.speed) + 1) / 2 * phase.lift.range * motion : 0;
   return {
     x: scene.x1 + pace * scene.u,
     y: scene.groundY - lift * scene.u,
@@ -33,7 +34,9 @@ export function targetAt(scene, phase, t) {
 
 // Corpo do alvo como uma cadeia de círculos: o teste de acerto vira uma única
 // equação de segundo grau por peça, exata e fácil de desenhar no modo debug.
-export function bodyOf(scene, phase, foot) {
+export function bodyOf(scene, phase, foot, mods = {}) {
+  const assist = mods.assist ?? FIGURE.assist;
+  const appleScale = (phase.apple ?? 1) * (mods.apple ?? 1);
   const s = scene.scale;
   const h = FIGURE.height * s;
   const fx = foot.x, fy = foot.y;
@@ -42,15 +45,16 @@ export function bodyOf(scene, phase, foot) {
   const headR = FIGURE.headR * s;
   const shoulderY = fy - 0.75 * h;
   const headCy = shoulderY - 0.04 * h - headR;
-  const appleR = FIGURE.appleR * s * (phase.apple ?? 1);
+  const appleR = FIGURE.appleR * s * appleScale;
   const appleY = headCy - headR - FIGURE.appleGap * s - appleR;
 
   return {
     h, headR, torsoR, limbR, shoulderY, headCy, appleR, appleY,
     hipY: fy - 0.42 * h,
     apple: { x: fx, y: appleY, r: appleR },
-    // Assistência menor quanto menor a maçã: nas fases finais quase não sobra.
-    appleHit: { x: fx, y: appleY, r: appleR * (1 + (FIGURE.assist - 1) * (phase.apple ?? 1)) },
+    // Assistência menor quanto menor a maçã e quanto maior a dificuldade: nas
+    // fases finais do modo difícil não sobra folga nenhuma.
+    appleHit: { x: fx, y: appleY, r: appleR * (1 + (assist - 1) * appleScale) },
     parts: [
       { part: 'cabeça', x: fx, y: headCy, r: headR },
       { part: 'ombro', x: fx, y: shoulderY, r: torsoR * 0.92 },

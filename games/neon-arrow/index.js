@@ -1,5 +1,6 @@
 import { createRng, hashSeed, todaySeedLabel } from '../../core/rng.js';
-import { PHYSICS, AIM, FIGURE, SCORE, LIVES, TIMING, logicalSize } from './config.js';
+import { PHYSICS, AIM, FIGURE, SCORE, LIVES, TIMING, TRAVEL, FALL, DIFFICULTY, logicalSize }
+  from './config.js';
 import { PHASES, phaseFor } from './levels.js';
 import { layout, targetAt, bodyOf, firstHit, clamp } from './world.js';
 import { createBlood } from './blood.js';
@@ -9,7 +10,7 @@ import { buildDialog } from './ui.js';
 export const meta = {
   id: 'neon-arrow',
   title: 'NEON<span>ARROW</span>',
-  subtitle: 'TIRO AO ALVO / 25 FASES',
+  subtitle: 'TIRO AO ALVO / HORIZONTAL',
   arenaLabel: 'Campo de tiro. Arraste para trás para puxar a corda e solte para disparar.',
   logicalSize,
   stats: [
@@ -27,6 +28,9 @@ const MODES = {
 
 const RUN_KEY = 'run-v1';
 const APPLE_COLORS = ['#7fe06a', '#a8ff8f', '#3f8f34', '#d9ff6b'];
+const GRAVITY_PX = 900;          // queda de maçã e pedaços, em unidades/s²
+const easeOut = t => 1 - Math.pow(1 - t, 3);
+const easeInOut = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 export function create(services) {
   const { viewport, input, audio, haptics, theme, store, hud, debug } = services;
@@ -35,8 +39,6 @@ export function create(services) {
   const renderer = createRenderer(viewport, theme, debug);
   const blood = createBlood(store.get('blood', 'forte'));
 
-  // A mira é absoluta: o arrasto começa onde o dedo encosta e o tiro sai na
-  // direção oposta, como uma corda puxada para trás.
   input.setMode('absolute');
 
   let style = document.getElementById('arrow-style');
@@ -49,19 +51,21 @@ export function create(services) {
   }
   const app = hud.arena.closest('.app');
   app.classList.add('arrow-app');
-  // A marca no body é o que permite soltar a centralização do shell em telas
-  // largas: quem é item da grade é o #root, fora do alcance de .arrow-app.
   document.body.classList.add('arrow-body');
 
+  const validDifficulty = v => (DIFFICULTY[v] ? v : 'normal');
   const settings = {
     mode: store.get('mode', 'campaign'),
+    difficulty: validDifficulty(store.get('difficulty', 'normal')),
     guide: store.get('guide', true),
     blood: store.get('blood', 'forte')
   };
+  const rules = () => DIFFICULTY[settings.difficulty];
 
   const S = {
-    state: 'intro',       // intro | ready | flying | resolve | paused | over | win
+    state: 'intro',    // intro | ready | flying | resolve | travel | paused | over | win
     mode: settings.mode,
+    difficulty: settings.difficulty,
     seed: 1,
     levelIndex: 0,
     phase: PHASES[0],
@@ -85,17 +89,36 @@ export function create(services) {
     bannerTime: 0,
     resolveTime: 0,
     outcome: '',
+    // troca de fase
+    viewDistance: PHASES[0].distance,
+    travelFrom: PHASES[0].distance,
+    travelT: 0,
+    shift: 0,
+    shiftFrom: 0,
+    shiftTo: 0,
+    entry: 0,
+    walk: 0,
+    // alvo atingido
     wounded: false,
-    woundLean: 0,
+    lean: 0,
+    fallT: 0,
+    landed: false,
     woundOffset: null,
+    targetArms: 'down',
+    flinch: 0,
+    bits: [],
+    loose: null,
     arrow: null,
+    whooshed: false,
     stuck: []
   };
 
   const aim = { angle: 0.35, power: 0.6, pulling: false, ready: true, anchorX: 0, anchorY: 0 };
-  let scene = layout(view, S.phase);
+  let scene = layout(view, { distance: S.viewDistance });
   let hudDirty = true;
   let pausedFrom = null;
+  let overlayArgs = null;
+  let wasPortrait = null;
 
   const modeInfo = () => MODES[S.mode] || MODES.campaign;
   const phaseCount = () => modeInfo().phases;
@@ -103,21 +126,73 @@ export function create(services) {
     ? `${S.levelIndex + 1}`
     : `${S.levelIndex + 1}/${phaseCount()}`);
 
-  // ------------------------------------------------------------ apresentação
-  const present = args => hud.showOverlay(args);
-  const dismiss = () => hud.hideOverlay();
+  // O jogo é só na horizontal: em retrato a cena dá lugar ao aviso de girar.
+  const isPortrait = () => view.cssW < view.cssH * 1.1;
+
+  function present(args) {
+    overlayArgs = args;
+    if (isPortrait()) hud.hideOverlay(); else hud.showOverlay(args);
+  }
+  function dismiss() { overlayArgs = null; hud.hideOverlay(); }
+  function syncOrientation() {
+    const portrait = isPortrait();
+    if (portrait === wasPortrait) return;
+    wasPortrait = portrait;
+    if (portrait) { hud.hideOverlay(); pause(); }
+    else if (overlayArgs) hud.showOverlay(overlayArgs);
+    hudDirty = true;
+  }
   function showBanner(text, tone = '', seconds = TIMING.bannerDefault) {
     S.banner = text; S.bannerTone = tone; S.bannerTime = seconds;
   }
 
+  // --------------------------------------------------------------- som
+  // Camadas curtas de ruído filtrado e tom: cada evento tem timbre próprio,
+  // em vez de variações do mesmo bipe.
+  const sfx = {
+    draw() {
+      audio.tone({ freq: 110, dur: 0.22, type: 'sawtooth', vol: 0.018, slide: 1.7 });
+      audio.noise({ dur: 0.24, vol: 0.014, cutoff: 800, cutoffEnd: 2200, filter: 'bandpass', q: 1.3, curve: 'rise' });
+    },
+    release() {
+      audio.noise({ dur: 0.16, vol: 0.06, cutoff: 3400, cutoffEnd: 650, filter: 'bandpass', q: 1.5 });
+      audio.tone({ freq: 200, dur: 0.1, type: 'triangle', vol: 0.035, slide: 0.4 });
+    },
+    whoosh() {
+      audio.noise({ dur: 0.3, vol: 0.022, cutoff: 500, cutoffEnd: 1700, filter: 'bandpass', q: 0.8, curve: 'bump' });
+    },
+    apple() {
+      audio.noise({ dur: 0.24, vol: 0.075, cutoff: 1800, cutoffEnd: 260, filter: 'bandpass', q: 0.7 });
+      audio.tone({ freq: 430, dur: 0.13, type: 'sine', vol: 0.03, slide: 0.3 });
+    },
+    flesh() {
+      audio.noise({ dur: 0.32, vol: 0.085, cutoff: 560, cutoffEnd: 170, curve: 'fall' });
+      audio.tone({ freq: 82, dur: 0.24, type: 'sine', vol: 0.055, slide: 0.5 });
+    },
+    ground() {
+      audio.noise({ dur: 0.13, vol: 0.05, cutoff: 750, cutoffEnd: 220 });
+      audio.tone({ freq: 155, dur: 0.09, type: 'triangle', vol: 0.028, slide: 0.4 });
+    },
+    bodyDrop() {
+      audio.noise({ dur: 0.38, vol: 0.06, cutoff: 320, cutoffEnd: 110 });
+      audio.tone({ freq: 58, dur: 0.3, type: 'sine', vol: 0.05, slide: 0.62 });
+    },
+    step() {
+      audio.noise({ dur: 0.07, vol: 0.02, cutoff: 900, cutoffEnd: 300 });
+    }
+  };
+
   // ------------------------------------------------------------------ cena
-  function rebuildScene() { scene = layout(view, S.phase); }
+  const sceneFor = distance => layout(view, { distance });
+  function rebuildScene() { scene = sceneFor(S.viewDistance); }
+  const currentTarget = () => {
+    const t = targetAt(scene, S.phase, S.clock, rules().motion);
+    t.x += S.entry;
+    return t;
+  };
+  const currentBody = (target = currentTarget()) =>
+    bodyOf(scene, S.phase, target, { assist: rules().assist, apple: rules().apple });
 
-  function currentTarget() { return targetAt(scene, S.phase, S.clock); }
-  function currentBody(target = currentTarget()) { return bodyOf(scene, S.phase, target); }
-
-  // Mão do arqueiro: a flecha sai exatamente de onde o arco é desenhado, com
-  // braço estendido — por isso o ponto acompanha o ângulo da mira.
   function handPoint() {
     const h = FIGURE.height * scene.scale;
     const reach = 0.3 * h;
@@ -131,32 +206,63 @@ export function create(services) {
 
   // --------------------------------------------------------------- partida
   function rollWind() {
-    const max = S.phase.wind || 0;
+    const max = (S.phase.wind || 0) * rules().wind;
     if (!max) { S.wind = 0; return; }
     const rng = createRng((S.seed ^ (S.levelIndex * 7919) ^ (S.arrowsTotal * 104729)) >>> 0);
     S.wind = Math.round((rng.next() * 2 - 1) * max * 10) / 10;
   }
 
-  function loadLevel(index) {
+  function resetTarget() {
+    // Quem levantar é outra pessoa: as flechas cravadas no corpo vão embora
+    // com ele, só as do chão ficam.
+    for (let i = S.stuck.length - 1; i >= 0; i--) if (S.stuck[i].onBody) S.stuck.splice(i, 1);
+    S.wounded = false;
+    S.lean = 0;
+    S.fallT = 0;
+    S.landed = false;
+    S.woundOffset = null;
+    S.targetArms = 'down';
+    S.flinch = 0;
+    S.bits.length = 0;
+    S.loose = null;
+    blood.healWound();
+  }
+
+  function loadLevel(index, travel = false) {
+    const from = S.viewDistance;
     S.levelIndex = index;
     S.phase = phaseFor(S.mode, index, S.seed);
     S.arrowsHere = 0;
     S.outcome = '';
     S.clock = 0;
-    S.wounded = false;
-    S.woundOffset = null;
-    S.woundLean = 0;
     S.stuck.length = 0;
     S.arrow = null;
+    resetTarget();
     blood.clear();
-    rebuildScene();
-    rollWind();
     theme.setAuto(S.phase.palette);
     aim.power = clamp(0.45 + S.phase.distance / 80, 0.4, 0.95);
     aim.angle = clamp(0.12 + S.phase.distance / 260, 0.1, 0.6);
     aim.pulling = false;
     aim.ready = true;
-    S.state = 'ready';
+
+    if (travel) {
+      S.travelFrom = from;
+      S.travelT = 0;
+      S.entry = TRAVEL.entry;
+      S.shiftFrom = S.shift;
+      // O cenário desliza e FICA deslizado: a câmera andou para trás, não
+      // voltou. Os sprites são mais largos que a tela justamente para isso.
+      S.shiftTo = clamp(S.shift + (S.phase.distance - from) * TRAVEL.parallax, 0, view.w * 0.5);
+      S.state = 'travel';
+    } else {
+      S.viewDistance = S.phase.distance;
+      S.entry = 0;
+      S.walk = 0;
+      S.shift = 0;
+      S.state = 'ready';
+      rebuildScene();
+    }
+    rollWind();
     hud.setHint(S.phase.hint);
     hudDirty = true;
     saveRun();
@@ -164,16 +270,20 @@ export function create(services) {
 
   function startRun(mode, resume = null) {
     S.mode = mode;
+    S.difficulty = settings.difficulty;
     S.seed = mode === 'daily' ? hashSeed(todaySeedLabel()) : (Math.random() * 2 ** 32) >>> 0;
     S.score = 0;
-    S.lives = LIVES.start;
+    S.lives = rules().lives;
     S.nextLifeScore = LIVES.scoreStep;
     S.streak = 0;
     S.bestStreak = 0;
     S.arrowsTotal = 0;
     S.hits = 0;
     S.victims = 0;
+    S.shift = 0;
     if (resume) {
+      S.difficulty = validDifficulty(resume.difficulty);
+      settings.difficulty = S.difficulty;
       S.seed = resume.seed;
       S.score = resume.score;
       S.lives = resume.lives;
@@ -183,17 +293,17 @@ export function create(services) {
       S.hits = resume.hits || 0;
       S.victims = resume.victims || 0;
     }
+    S.viewDistance = phaseFor(S.mode, resume ? resume.levelIndex : 0, S.seed).distance;
     dismiss();
     audio.resume();
     loadLevel(resume ? resume.levelIndex : 0);
   }
 
-  // O desafio diário não guarda progresso: a graça é a rodada única do dia.
   function saveRun() {
     if (S.mode === 'daily') return;
     store.set(RUN_KEY, {
-      mode: S.mode, seed: S.seed, levelIndex: S.levelIndex, score: S.score,
-      lives: S.lives, nextLifeScore: S.nextLifeScore, streak: S.streak,
+      mode: S.mode, difficulty: S.difficulty, seed: S.seed, levelIndex: S.levelIndex,
+      score: S.score, lives: S.lives, nextLifeScore: S.nextLifeScore, streak: S.streak,
       arrowsTotal: S.arrowsTotal, hits: S.hits, victims: S.victims, at: Date.now()
     });
   }
@@ -208,9 +318,8 @@ export function create(services) {
 
   // --------------------------------------------------------------- disparo
   function fire() {
-    if (S.state !== 'ready' || hud.dialogOpen) return;
-    const hand = handPoint();
-    const start = toMeters(hand);
+    if (S.state !== 'ready' || hud.dialogOpen || isPortrait()) return;
+    const start = toMeters(handPoint());
     const speed = PHYSICS.minSpeed + (PHYSICS.maxSpeed - PHYSICS.minSpeed) * clamp(aim.power, 0, 1);
     S.arrow = {
       x: start.x, y: start.y,
@@ -221,25 +330,12 @@ export function create(services) {
     S.arrowsHere++;
     S.arrowsTotal++;
     S.state = 'flying';
+    S.whooshed = false;
     aim.pulling = false;
     aim.ready = false;
-    audio.tone({ freq: 320, dur: 0.09, type: 'triangle', vol: 0.05, slide: 0.35 });
-    haptics.buzz(10);
+    sfx.release();
+    haptics.buzz(12);
     hudDirty = true;
-  }
-
-  // Ponto preso ao alvo: o corpo tomba girando em torno dos pés, então a
-  // flecha cravada e o ferimento precisam girar junto — senão o sangue passa
-  // a escorrer do ar ao lado da pessoa.
-  function attached(offset) {
-    const target = currentTarget();
-    const lean = S.wounded ? S.woundLean : 0;
-    const cos = Math.cos(lean), sin = Math.sin(lean);
-    return {
-      x: target.x + offset.dx * cos - offset.dy * sin,
-      y: target.y + offset.dx * sin + offset.dy * cos,
-      lean
-    };
   }
 
   function stickArrow(sx, sy, angle, onBody, bloodied = false) {
@@ -248,6 +344,17 @@ export function create(services) {
     if (onBody) { entry.dx = sx - target.x; entry.dy = sy - target.y; entry.onBody = true; }
     S.stuck.push(entry);
     if (S.stuck.length > 6) S.stuck.shift();
+  }
+
+  // Ponto preso ao alvo: o corpo tomba girando em torno dos pés, então a
+  // flecha cravada e o ferimento precisam girar junto.
+  function attached(offset) {
+    const target = currentTarget();
+    const cos = Math.cos(S.lean), sin = Math.sin(S.lean);
+    return {
+      x: target.x + offset.dx * cos - offset.dy * sin,
+      y: target.y + offset.dx * sin + offset.dy * cos
+    };
   }
 
   function addScore(points) {
@@ -264,10 +371,11 @@ export function create(services) {
   function hitApple(point, body, dir) {
     const dist = Math.hypot(point.x - body.apple.x, point.y - body.apple.y);
     const precision = clamp(1 - dist / Math.max(1, body.appleHit.r), 0, 1);
-    const bonus = Math.round(SCORE.precision * precision);
     const streakBonus = Math.min(SCORE.streakMax, S.streak * SCORE.streakStep);
     const first = S.arrowsHere === 1 ? SCORE.firstArrow : 0;
-    const total = SCORE.hit + Math.round(S.phase.distance * SCORE.perMeter) + bonus + streakBonus + first;
+    const base = SCORE.hit + Math.round(S.phase.distance * SCORE.perMeter) +
+                 Math.round(SCORE.precision * precision) + streakBonus + first;
+    const total = Math.round(base * rules().bonus);
 
     S.streak++;
     S.hits++;
@@ -278,10 +386,24 @@ export function create(services) {
     }
     addScore(total);
 
-    blood.splash(point.x, point.y, dir.vx, dir.vy, 1, { colors: APPLE_COLORS, count: 26 });
-    S.flash = 0.35; S.flashTone = 'good';
+    // A maçã se parte em duas metades que voam para os lados.
+    const r = body.apple.r;
+    for (const side of [-1, 1]) {
+      S.bits.push({
+        x: body.apple.x, y: body.apple.y, r,
+        vx: dir.vx * 0.12 + side * (FALL.bitsSpeed[0] + Math.random() * (FALL.bitsSpeed[1] - FALL.bitsSpeed[0])) * 0.5,
+        vy: -60 - Math.random() * 90,
+        rot: side > 0 ? 0 : Math.PI,
+        spin: side * (3 + Math.random() * 4)
+      });
+    }
+    blood.splash(point.x, point.y, dir.vx, dir.vy, 1, { colors: APPLE_COLORS, count: 30 });
+    S.targetArms = 'up';                    // alívio: levanta os braços
+    S.flinch = 1;                           // e ainda leva um susto
+    S.flash = 0.3; S.flashTone = 'good';
     S.freeze = TIMING.freezeHit;
-    audio.tone({ freq: 880, dur: 0.12, type: 'square', vol: 0.05, slide: 1.6 });
+    S.shake = 5;
+    sfx.apple();
     haptics.buzz([12, 30, 18]);
     showBanner(precision > 0.75 ? `NO CENTRO · +${total}` : `MAÇÃ · +${total}`, 'good', 1.4);
     S.outcome = 'apple';
@@ -296,25 +418,31 @@ export function create(services) {
     S.victims++;
     S.streak = 0;
     S.wounded = true;
-    S.woundLean = 0;
+    S.fallT = 0;
+    S.landed = false;
     S.woundOffset = { dx: point.x - target.x, dy: point.y - target.y };
-    blood.splash(point.x, point.y, dir.vx, dir.vy, 1);
+    // A maçã cai da cabeça junto com o corpo.
+    S.loose = {
+      x: body.apple.x, y: body.apple.y, r: body.apple.r,
+      vx: dir.vx * 0.06 + 20, vy: -40, rot: 0, spin: FALL.appleSpin * (Math.random() > 0.5 ? 1 : -1)
+    };
+    blood.splash(point.x, point.y, dir.vx, dir.vy, 1.15);
     blood.setWound(point.x, point.y);
     S.flash = 0.5; S.flashTone = 'bad';
-    S.shake = 16 * blood.level.shake;
+    S.shake = 18 * blood.level.shake;
     S.freeze = TIMING.freezeHit;
-    audio.noise({ dur: 0.22, vol: 0.06, cutoff: 700 });
+    sfx.flesh();
     haptics.buzz([30, 40, 60]);
     showBanner(`ACERTOU ${part.toUpperCase()}`, 'bad', 1.8);
     S.outcome = 'person';
-    S.resolveTime = TIMING.retry;
+    S.resolveTime = TIMING.retry + FALL.time * 0.6;
     S.state = 'resolve';
     hudDirty = true;
   }
 
   function missed(reason) {
     S.streak = 0;
-    audio.tone({ freq: 150, dur: 0.1, type: 'sine', vol: 0.03, slide: 0.6 });
+    sfx.ground();
     showBanner(reason, '', 1.2);
     S.outcome = 'miss';
     S.resolveTime = TIMING.retry * 0.7;
@@ -326,15 +454,11 @@ export function create(services) {
     if (S.outcome === 'apple') {
       const next = S.levelIndex + 1;
       if (next >= phaseCount()) { finish('win'); return; }
-      loadLevel(next);
+      loadLevel(next, true);
       return;
     }
     if (S.lives <= 0) { finish('over'); return; }
-    // Nova tentativa na mesma fase: alvo novo de pé, sangue do chão permanece.
-    S.wounded = false;
-    S.woundOffset = null;
-    S.woundLean = 0;
-    blood.healWound();
+    resetTarget();
     S.arrow = null;
     S.state = 'ready';
     aim.ready = true;
@@ -347,7 +471,7 @@ export function create(services) {
     S.arrow = null;
     aim.ready = false;
     clearRun();
-    const key = `best-${S.mode}`;
+    const key = `best-${S.mode}-${S.difficulty}`;
     const best = store.get(key, { score: 0, level: 0, streak: 0 });
     const record = {
       score: Math.max(best.score || 0, S.score),
@@ -358,12 +482,14 @@ export function create(services) {
     const accuracy = S.arrowsTotal ? Math.round((S.hits / S.arrowsTotal) * 100) : 0;
     const done = phaseCount() === Infinity ? S.levelIndex : phaseCount();
     present({
-      tag: kind === 'win' ? (S.mode === 'daily' ? 'Desafio diário fechado' : 'Campanha completa') : 'Fim de jogo',
+      tag: kind === 'win'
+        ? (S.mode === 'daily' ? 'Desafio diário fechado' : 'Campanha completa')
+        : 'Fim de jogo',
       title: kind === 'win' ? `Mão firme.<br>${done} maçãs.` : 'Sem vidas.',
       text: `${S.score} pontos · ${S.hits} maçãs em ${S.arrowsTotal} flechas (${accuracy}% de acerto) · ` +
             `${S.victims} ${S.victims === 1 ? 'pessoa atingida' : 'pessoas atingidas'}.`,
       action: 'Jogar de novo',
-      note: `Recorde: ${record.score} pontos · melhor sequência ${record.streak} · ${modeInfo().label}`
+      note: `${DIFFICULTY[S.difficulty].label} · recorde ${record.score} pontos · melhor sequência ${record.streak}`
     });
     hudDirty = true;
   }
@@ -374,22 +500,26 @@ export function create(services) {
     const dy = input.state.y - aim.anchorY;
     const pull = Math.hypot(dx, dy);
     if (pull < 0.5) return;
-    // Tiro na direção oposta ao arrasto: puxar a corda para trás e para baixo
-    // lança para frente e para cima. O y da tela cresce para baixo e o do tiro
-    // para cima, e é esse par de inversões que faz o sinal do dy ficar positivo.
+    // Tiro na direção oposta ao arrasto. O y da tela cresce para baixo e o do
+    // tiro para cima, e é esse par de inversões que faz o dy entrar positivo.
     aim.angle = clamp(Math.atan2(dy, -dx), PHYSICS.minAngle, PHYSICS.maxAngle);
+    const before = aim.power;
     aim.power = clamp(pull / AIM.maxPull, 0, 1);
+    if (before < 0.35 && aim.power >= 0.35) sfx.draw();
   }
 
+  // A linha de tiro mostra só a fração que a dificuldade permite: no fácil a
+  // trajetória inteira, no mestre nada.
   function guidePoints() {
-    if (!settings.guide || S.state !== 'ready') return null;
-    const hand = handPoint();
-    const start = toMeters(hand);
+    const share = rules().guide;
+    if (!settings.guide || share <= 0 || S.state !== 'ready') return null;
+    const start = toMeters(handPoint());
     const speed = PHYSICS.minSpeed + (PHYSICS.maxSpeed - PHYSICS.minSpeed) * aim.power;
     let x = start.x, y = start.y;
     let vx = Math.cos(aim.angle) * speed, vy = Math.sin(aim.angle) * speed;
+    const steps = Math.max(3, Math.round(AIM.guideSteps * share));
     const points = [];
-    for (let i = 0; i < AIM.guideSteps; i++) {
+    for (let i = 0; i < steps; i++) {
       const dt = AIM.guideDt;
       vy -= PHYSICS.gravity * dt;
       vx += S.wind * dt;
@@ -414,10 +544,11 @@ export function create(services) {
     a.x += a.vx * dt;
     a.y += a.vy * dt;
     a.t += dt;
+    if (!S.whooshed && a.t > 0.09) { S.whooshed = true; sfx.whoosh(); }
     const after = toScreen(a);
 
     const target = currentTarget();
-    const body = bodyOf(scene, S.phase, target);
+    const body = currentBody(target);
     const hit = firstHit(before.x, before.y, after.x, after.y, body);
     if (hit) {
       const point = {
@@ -425,8 +556,8 @@ export function create(services) {
         y: before.y + (after.y - before.y) * hit.t
       };
       const angle = Math.atan2(after.y - before.y, after.x - before.x);
-      const dir = { vx: a.vx, vy: -a.vy };   // sentido do impacto, em tela
-      S.arrow = null;                        // a flecha cravada assume o desenho
+      const dir = { vx: a.vx, vy: -a.vy };
+      S.arrow = null;
       if (hit.kind === 'apple') {
         stickArrow(point.x, point.y, angle, false);
         hitApple(point, body, dir);
@@ -438,8 +569,8 @@ export function create(services) {
     }
 
     if (after.y >= scene.groundY) {
-      const t = (scene.groundY - before.y) / Math.max(0.0001, after.y - before.y);
-      const x = before.x + (after.x - before.x) * clamp(t, 0, 1);
+      const t = clamp((scene.groundY - before.y) / Math.max(0.0001, after.y - before.y), 0, 1);
+      const x = before.x + (after.x - before.x) * t;
       stickArrow(x, scene.groundY, Math.atan2(after.y - before.y, after.x - before.x), false);
       S.arrow = null;
       missed(x > scene.x1 ? 'PASSOU DIRETO' : 'CURTA DEMAIS');
@@ -451,24 +582,90 @@ export function create(services) {
     }
   }
 
+  // Pedaços de maçã e maçã solta caem com gravidade simples de tela.
+  function stepDebris(dt) {
+    for (let i = S.bits.length - 1; i >= 0; i--) {
+      const b = S.bits[i];
+      b.vy += GRAVITY_PX * dt;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.rot += b.spin * dt;
+      if (b.y >= scene.groundY - b.r * 0.4) {
+        b.y = scene.groundY - b.r * 0.4;
+        b.vy *= -0.28;
+        b.vx *= 0.6;
+        b.spin *= 0.5;
+        if (Math.abs(b.vy) < 12) { b.vy = 0; b.spin = 0; }
+      }
+    }
+    const l = S.loose;
+    if (l) {
+      l.vy += GRAVITY_PX * dt;
+      l.x += l.vx * dt;
+      l.y += l.vy * dt;
+      l.rot += l.spin * dt;
+      if (l.y >= scene.groundY - l.r * 0.8) {
+        l.y = scene.groundY - l.r * 0.8;
+        if (l.vy > 60) sfx.step();
+        l.vy *= -0.3;
+        l.vx *= 0.7;
+        l.spin *= 0.6;
+        if (Math.abs(l.vy) < 14) { l.vy = 0; l.spin = 0; }
+      }
+    }
+  }
+
+  // Queda do alvo: acelera como tombo de verdade e dá um tranco ao bater.
+  function stepFall(dt) {
+    if (!S.wounded || S.landed) return;
+    S.fallT = Math.min(1, S.fallT + dt / FALL.time);
+    const t = S.fallT;
+    S.lean = FALL.angle * (t * t * (3 - 2 * t));
+    if (t >= 1) {
+      S.landed = true;
+      S.lean = FALL.angle;
+      S.shake = Math.max(S.shake, 7 * blood.level.shake);
+      sfx.bodyDrop();
+    }
+  }
+
+  function stepTravel(dt) {
+    S.travelT = Math.min(1, S.travelT + dt / TRAVEL.time);
+    const e = easeInOut(S.travelT);
+    S.viewDistance = S.travelFrom + (S.phase.distance - S.travelFrom) * e;
+    S.shift = S.shiftFrom + (S.shiftTo - S.shiftFrom) * e;
+    rebuildScene();
+    // O alvo novo entra caminhando na primeira parte da transição.
+    const w = clamp(S.travelT / TRAVEL.walkIn, 0, 1);
+    S.entry = TRAVEL.entry * (1 - easeOut(w));
+    S.walk = w < 1 ? S.walk + dt * 13 : 0;
+    if (S.travelT >= 1) {
+      S.entry = 0;
+      S.walk = 0;
+      S.shift = S.shiftTo;
+      S.state = 'ready';
+      hudDirty = true;
+    }
+  }
+
   function update(dt) {
-    if (S.state === 'intro' || S.state === 'paused' || S.state === 'over' || S.state === 'win') return;
+    if (['intro', 'paused', 'over', 'win'].includes(S.state)) return;
 
     if (S.bannerTime > 0) { S.bannerTime -= dt; if (S.bannerTime <= 0) S.banner = ''; }
     if (S.flash > 0) S.flash = Math.max(0, S.flash - dt * 1.8);
     if (S.shake > 0) S.shake = Math.max(0, S.shake - dt * 40);
+    if (S.flinch > 0) S.flinch = Math.max(0, S.flinch - dt * 2.2);
     blood.update(dt, scene.groundY);
-
-    if (S.wounded) {
-      S.woundLean = Math.min(0.42, S.woundLean + dt * 1.1);
-      if (S.woundOffset) {
-        const p = attached(S.woundOffset);
-        blood.setWound(p.x, p.y);
-      }
+    stepDebris(dt);
+    stepFall(dt);
+    if (S.wounded && S.woundOffset) {
+      const p = attached(S.woundOffset);
+      blood.setWound(p.x, p.y);
     }
 
     if (S.freeze > 0) { S.freeze -= dt; return; }
 
+    if (S.state === 'travel') { stepTravel(dt); return; }
     if (S.state === 'resolve') {
       S.resolveTime -= dt;
       if (S.resolveTime <= 0) resolveDone();
@@ -487,31 +684,41 @@ export function create(services) {
   }
 
   function render(dt, alpha) {
+    syncOrientation();
+    if (isPortrait()) {
+      renderer.drawRotate();
+      hud.tickToast(dt);
+      if (hudDirty) { syncHud(); hudDirty = false; }
+      hud.flush();
+      return;
+    }
+
     const target = currentTarget();
-    const body = bodyOf(scene, S.phase, target);
+    const body = currentBody(target);
     const arrow = S.arrow ? { ...toScreen(S.arrow), vx: S.arrow.vx, vy: -S.arrow.vy } : null;
     const stuck = S.stuck.map(a => {
       if (!a.onBody) return a;
       const p = attached(a);
-      return { ...a, x: p.x, y: p.y, angle: a.angle + p.lean };
+      return { ...a, x: p.x, y: p.y, angle: a.angle + S.lean };
     });
 
     renderer.draw({
-      scene, phase: S.phase, target, body, stuck, arrow,
+      scene, phase: S.phase, distance: S.viewDistance, target, body, stuck, arrow,
       archer: { x: scene.x0, y: scene.groundY },
       aim, guide: guidePoints(),
-      blood, wind: S.wind, clock: S.clock,
-      wounded: S.wounded, woundLean: S.woundLean,
-      appleHit: S.outcome === 'apple' && S.state !== 'ready',
+      blood, wind: S.wind, clock: S.clock, shift: S.shift, walk: S.walk,
+      wounded: S.wounded, lean: S.lean + (S.flinch > 0 ? Math.sin(S.flinch * 22) * 0.05 : 0),
+      targetArms: S.targetArms,
+      showApple: !S.wounded && S.outcome !== 'apple',
+      bits: S.bits, loose: S.loose,
       flash: S.flash, flashTone: S.flashTone, shake: S.shake,
       banner: S.banner, bannerTone: S.bannerTone,
+      difficulty: S.difficulty,
       stats: loopStats
     });
 
     hud.tickToast(dt);
     if (hudDirty) { syncHud(); hudDirty = false; }
-    // O HUD acumula as escritas e aplica uma vez por quadro: sem o flush nada
-    // do que syncHud enfileirou chega ao DOM.
     hud.flush();
   }
 
@@ -526,17 +733,17 @@ export function create(services) {
       text: S.wind === 0 ? 'Sem vento' : `Vento ${S.wind > 0 ? '→' : '←'} ${Math.abs(S.wind).toFixed(1)}`,
       tone: Math.abs(S.wind) >= 4 ? 'warn' : ''
     });
-    if (window.innerWidth < window.innerHeight) chips.push({ text: 'Melhor na horizontal', tone: 'warn' });
+    chips.push({ text: DIFFICULTY[S.difficulty].label, tone: 'accent' });
     if (S.streak > 1) chips.push({ text: `${S.streak} seguidas`, tone: 'accent' });
     if (S.arrowsHere > 0) chips.push({ text: `${S.arrowsHere} flecha${S.arrowsHere === 1 ? '' : 's'} nesta fase` });
     chips.push({ text: modeInfo().label, tone: 'flow' });
     hud.setChips(chips, `Fase ${levelLabel()}, ${S.phase.distance} metros, ${S.lives} vidas`);
-    hud.setPause(S.state === 'paused', S.state !== 'intro' && S.state !== 'over' && S.state !== 'win');
+    hud.setPause(S.state === 'paused', !['intro', 'over', 'win'].includes(S.state));
   }
 
   // ------------------------------------------------------------- interface
   input.on('press', p => {
-    if (hud.dialogOpen || S.state !== 'ready') return;
+    if (hud.dialogOpen || isPortrait() || S.state !== 'ready') return;
     aim.pulling = true;
     aim.anchorX = p.x;
     aim.anchorY = p.y;
@@ -546,13 +753,13 @@ export function create(services) {
     if (!aim.pulling) return;
     const pull = Math.hypot(input.state.x - aim.anchorX, input.state.y - aim.anchorY);
     aim.pulling = false;
-    if (S.state !== 'ready' || hud.dialogOpen) return;
+    if (S.state !== 'ready' || hud.dialogOpen || isPortrait()) return;
     if (pull < AIM.minPull) { showBanner('TIRO CANCELADO', '', 0.9); return; }
     fire();
   });
 
   input.on('key', event => {
-    if (hud.dialogOpen) return;
+    if (hud.dialogOpen || isPortrait()) return;
     const tag = event.target && event.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
@@ -563,27 +770,24 @@ export function create(services) {
     if (event.key === ' ' || event.key === 'Enter') {
       event.preventDefault();
       if (S.state === 'ready') fire();
-      else if (S.state === 'intro' || S.state === 'over' || S.state === 'win') primaryAction();
+      else if (['intro', 'over', 'win'].includes(S.state)) primaryAction();
       else if (S.state === 'paused') resume();
     }
   });
 
   function primaryAction() {
-    if (hud.dialogOpen) return;
+    if (hud.dialogOpen || isPortrait()) return;
     if (S.state === 'paused') { resume(); return; }
     if (S.state === 'intro') {
       const run = savedRun();
       if (run) { startRun(run.mode, run); return; }
-      startRun(settings.mode);
-      return;
     }
     startRun(settings.mode);
   }
 
   function secondaryAction() {
-    if (hud.dialogOpen) return;
-    if (S.state === 'intro') { clearRun(); startRun(settings.mode); return; }
-    if (S.state === 'paused') { clearRun(); startRun(settings.mode); }
+    if (hud.dialogOpen || isPortrait()) return;
+    if (['intro', 'paused'].includes(S.state)) { clearRun(); startRun(settings.mode); }
   }
 
   function pause() {
@@ -603,8 +807,8 @@ export function create(services) {
   }
 
   function resume() {
-    if (S.state !== 'paused' || hud.dialogOpen) return;
-    S.state = pausedFrom === 'flying' ? 'flying' : 'ready';
+    if (S.state !== 'paused' || hud.dialogOpen || isPortrait()) return;
+    S.state = ['flying', 'travel', 'resolve'].includes(pausedFrom) ? pausedFrom : 'ready';
     pausedFrom = null;
     audio.resume();
     dismiss();
@@ -614,18 +818,21 @@ export function create(services) {
   function openSettings() {
     const playing = !['intro', 'over', 'win', 'paused'].includes(S.state);
     if (playing) pause();
+    const records = {};
+    for (const mode of Object.keys(MODES)) {
+      records[mode] = store.get(`best-${mode}-${settings.difficulty}`, { score: 0, level: 0, streak: 0 });
+    }
     const node = buildDialog({
-      settings, theme, audio, haptics,
-      modes: MODES,
-      records: {
-        campaign: store.get('best-campaign', { score: 0, level: 0, streak: 0 }),
-        endless: store.get('best-endless', { score: 0, level: 0, streak: 0 }),
-        daily: store.get('best-daily', { score: 0, level: 0, streak: 0 })
-      },
+      settings, theme, audio, haptics, modes: MODES, records,
       onMode: value => {
         settings.mode = value;
         store.set('mode', value);
         hud.toast('O modo vale a partir da próxima partida', { priority: 2 });
+      },
+      onDifficulty: value => {
+        settings.difficulty = validDifficulty(value);
+        store.set('difficulty', settings.difficulty);
+        hud.toast('A dificuldade vale a partir da próxima partida', { priority: 2 });
       },
       onGuide: value => { settings.guide = value; store.set('guide', value); },
       onBlood: value => {
@@ -642,15 +849,15 @@ export function create(services) {
   function resize() {
     rebuildScene();
     renderer.invalidate();
+    wasPortrait = null;
     hudDirty = true;
   }
 
-  // Tela inicial: mostra a cena atrás do overlay.
   rebuildScene();
   hud.setHint('Arraste para trás e solte · <strong>como puxar a corda</strong>');
   function showIntro() {
     const run = savedRun();
-    const best = store.get(`best-${settings.mode}`, { score: 0, level: 0, streak: 0 });
+    const best = store.get(`best-${settings.mode}-${settings.difficulty}`, { score: 0, level: 0, streak: 0 });
     present({
       tag: 'Tiro ao alvo',
       title: 'A maçã está<br>na cabeça dele.',
@@ -659,7 +866,7 @@ export function create(services) {
         : 'Puxe a corda arrastando para trás e solte. Acertar a pessoa custa uma vida — e sangue.',
       action: run ? 'Continuar' : 'Começar',
       secondary: run ? 'Nova partida' : null,
-      note: `${MODES[settings.mode].label} · recorde ${best.score} pontos`
+      note: `${MODES[settings.mode].label} · ${DIFFICULTY[settings.difficulty].label} · recorde ${best.score} pontos`
     });
     S.state = 'intro';
     syncHud();
@@ -674,10 +881,11 @@ export function create(services) {
     onHidden: pause,
     onThemeChange: () => renderer.invalidate(),
     getState: () => ({
-      state: S.state, mode: S.mode, level: S.levelIndex + 1, phase: S.phase.name,
-      distance: S.phase.distance, wind: S.wind, score: S.score, lives: S.lives,
-      streak: S.streak, arrows: S.arrowsTotal, hits: S.hits, victims: S.victims,
-      wounded: S.wounded, blood: settings.blood, particles: blood.count
+      state: S.state, mode: S.mode, difficulty: S.difficulty, level: S.levelIndex + 1,
+      phase: S.phase.name, distance: S.phase.distance, wind: S.wind, score: S.score,
+      lives: S.lives, streak: S.streak, arrows: S.arrowsTotal, hits: S.hits,
+      victims: S.victims, wounded: S.wounded, blood: settings.blood, particles: blood.count,
+      portrait: isPortrait()
     }),
     inspect: () => ({ S, aim, scene, settings, blood }),
     applePoint: () => currentBody().apple,

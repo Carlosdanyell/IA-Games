@@ -13,7 +13,7 @@ Sem framework, sem build, sem dependências: HTML, CSS e JavaScript com módulos
 |---|---|
 | **Neon Break** | Quebra-blocos com multibola, 12 cápsulas, 9 tipos de bloco, 3 modos e 25 arenas. Guarda a partida a cada arena. |
 | **Neon Words** | Cruzadinha com roda de letras: 25 fases em português, dicas, desbloqueio progressivo de letras. |
-| **Neon Arrow** | Tiro ao alvo com besta: acerte a maçã na cabeça do parceiro. 25 fases com vento, alvo em movimento e efeitos de sangue reguláveis. |
+| **Neon Arrow** | Tiro ao alvo com arco: acerte a maçã na cabeça do parceiro. 25 fases com vento e alvo em movimento, quatro níveis de dificuldade e efeitos de sangue reguláveis. Só na horizontal. |
 | **Neon Pool** | Sinuca 8-ball com regras completas, máquina de três níveis, dois jogadores no mesmo aparelho ou multiplayer em aparelhos no mesmo Wi-Fi. Mesa na horizontal. |
 
 ---

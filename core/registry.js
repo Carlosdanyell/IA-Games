@@ -25,7 +25,7 @@ export const GAMES = [
     id: 'neon-arrow',
     title: 'Neon Arrow',
     tagline: 'Acerte a maçã na cabeça. Errar tem consequência.',
-    tags: ['Mira', '25 fases', 'Sangue'],
+    tags: ['Mira', 'Horizontal', 'Sangue'],
     accent: '#ff5f6d',
     status: 'ready',
     entry: './games/neon-arrow/index.js',
