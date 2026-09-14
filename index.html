@@ -120,26 +120,83 @@
         stroke-linecap="round" opacity=".25"/>
     </svg>`,
     arrow: `<svg viewBox="0 0 320 200" aria-hidden="true">
-      <line x1="18" y1="164" x2="302" y2="164" stroke="currentColor" stroke-width="3" opacity=".5"/>
-      <g opacity=".85">
-        <circle cx="62" cy="96" r="11" fill="currentColor"/>
-        <path d="M62 108v30M62 138l-11 26M62 138l11 26M62 116l22-10" fill="none" stroke="currentColor"
-          stroke-width="7" stroke-linecap="round"/>
-        <path d="M92 78a26 26 0 0 1 0 52" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-        <path d="M92 78 78 104l14 26" fill="none" stroke="currentColor" stroke-width="2" opacity=".7"/>
+      <!-- céu -->
+      <g fill="currentColor" opacity=".3">
+        <circle cx="34" cy="26" r="1.6"/><circle cx="88" cy="14" r="1.2"/><circle cx="140" cy="30" r="1.6"/>
+        <circle cx="204" cy="18" r="1.2"/><circle cx="300" cy="40" r="1.4"/><circle cx="60" cy="48" r="1"/>
+        <circle cx="246" cy="26" r="1"/><circle cx="176" cy="52" r="1"/>
       </g>
-      <path d="M104 104h96" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity=".9"/>
-      <path d="M200 104l-13-6v12z" fill="currentColor"/>
-      <g opacity=".85">
-        <circle cx="252" cy="96" r="11" fill="currentColor"/>
-        <path d="M252 108v30M252 138l-10 26M252 138l10 26M252 116l-16 12M252 116l16 12" fill="none"
-          stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+      <g opacity=".5">
+        <circle cx="178" cy="34" r="12" fill="currentColor"/>
+        <circle cx="183" cy="29" r="10.5" fill="var(--arena,#100b1b)"/>
       </g>
-      <circle cx="252" cy="66" r="15" fill="#7fe06a"/>
-      <path d="M252 51v-9" stroke="#8a5a33" stroke-width="4" stroke-linecap="round"/>
-      ${[[268,84,4],[276,96,3],[262,110,2.4],[284,120,2],[272,132,3.2]]
-        .map(([x,y,r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#e7213f" opacity=".9"/>`).join('')}
-      <ellipse cx="276" cy="164" rx="18" ry="5" fill="#c4102b" opacity=".8"/>
+      <!-- morros baixos, atrás das figuras -->
+      <path d="M0 170v-16c28-9 44 2 72 5s52-6 80-9 56 4 80 9 60 5 88 1v10z" fill="currentColor" opacity=".1"/>
+      <path d="M0 170v-8c34-6 52 4 86 4s56-6 92-6 66 4 92 2l50-2v10z" fill="currentColor" opacity=".16"/>
+      <!-- chão -->
+      <line x1="8" y1="170" x2="312" y2="170" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+      <g stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".4">
+        <path d="M24 170l-3-7M44 170l2-8M104 170l3-7M128 170l-2-8M168 170l2-7M200 170l-3-6M232 170l2-7M300 170l-2-7"/>
+      </g>
+
+      <!-- arqueiro -->
+      <g stroke-linecap="round" stroke-linejoin="round" fill="none" stroke="currentColor">
+        <path d="M54 170v-28" stroke-width="8"/>
+        <path d="M47 170l5-22M61 170l-5-22" stroke-width="7"/>
+        <path d="M54 142v-30" stroke-width="14"/>
+        <path d="M54 116l26-8" stroke-width="7"/>
+        <path d="M54 116l-14 10" stroke-width="7"/>
+      </g>
+      <circle cx="54" cy="96" r="12.5" fill="currentColor"/>
+      <path d="M43 91a11.5 11.5 0 0 1 22 0z" fill="var(--arena,#100b1b)" opacity=".35"/>
+      <!-- arco com flecha encaixada -->
+      <path d="M90 82a30 30 0 0 1 0 48" fill="none" stroke="#e2d3b4" stroke-width="5" stroke-linecap="round"/>
+      <path d="M90 82 72 106l18 24" fill="none" stroke="#f6efe0" stroke-width="2" stroke-linecap="round"/>
+      <path d="M72 106h30" stroke="#e2d3b4" stroke-width="4" stroke-linecap="round"/>
+      <path d="M102 106l-10-5.5v11z" fill="currentColor"/>
+      <path d="M72 100.5l7 5.5-7 5.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+
+      <!-- trajetória -->
+      <path d="M106 102c32-20 70-24 108-13" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-dasharray="3 8" opacity=".6"/>
+      <!-- flecha em voo -->
+      <g transform="rotate(7 212 90)">
+        <path d="M186 90h28" stroke="#e2d3b4" stroke-width="3.5" stroke-linecap="round"/>
+        <path d="M220 90l-10-5.5v11z" fill="currentColor"/>
+        <path d="M186 85l6 5-6 5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      </g>
+
+      <!-- alvo -->
+      <g stroke-linecap="round" stroke-linejoin="round" fill="none" stroke="currentColor">
+        <path d="M262 170v-28" stroke-width="8"/>
+        <path d="M255 170l5-22M269 170l-5-22" stroke-width="7"/>
+        <path d="M262 142v-30" stroke-width="14"/>
+        <path d="M253 118l-9 16M271 118l9 16" stroke-width="6"/>
+      </g>
+      <circle cx="262" cy="96" r="12.5" fill="currentColor"/>
+      <path d="M251 91a11.5 11.5 0 0 1 22 0z" fill="var(--arena,#100b1b)" opacity=".35"/>
+      <g fill="var(--arena,#100b1b)">
+        <circle cx="257" cy="97" r="2.5"/><circle cx="267" cy="97" r="2.5"/>
+        <ellipse cx="262" cy="105" rx="2.8" ry="3.4"/>
+      </g>
+      <!-- gota de suor -->
+      <ellipse cx="248" cy="93" rx="2.4" ry="3.4" fill="#8ecbff" opacity=".9"/>
+      <!-- maçã, com o mesmo halo que ela tem no jogo -->
+      <defs><radialGradient id="arrowGlow">
+        <stop offset="0" stop-color="#7fe06a" stop-opacity=".4"/>
+        <stop offset="1" stop-color="#7fe06a" stop-opacity="0"/>
+      </radialGradient></defs>
+      <circle cx="262" cy="69" r="26" fill="url(#arrowGlow)"/>
+      <circle cx="262" cy="69" r="13" fill="#7fe06a"/>
+      <circle cx="266" cy="72" r="8" fill="#3f8f34" opacity=".75"/>
+      <ellipse cx="257" cy="64" rx="3.2" ry="2" fill="#ffffff" opacity=".6" transform="rotate(-30 257 64)"/>
+      <path d="M262 56v-8" stroke="#8a5a33" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M263 51c6-4 11-2 11-2s-2 6-9 6" fill="#8ef07a" opacity=".9"/>
+      <!-- respingos -->
+      <g fill="#e7213f">
+        <circle cx="288" cy="112" r="3"/><circle cx="296" cy="128" r="2.2"/><circle cx="283" cy="142" r="2.6"/>
+        <ellipse cx="293" cy="169" rx="14" ry="3.4" opacity=".85"/>
+      </g>
     </svg>`,
     pool: `<svg viewBox="0 0 320 200" aria-hidden="true">
       <rect x="24" y="28" width="272" height="144" rx="18" fill="none" stroke="currentColor" stroke-width="3" opacity=".45"/>
