@@ -1,8 +1,8 @@
 import { createRng, hashSeed, todaySeedLabel } from '../../core/rng.js';
-import { PHYSICS, AIM, FIGURE, SCORE, LIVES, TIMING, TRAVEL, FALL, DIFFICULTY, logicalSize }
+import { PHYSICS, AIM, FIGURE, SCORE, LIVES, TIMING, TRAVEL, FALL, DIFFICULTY, BONUS, FACE, logicalSize }
   from './config.js';
 import { PHASES, phaseFor } from './levels.js';
-import { layout, targetAt, bodyOf, firstHit, clamp } from './world.js';
+import { layout, targetAt, bodyOf, firstHit, segmentCircle, bonusFor, clamp } from './world.js';
 import { createBlood } from './blood.js';
 import { createRenderer } from './render.js';
 import { buildDialog } from './ui.js';
@@ -28,6 +28,7 @@ const MODES = {
 
 const RUN_KEY = 'run-v1';
 const APPLE_COLORS = ['#7fe06a', '#a8ff8f', '#3f8f34', '#d9ff6b'];
+const SPARK_COLORS = ['#ffd28a', '#ff9d3c', '#ffe9b8', '#ff4d63'];
 const GRAVITY_PX = 900;          // queda de maçã e pedaços, em unidades/s²
 const easeOut = t => 1 - Math.pow(1 - t, 3);
 const easeInOut = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -108,6 +109,11 @@ export function create(services) {
     flinch: 0,
     bits: [],
     loose: null,
+    bonusTaken: false,
+    blink: 0,
+    blinkIn: 2,
+    voiceIn: 0,
+    voiceStrong: false,
     arrow: null,
     whooshed: false,
     stuck: []
@@ -179,6 +185,23 @@ export function create(services) {
     },
     step() {
       audio.noise({ dur: 0.07, vol: 0.02, cutoff: 900, cutoffEnd: 300 });
+    },
+    // Grito: dois harmônicos de serra descendo com um sopro por cima. Não é
+    // uma voz de verdade, mas lê como dor — e varia a cada acerto.
+    scream(strong) {
+      const base = (strong ? 420 : 240) + Math.random() * 90;
+      const dur = (strong ? 0.5 : 0.3) + Math.random() * 0.18;
+      audio.tone({ freq: base, dur, type: 'sawtooth', vol: strong ? 0.05 : 0.034, slide: 0.42 });
+      audio.tone({ freq: base * 1.5, dur: dur * 0.8, type: 'square', vol: 0.016, slide: 0.5 });
+      audio.noise({ dur: dur * 0.9, vol: 0.03, cutoff: 1500, cutoffEnd: 480, filter: 'bandpass', q: 1.6, curve: 'bump' });
+    },
+    relief() {
+      audio.noise({ dur: 0.4, vol: 0.022, cutoff: 900, cutoffEnd: 300, filter: 'bandpass', q: 0.9, curve: 'bump' });
+    },
+    bonus() {
+      audio.tone({ freq: 660, dur: 0.12, type: 'triangle', vol: 0.04, slide: 1.5 });
+      audio.tone({ freq: 990, dur: 0.22, type: 'sine', vol: 0.035, slide: 1.34 });
+      audio.noise({ dur: 0.2, vol: 0.02, cutoff: 2600, cutoffEnd: 900, filter: 'bandpass', q: 1.2 });
     }
   };
 
@@ -192,6 +215,8 @@ export function create(services) {
   };
   const currentBody = (target = currentTarget()) =>
     bodyOf(scene, S.phase, target, { assist: rules().assist, apple: rules().apple });
+  const currentBonus = () =>
+    (S.bonusTaken ? null : bonusFor(scene, S.phase, S.levelIndex, S.seed, S.clock));
 
   function handPoint() {
     const h = FIGURE.height * scene.scale;
@@ -234,6 +259,7 @@ export function create(services) {
     S.phase = phaseFor(S.mode, index, S.seed);
     S.arrowsHere = 0;
     S.outcome = '';
+    S.bonusTaken = false;
     S.clock = 0;
     S.stuck.length = 0;
     S.arrow = null;
@@ -404,6 +430,8 @@ export function create(services) {
     S.freeze = TIMING.freezeHit;
     S.shake = 5;
     sfx.apple();
+    S.voiceIn = 0.22;
+    S.voiceStrong = null;            // null = suspiro de alívio
     haptics.buzz([12, 30, 18]);
     showBanner(precision > 0.75 ? `NO CENTRO · +${total}` : `MAÇÃ · +${total}`, 'good', 1.4);
     S.outcome = 'apple';
@@ -432,10 +460,32 @@ export function create(services) {
     S.shake = 18 * blood.level.shake;
     S.freeze = TIMING.freezeHit;
     sfx.flesh();
+    // O grito entra logo depois do impacto, para não disputar vozes com ele.
+    S.voiceIn = 0.1;
+    S.voiceStrong = ['cabeça', 'peito', 'ombro'].includes(part);
     haptics.buzz([30, 40, 60]);
     showBanner(`ACERTOU ${part.toUpperCase()}`, 'bad', 1.8);
     S.outcome = 'person';
     S.resolveTime = TIMING.retry + FALL.time * 0.6;
+    S.state = 'resolve';
+    hudDirty = true;
+  }
+
+  function takeBonus(point, dir) {
+    S.bonusTaken = true;
+    const ganhou = S.lives < LIVES.max;
+    if (ganhou) S.lives++;
+    else addScore(BONUS.points);
+    blood.splash(point.x, point.y, dir.vx, dir.vy, 1, { colors: SPARK_COLORS, count: BONUS.sparks });
+    S.flash = 0.3; S.flashTone = 'good';
+    sfx.bonus();
+    haptics.buzz([10, 24, 10]);
+    hud.toast(ganhou ? 'VIDA EXTRA · lanterna' : `LANTERNA · +${BONUS.points} pontos`, { priority: 2 });
+    showBanner(ganhou ? 'VIDA EXTRA' : `LANTERNA · +${BONUS.points}`, 'good', 1.3);
+    // Gastou a flecha, mas a sequência de acertos continua: pegar a lanterna
+    // é uma escolha, não um erro.
+    S.outcome = 'bonus';
+    S.resolveTime = TIMING.retry * 0.65;
     S.state = 'resolve';
     hudDirty = true;
   }
@@ -458,7 +508,8 @@ export function create(services) {
       return;
     }
     if (S.lives <= 0) { finish('over'); return; }
-    resetTarget();
+    if (S.outcome !== 'bonus') resetTarget();
+    S.outcome = '';
     S.arrow = null;
     S.state = 'ready';
     aim.ready = true;
@@ -550,6 +601,24 @@ export function create(services) {
     const target = currentTarget();
     const body = currentBody(target);
     const hit = firstHit(before.x, before.y, after.x, after.y, body);
+
+    // A lanterna disputa o instante do contato com o alvo: quem vier primeiro
+    // no trecho é quem a flecha acerta.
+    const bonus = currentBonus();
+    if (bonus) {
+      const tb = segmentCircle(before.x, before.y, after.x, after.y, bonus.x, bonus.y, bonus.hitR);
+      if (tb >= 0 && (!hit || tb < hit.t)) {
+        const point = {
+          x: before.x + (after.x - before.x) * tb,
+          y: before.y + (after.y - before.y) * tb
+        };
+        const dir = { vx: a.vx, vy: -a.vy };
+        S.arrow = null;
+        takeBonus(point, dir);
+        return;
+      }
+    }
+
     if (hit) {
       const point = {
         x: before.x + (after.x - before.x) * hit.t,
@@ -655,6 +724,20 @@ export function create(services) {
     if (S.flash > 0) S.flash = Math.max(0, S.flash - dt * 1.8);
     if (S.shake > 0) S.shake = Math.max(0, S.shake - dt * 40);
     if (S.flinch > 0) S.flinch = Math.max(0, S.flinch - dt * 2.2);
+    if (S.voiceIn > 0) {
+      S.voiceIn -= dt;
+      if (S.voiceIn <= 0) {
+        if (S.voiceStrong === null) sfx.relief(); else sfx.scream(S.voiceStrong);
+      }
+    }
+    if (S.blink > 0) S.blink = Math.max(0, S.blink - dt);
+    else {
+      S.blinkIn -= dt;
+      if (S.blinkIn <= 0) {
+        S.blink = FACE.blinkTime;
+        S.blinkIn = FACE.blinkEvery[0] + Math.random() * (FACE.blinkEvery[1] - FACE.blinkEvery[0]);
+      }
+    }
     blood.update(dt, scene.groundY);
     stepDebris(dt);
     stepFall(dt);
@@ -702,12 +785,22 @@ export function create(services) {
       return { ...a, x: p.x, y: p.y, angle: a.angle + S.lean };
     });
 
+    const targetFace = S.wounded ? 'dor'
+      : S.outcome === 'apple' ? 'alivio'
+      : (aim.pulling && aim.power > 0.22) || S.state === 'flying' ? 'medo'
+      : 'neutro';
+
     renderer.draw({
       scene, phase: S.phase, distance: S.viewDistance, target, body, stuck, arrow,
+      bonus: currentBonus(),
+      targetFace, archerFace: aim.pulling ? 'mira' : 'neutro', blink: S.blink,
       archer: { x: scene.x0, y: scene.groundY },
       aim, guide: guidePoints(),
       blood, wind: S.wind, clock: S.clock, shift: S.shift, walk: S.walk,
-      wounded: S.wounded, lean: S.lean + (S.flinch > 0 ? Math.sin(S.flinch * 22) * 0.05 : 0),
+      wounded: S.wounded,
+      // Tremor de nervoso enquanto a corda é puxada, e susto ao ver a maçã ir.
+      lean: S.lean + (S.flinch > 0 ? Math.sin(S.flinch * 22) * 0.05 : 0) +
+            (targetFace === 'medo' ? Math.sin(S.clock * 17) * 0.009 : 0),
       targetArms: S.targetArms,
       showApple: !S.wounded && S.outcome !== 'apple',
       bits: S.bits, loose: S.loose,
@@ -885,10 +978,11 @@ export function create(services) {
       phase: S.phase.name, distance: S.phase.distance, wind: S.wind, score: S.score,
       lives: S.lives, streak: S.streak, arrows: S.arrowsTotal, hits: S.hits,
       victims: S.victims, wounded: S.wounded, blood: settings.blood, particles: blood.count,
-      portrait: isPortrait()
+      bonus: !!currentBonus(), bonusTaken: S.bonusTaken, portrait: isPortrait()
     }),
     inspect: () => ({ S, aim, scene, settings, blood }),
     applePoint: () => currentBody().apple,
+    bonusPoint: () => currentBonus(),
     destroy: () => {
       input.destroy();
       app.classList.remove('arrow-app');

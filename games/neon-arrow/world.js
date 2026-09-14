@@ -1,4 +1,5 @@
-import { FIELD, FIGURE, SCALE } from './config.js';
+import { FIELD, FIGURE, SCALE, BONUS } from './config.js';
+import { createRng } from '../../core/rng.js';
 
 // Geometria da cena e detecção de acerto.
 //
@@ -66,6 +67,24 @@ export function bodyOf(scene, phase, foot, mods = {}) {
       { part: 'perna', x: fx - 0.07 * h, y: fy - 0.12 * h, r: limbR * 1.25 },
       { part: 'perna', x: fx + 0.07 * h, y: fy - 0.12 * h, r: limbR * 1.25 }
     ]
+  };
+}
+
+// Lanterna de vida extra: posição sorteada por fase (mesma semente = mesma
+// lanterna) e balanço vertical contínuo. Devolve null quando a fase não tem.
+export function bonusFor(scene, phase, levelIndex, seed, clock) {
+  if (levelIndex + 1 < BONUS.fromPhase) return null;
+  const rng = createRng(((seed ^ 0x5bf03635) + levelIndex * 2246822519) >>> 0);
+  if (!rng.chance(BONUS.chance)) return null;
+  const fx = BONUS.xRange[0] + rng.next() * (BONUS.xRange[1] - BONUS.xRange[0]);
+  const fy = BONUS.yRange[0] + rng.next() * (BONUS.yRange[1] - BONUS.yRange[0]);
+  const phaseOff = rng.next() * Math.PI * 2;
+  const r = BONUS.r * scene.scale;
+  return {
+    x: scene.x0 + phase.distance * fx * scene.u,
+    y: scene.groundY - fy * scene.groundY + Math.sin(clock * BONUS.bob.speed + phaseOff) * BONUS.bob.amp * scene.scale,
+    r,
+    hitR: r * BONUS.hit
   };
 }
 

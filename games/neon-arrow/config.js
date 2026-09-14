@@ -60,10 +60,10 @@ export const PHYSICS = {
 export const SCALE = { ref: 21, min: 0.62, max: 1.15 };
 
 export const FIGURE = {
-  height: 66,         // unidades lógicas com escala 1, dos pés ao topo da cabeça
-  headR: 7.2,
+  height: 70,         // unidades lógicas com escala 1, dos pés ao topo da cabeça
+  headR: 8,           // cabeça um pouco maior: é onde ficam olhos e boca
   torsoR: 5.6,
-  limbR: 2.8,
+  limbR: 2.9,
   appleR: 5.4,
   appleGap: 3.4,      // folga entre o topo da cabeça e a maçã
   assist: 1.35        // hitbox da maçã um pouco maior que o desenho
@@ -116,6 +116,33 @@ export const LIVES = {
   max: 5,
   scoreStep: 2500,    // vida extra a cada tanto de pontos
   streakStep: 6       // vida extra a cada tantos acertos seguidos
+};
+
+// Alvo-bônus: uma lanterna pendurada no meio do caminho, a partir da fase 10.
+// Acertá-la gasta a flecha e não passa de fase — é uma escolha, não um brinde:
+// troca-se um tiro por uma vida.
+export const BONUS = {
+  fromPhase: 10,      // índice 1-based da primeira fase que pode ter lanterna
+  chance: 0.7,
+  r: 8.5,             // raio desenhado, unidades lógicas com escala 1
+  hit: 1.25,          // folga da hitbox
+  xRange: [0.34, 0.72],   // fração da distância onde ela pode aparecer
+  yRange: [0.3, 0.6],     // fração da altura do campo acima do chão
+  bob: { amp: 9, speed: 1.4 },
+  points: 180,        // quando já se está no máximo de vidas
+  sparks: 26
+};
+
+// Rostos. A cara do alvo é o que dá clímax à cena, então ela reage: espera,
+// medo enquanto a corda é puxada, alívio quando a maçã estoura e dor quando
+// a flecha acerta a pessoa.
+export const FACE = {
+  eye: 0.2,           // raio do olho em frações do raio da cabeça
+  eyeGap: 0.66,      // com menos que isso os dois olhos se encostam e viram um borrão
+  eyeY: 0.02,        // logo abaixo da franja, senão o cabelo corta os olhos
+  mouthY: 0.42,
+  blinkEvery: [2.4, 5.5],
+  blinkTime: 0.12
 };
 
 // Sangue: quantidade de partículas por nível de efeito. 'off' mantém o jogo

@@ -82,7 +82,7 @@ export function buildDialog({ settings, theme, audio, haptics, modes, records,
   prefs.appendChild(switchRow('Linha de tiro',
     'Mostra a trajetória prevista. O quanto dela aparece depende da dificuldade — no Mestre não aparece nada.',
     settings.guide, onGuide));
-  prefs.appendChild(switchRow('Som', 'Corda, zunido da flecha, maçã e impacto.',
+  prefs.appendChild(switchRow('Som', 'Corda, zunido da flecha, maçã, impacto e o grito de quem leva a flechada.',
     audio.enabled, value => audio.setEnabled(value)));
   prefs.appendChild(switchRow('Vibração',
     haptics.supported ? 'Retorno tátil no disparo e no acerto.' : 'Não disponível neste aparelho.',
@@ -97,7 +97,8 @@ export function buildDialog({ settings, theme, audio, haptics, modes, records,
     'Quanto mais longe você arrasta, mais força. Soltar quase no ponto de partida cancela o tiro.',
     'No teclado: setas laterais ajustam o ângulo, setas verticais a força, espaço dispara.',
     'A trajetória sofre gravidade e vento. A bandeira e o placar mostram a direção e a força do vento.',
-    'O alvo anda e a plataforma oscila nas fases avançadas: atire onde ele vai estar, não onde está.'
+    'O alvo anda e a plataforma oscila nas fases avançadas: atire onde ele vai estar, não onde está.',
+    'Olhe para a cara dele: o susto enquanto você puxa a corda entrega o quanto a mira está apontada para a pessoa.'
   ].forEach(text => how.appendChild(el('li', null, text)));
   root.appendChild(how);
 
@@ -106,6 +107,7 @@ export function buildDialog({ settings, theme, audio, haptics, modes, records,
   [
     'Acertar a maçã passa de fase. Vale mais no centro, na primeira flecha e em sequência.',
     'Acertar a pessoa custa uma vida e zera a sequência. Errar tudo só zera a sequência.',
+    'A partir da fase 10 pode aparecer uma lanterna no meio do caminho: acertá-la dá uma vida (ou 180 pontos, se já estiver no máximo). Gasta a flecha e não passa de fase — é uma troca.',
     'A dificuldade multiplica os pontos: Fácil ×0,75, Normal ×1, Difícil ×1,4 e Mestre ×2.',
     'Vida extra a cada 2.500 pontos e a cada 6 acertos seguidos, até o máximo de 5.',
     'A campanha guarda a fase e a dificuldade: dá para fechar o jogo e continuar de onde parou.',

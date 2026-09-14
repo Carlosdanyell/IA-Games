@@ -1,6 +1,6 @@
 import { createSpriteCache } from '../../core/sprites.js';
 import { createRng } from '../../core/rng.js';
-import { FIELD, ARROW, FIGURE } from './config.js';
+import { FIELD, ARROW, FIGURE, FACE, BONUS } from './config.js';
 
 // Identidade da biblioteca aplicada ao tiro ao alvo: fundo escuro, horizonte e
 // chão na cor de destaque, figuras em silhueta. O sangue e a maçã têm cor
@@ -331,7 +331,7 @@ export function createRenderer(viewport, theme, debug) {
     c.lineTo(torso, -0.44 * h);
     c.stroke();
 
-    // Cabeça e cabelo
+    // Cabeça, cabelo e rosto
     c.fillStyle = ink;
     c.beginPath();
     c.arc(0, headCy, headR, 0, Math.PI * 2);
@@ -340,8 +340,149 @@ export function createRenderer(viewport, theme, debug) {
     c.beginPath();
     c.arc(0, headCy - headR * 0.25, headR * 0.92, Math.PI * 1.02, Math.PI * 2.02);
     c.fill();
+    drawFace(c, 0, headCy, headR, opts);
     c.restore();
     return { headCy: y + headCy, headR };
+  }
+
+  // O rosto é o que dá clímax à cena: o alvo espera, sente medo enquanto a
+  // corda é puxada, se alivia quando a maçã estoura e grita quando é atingido.
+  function drawFace(c, cx, cy, R, opts) {
+    const face = opts.face || 'neutro';
+    const facing = opts.facing ?? -1;
+    const blink = opts.blink || 0;
+    const traço = theme.dark ? '#1b1526' : '#f2ecfa';
+    const lw = Math.max(0.7, R * 0.13);
+    const ex = facing * R * 0.1;
+    const e1 = ex - R * FACE.eyeGap * 0.5;
+    const e2 = ex + R * FACE.eyeGap * 0.5;
+    const ey = cy + R * FACE.eyeY;
+    const my = cy + R * FACE.mouthY;
+    const wide = face === 'medo' || face === 'dor';
+    const er = R * FACE.eye * (wide ? 1.3 : 1);
+
+    c.save();
+    c.strokeStyle = traço;
+    c.fillStyle = traço;
+    c.lineWidth = lw;
+    c.lineCap = 'round';
+
+    if (blink > 0 && face !== 'dor' && face !== 'alivio') {
+      for (const x of [e1, e2]) {
+        c.beginPath();
+        c.moveTo(cx + x - er, ey);
+        c.lineTo(cx + x + er, ey);
+        c.stroke();
+      }
+    } else if (face === 'alivio') {                 // olhos fechados, sorriso
+      for (const x of [e1, e2]) {
+        c.beginPath();
+        c.arc(cx + x, ey + er * 0.4, er, Math.PI * 1.15, Math.PI * 1.85);
+        c.stroke();
+      }
+    } else if (face === 'dor') {                    // olhos em X
+      for (const x of [e1, e2]) {
+        c.beginPath();
+        c.moveTo(cx + x - er, ey - er); c.lineTo(cx + x + er, ey + er);
+        c.moveTo(cx + x + er, ey - er); c.lineTo(cx + x - er, ey + er);
+        c.stroke();
+      }
+    } else if (face === 'mira') {                   // um olho apertado
+      c.beginPath();
+      c.moveTo(cx + e1 - er, ey); c.lineTo(cx + e1 + er, ey);
+      c.stroke();
+      c.beginPath();
+      c.arc(cx + e2, ey, er, 0, Math.PI * 2);
+      c.fill();
+    } else {
+      for (const x of [e1, e2]) {
+        c.beginPath();
+        c.arc(cx + x, ey, er, 0, Math.PI * 2);
+        c.fill();
+      }
+      if (face === 'medo') {                        // brilho de susto na pupila
+        c.fillStyle = theme.dark ? '#d9d2e8' : '#2a2138';
+        for (const x of [e1, e2]) {
+          c.beginPath();
+          c.arc(cx + x + er * 0.3, ey - er * 0.3, er * 0.35, 0, Math.PI * 2);
+          c.fill();
+        }
+        c.fillStyle = traço;
+      }
+    }
+
+    // Boca
+    if (face === 'dor') {
+      c.beginPath();
+      c.ellipse(cx + ex, my, R * 0.3, R * 0.36, 0, 0, Math.PI * 2);
+      c.fill();
+    } else if (face === 'medo') {
+      c.beginPath();
+      c.ellipse(cx + ex, my, R * 0.2, R * 0.26, 0, 0, Math.PI * 2);
+      c.fill();
+    } else if (face === 'alivio') {
+      c.beginPath();
+      c.arc(cx + ex, my - R * 0.14, R * 0.34, 0.25, Math.PI - 0.25);
+      c.stroke();
+    } else {
+      c.beginPath();
+      c.moveTo(cx + ex - R * 0.22, my);
+      c.lineTo(cx + ex + R * 0.22, my);
+      c.stroke();
+    }
+
+    // Gota de suor no medo
+    if (face === 'medo') {
+      c.fillStyle = '#8ecbff';
+      c.beginPath();
+      c.ellipse(cx - facing * R * 0.85, cy - R * 0.15, R * 0.16, R * 0.24, 0, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.restore();
+  }
+
+  // Lanterna de vida extra: papel translúcido, brasa dentro e um coração.
+  function lantern(c, b, clock, accent) {
+    const R = b.r;
+    c.save();
+    c.translate(b.x, b.y);
+    const glow = c.createRadialGradient(0, 0, R * 0.2, 0, 0, R * 3);
+    glow.addColorStop(0, '#ffb85c55');
+    glow.addColorStop(1, '#ffb85c00');
+    c.fillStyle = glow;
+    c.fillRect(-R * 3, -R * 3, R * 6, R * 6);
+
+    c.strokeStyle = theme.dark ? '#5e4a33' : '#6b5a3e';
+    c.lineWidth = Math.max(0.7, R * 0.1);
+    c.beginPath();
+    c.moveTo(0, -R * 3.4);
+    c.lineTo(0, -R);
+    c.stroke();
+
+    c.fillStyle = '#ffd28a';
+    c.beginPath();
+    c.ellipse(0, 0, R * 0.82, R, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ff9d3c';
+    c.beginPath();
+    c.ellipse(0, R * 0.22, R * 0.6, R * 0.62, 0, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#8a5a33';
+    c.lineWidth = Math.max(0.6, R * 0.12);
+    c.beginPath();
+    c.moveTo(-R * 0.8, -R * 0.85); c.lineTo(R * 0.8, -R * 0.85);
+    c.moveTo(-R * 0.8, R * 0.85); c.lineTo(R * 0.8, R * 0.85);
+    c.stroke();
+
+    // Coração: diz o que a lanterna dá sem precisar de legenda.
+    const hr = R * 0.38;
+    c.fillStyle = '#ff4d63';
+    c.beginPath();
+    c.moveTo(0, hr * 0.9);
+    c.bezierCurveTo(-hr * 1.6, -hr * 0.4, -hr * 0.5, -hr * 1.5, 0, -hr * 0.5);
+    c.bezierCurveTo(hr * 0.5, -hr * 1.5, hr * 1.6, -hr * 0.4, 0, hr * 0.9);
+    c.fill();
+    c.restore();
   }
 
   function apple(c, body, clock) {
@@ -538,6 +679,7 @@ export function createRenderer(viewport, theme, debug) {
       marks(s.scene, s.distance);
       flag(s.scene, s.wind, s.clock);
       s.blood.drawDecals(c);
+      if (s.bonus) lantern(c, s.bonus, s.clock, accent);
 
       const ink = theme.dark ? '#d9d2e8' : '#2a2138';
 
@@ -545,7 +687,8 @@ export function createRenderer(viewport, theme, debug) {
       figure(c, {
         x: s.target.x, y: s.target.y, scale: s.scene.scale,
         ink: s.wounded ? '#b9a9ae' : ink,
-        lean: s.lean, arms: s.targetArms, walk: s.walk
+        lean: s.lean, arms: s.targetArms, walk: s.walk,
+        face: s.targetFace, facing: -1, blink: s.blink
       });
       if (s.showApple) apple(c, s.body, s.clock);
       if (s.bits.length) appleBits(c, s.bits);
@@ -561,7 +704,8 @@ export function createRenderer(viewport, theme, debug) {
       // Arqueiro
       figure(c, {
         x: s.archer.x, y: s.archer.y, scale: s.scene.scale,
-        ink, arms: 'bow', aimAngle: s.aim.angle, quiver: true
+        ink, arms: 'bow', aimAngle: s.aim.angle, quiver: true,
+        face: s.archerFace, facing: 1, blink: 0
       });
       bow(c, s.archer.x, s.archer.y, s.scene.scale, s.aim, accent);
 
@@ -582,6 +726,7 @@ export function createRenderer(viewport, theme, debug) {
       if (debug.active) {
         for (const p of s.body.parts) debug.circle(p.x, p.y, p.r, '#ff5f6d');
         debug.circle(s.body.appleHit.x, s.body.appleHit.y, s.body.appleHit.r, '#00ff9d');
+        if (s.bonus) debug.circle(s.bonus.x, s.bonus.y, s.bonus.hitR, '#ffd166');
         debug.info(`dist ${s.distance.toFixed(1)}m  u/m ${s.scene.u.toFixed(2)}  escala ${s.scene.scale.toFixed(2)}`);
         debug.info(`vento ${s.wind.toFixed(2)}  sangue ${s.blood.count}  dif ${s.difficulty}`);
         debug.render(c, view, s.stats || {});
