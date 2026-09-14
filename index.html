@@ -38,8 +38,9 @@
   .tag{font:500 .68rem ui-monospace,monospace;border:1px solid var(--line);border-radius:6px;padding:3px 6px;color:var(--muted)}
   .soon{border-style:dashed;display:grid;place-items:center;min-height:190px;color:var(--muted);
     text-align:center;padding:22px;font-size:.84rem;line-height:1.5}
-  .lib-foot{color:var(--muted);font-size:.78rem;line-height:1.55;border-top:1px solid var(--line);padding-top:16px}
-  .lib-foot code{font-family:ui-monospace,monospace;color:var(--text);font-size:.76rem}
+  .lib-foot{color:var(--muted);font-size:.78rem;line-height:1.55;border-top:1px solid var(--line);
+    padding-top:16px;text-align:center}
+  .lib-foot strong{color:var(--text);font-weight:650}
 </style>
 </head>
 <body>
@@ -62,9 +63,7 @@
   <section class="grid" id="grid" aria-label="Jogos disponíveis"></section>
 
   <footer class="lib-foot">
-    Adicionar um jogo novo: crie <code>games/&lt;id&gt;/index.js</code> exportando <code>meta</code> e
-    <code>create(services)</code>, registre em <code>core/registry.js</code> e inclua os arquivos em <code>sw.js</code>.
-    O shell cuida de tela, entrada, som, tema, HUD e persistência.
+    Feito por <strong>Carlos Danyell</strong>
   </footer>
 </main>
 

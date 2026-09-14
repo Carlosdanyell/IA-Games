@@ -91,3 +91,6 @@ Para atualizar o site publicado, faça push em `main`.
 1. `games/<id>/index.js` exportando `meta` e `create(services)`.
 2. Registrar em `core/registry.js`.
 3. Listar os arquivos novos em `sw.js` e subir `VERSION`.
+
+O shell cuida de tela, entrada, som, tema, HUD e persistência: o jogo só
+implementa a própria lógica e desenha no canvas que recebe.
