@@ -40,6 +40,16 @@ export const GAMES = [
     status: 'ready',
     entry: './games/eight-ball/index.js',
     art: 'pool'
+  },
+  {
+    id: 'neon-grid',
+    title: 'Neon Grid',
+    tagline: 'Três em linha, luzes neon e uma IA em três níveis.',
+    tags: ['Jogo da velha', '3 níveis de IA', 'Offline'],
+    accent: '#5fd5ff',
+    status: 'ready',
+    entry: './games/neon-grid/index.js',
+    art: 'grid'
   }
 ];
 
