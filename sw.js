@@ -9,7 +9,7 @@
 // HTTP cache do navegador.
 //
 // Ao adicionar um jogo, inclua os arquivos dele em ASSETS e suba VERSION.
-const VERSION = 'ia-games-v21';
+const VERSION = 'ia-games-v22';
 const DOC_TIMEOUT = 3500;   // HTML: vale esperar um pouco mais
 const ASSET_TIMEOUT = 1200; // módulos e CSS: rédea curta, cache logo atrás
 const ASSETS = [
@@ -69,7 +69,15 @@ const ASSETS = [
   './games/neon-grid/index.js',
   './games/neon-grid/model.js',
   './games/neon-grid/ai.js',
-  './games/neon-grid/style.css'
+  './games/neon-grid/style.css',
+  './games/neon-drop/index.js',
+  './games/neon-drop/config.js',
+  './games/neon-drop/stages.js',
+  './games/neon-drop/model.js',
+  './games/neon-drop/ai.js',
+  './games/neon-drop/render.js',
+  './games/neon-drop/ui.js',
+  './games/neon-drop/style.css'
 ];
 
 self.addEventListener('install', event => {

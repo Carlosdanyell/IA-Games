@@ -50,6 +50,16 @@ export const GAMES = [
     status: 'ready',
     entry: './games/neon-grid/index.js',
     art: 'grid'
+  },
+  {
+    id: 'neon-drop',
+    title: 'Neon Drop',
+    tagline: 'Lig 4 com nove tabuleiros e quatro níveis de máquina.',
+    tags: ['Lig 4', '9 fases', '2 jogadores'],
+    accent: '#ffd166',
+    status: 'ready',
+    entry: './games/neon-drop/index.js',
+    art: 'drop'
   }
 ];
 

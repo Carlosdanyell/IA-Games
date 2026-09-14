@@ -1,0 +1,31 @@
+/* Neon Drop: o tabuleiro é quase quadrado e cresce bem quando a caixa cresce.
+   O shell veste a arena com a proporção de um celular em pé, que serve para
+   os outros títulos e desperdiça tela deitada. */
+.nd-app{width:min(100%,660px);margin-inline:auto}
+.nd-app .arena{touch-action:none}
+.nd-app canvas{cursor:pointer}
+
+/* Em tela larga o shell centraliza o #root, que fica do tamanho do conteúdo:
+   sem soltar esse encaixe o max-width acima nunca é usado. */
+body.nd-body{place-items:stretch}
+body.nd-body>*{justify-self:stretch}
+
+/* Paisagem de celular: a arena ocupa a largura toda, sem proporção fixa. */
+@media(orientation:landscape) and (max-height:560px){
+  .nd-app{grid-template-columns:min(150px,20vw) 1fr;max-width:none;gap:8px;
+    padding:calc(7px + env(safe-area-inset-top)) 10px 7px calc(10px + env(safe-area-inset-left))}
+  .nd-app .arena{aspect-ratio:auto;width:100%;justify-self:stretch}
+  .nd-app .brand h1{font-size:.8rem}
+  .nd-app .icon-button{width:36px;height:36px}
+  .nd-app .icon-button svg{width:19px;height:19px}
+  .nd-app .stat .value{font-size:.9rem}
+  .nd-app .stat .label{font-size:.58rem}
+  .nd-app .chipbar{font-size:.62rem;gap:4px}
+  .nd-app .footer{font-size:.66rem}
+}
+
+/* Tela grande: arena um pouco mais alta que larga acomoda os tabuleiros de
+   até nove colunas sem espremer as peças. */
+@media(min-width:900px) and (min-height:600px){
+  .nd-app .arena{flex:none;aspect-ratio:5/4;max-height:100%;margin-block:auto}
+}
