@@ -213,8 +213,12 @@ export function create(services) {
   }
 
   // ---------------------------------------------------------- jogada
-  function play(col) {
+  // `quem` é a marca que a chamada acredita estar jogando. Serve de tranca:
+  // a cor da peça vem sempre de `S.board.turn`, e uma chamada que discorde
+  // disso é erro de quem chamou, não uma jogada válida.
+  function play(col, quem = S.board.turn) {
     if (!['playing'].includes(S.state) || S.falling || hud.dialogOpen) return false;
+    if (quem !== S.board.turn) return false;
     const row = landing(S.board, col);
     if (row < 0) {
       showBanner('COLUNA CHEIA', 'bad', 1);
@@ -272,12 +276,20 @@ export function create(services) {
   }
 
   function aiPlay() {
-    const col = chooseMove(S.board, aiMark(), {
+    // A busca joga e desfaz milhares de vezes. Roda numa cópia para não
+    // encostar no tabuleiro da partida — assim nenhum descuido dentro dela
+    // pode mexer nas peças, no histórico ou na vez da partida de verdade.
+    const col = chooseMove(cloneBoard(S.board), aiMark(), {
       depth: rules().depth, noise: rules().noise, budget: rules().budget
     });
-    if (col === null) { S.state = 'playing'; return; }
     S.state = 'playing';
-    play(col);
+    if (col === null) return;
+    // Se a vez não for da máquina aqui, alguma coisa mexeu no tabuleiro por
+    // fora: `play` recusa e a vez fica com o humano, que é o estado coerente.
+    if (S.board.turn !== aiMark() && debug.active) {
+      debug.info(`ERRO: máquina ia jogar fora da vez (vez ${S.board.turn}, máquina ${aiMark()})`);
+    }
+    play(col, aiMark());
   }
 
   function finishStage() {

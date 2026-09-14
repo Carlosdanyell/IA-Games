@@ -173,17 +173,35 @@ function search(board, me, depth, alpha, beta, maximizing, stop) {
 }
 
 // Vitória imediata ou bloqueio obrigatório, sem gastar busca.
+//
+// A sonda joga com uma marca escolhida por quem chama — e para descobrir o
+// bloqueio ela joga com a marca do ADVERSÁRIO. `undo` devolve a vez a quem fez
+// a jogada, que é o certo dentro da busca (lá a jogada é sempre de quem está
+// na vez), mas aqui deixava `board.turn` apontando para o adversário. Como
+// quem joga de verdade lê `board.turn` para saber a cor da peça, a máquina
+// acabava soltando uma peça da cor do humano. A vez é guardada e reposta.
 export function urgentMove(board, mark) {
-  for (const col of legalMoves(board)) {
-    drop(board, col, mark);
-    const venceu = board.winner === mark;
-    undo(board);
-    if (venceu) return col;
-  }
-  return -1;
+  const vez = board.turn;
+  try {
+    for (const col of legalMoves(board)) {
+      drop(board, col, mark);
+      const venceu = board.winner === mark;
+      undo(board);
+      if (venceu) return col;
+    }
+    return -1;
+  } finally { board.turn = vez; }
 }
 
+// A escolha da jogada não pode deixar rastro no tabuleiro, saia ela pelo
+// atalho da vitória, pelo bloqueio, pelo erro proposital ou pela busca inteira.
 export function chooseMove(board, me, options = {}) {
+  const vez = board.turn;
+  try { return pickMove(board, me, options); }
+  finally { board.turn = vez; }
+}
+
+function pickMove(board, me, options = {}) {
   const { depth = 6, noise = 0, budget = 90, random = Math.random } = options;
   const moves = orderMoves(board);
   if (!moves.length) return null;
