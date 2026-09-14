@@ -1,0 +1,27 @@
+name: Ideia
+description: Um jogo novo ou uma melhoria em algo que já existe.
+title: "[ideia] "
+labels: [enhancement]
+body:
+  - type: dropdown
+    id: tipo
+    attributes:
+      label: Tipo
+      options:
+        - Jogo novo
+        - Melhoria em um jogo
+        - Melhoria na biblioteca
+    validations:
+      required: true
+  - type: textarea
+    id: ideia
+    attributes:
+      label: A ideia
+      description: Como se joga, o que muda e por que vale a pena.
+    validations:
+      required: true
+  - type: textarea
+    id: referencias
+    attributes:
+      label: Referências
+      description: Jogos parecidos, links ou imagens.

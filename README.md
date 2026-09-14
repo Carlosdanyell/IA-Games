@@ -1,9 +1,11 @@
 # IA Games
 
+[![CI](https://github.com/Carlosdanyell/IA-Games/actions/workflows/ci.yml/badge.svg)](https://github.com/Carlosdanyell/IA-Games/actions/workflows/ci.yml)
+
 Biblioteca de jogos em HTML que funcionam **offline**, feitos para celular.
 Sem framework, sem build, sem dependências: HTML, CSS e JavaScript com módulos ES.
 
-**Jogar:** abra `index.html` (ou a página publicada) e escolha um título.
+**Jogar:** abra [carlosdanyell.github.io/IA-Games](https://carlosdanyell.github.io/IA-Games/) e escolha um título.
 
 ---
 
@@ -79,18 +81,34 @@ npx http-server -p 8080 -c-1 .
 # http://localhost:8080
 ```
 
+## Testes
+
+Sem instalar dependências, com Node 22 ou mais novo:
+
+```bash
+node --experimental-vm-modules --test "tests/*.test.mjs"
+```
+
+Além do multiplayer do Neon Pool, os testes conferem o cache offline: todo arquivo
+de `core/`, `games/` e `assets/` precisa estar em `ASSETS` no `sw.js`, e todo jogo
+precisa estar em `core/registry.js`. Com a variável `BASE_REF=origin/main`, eles
+também exigem `VERSION` nova quando algum desses arquivos mudou. O CI roda os
+testes em cada PR e em cada push na `main`.
+
 ## Publicação
 
 O site é servido pelo GitHub Pages a partir do branch `main`, pasta raiz
 (Settings → Pages → Deploy from a branch). O arquivo `.nojekyll` garante que
 os diretórios sejam servidos como estão, sem processamento do Jekyll.
-Para atualizar o site publicado, faça push em `main`.
+Cada commit em `main` publica o site. Por isso o trabalho vai em branch e entra
+na `main` por PR, depois que o CI passa.
 
 ## Adicionar um jogo
 
 1. `games/<id>/index.js` exportando `meta` e `create(services)`.
-2. Registrar em `core/registry.js`.
-3. Listar os arquivos novos em `sw.js` e subir `VERSION`.
+2. Registrar em `core/registry.js` e desenhar a capa em `covers` no `index.html`.
+3. Listar os arquivos novos em `ASSETS` no `sw.js` e subir `VERSION`.
+4. Acrescentar o jogo na tabela de títulos deste README.
 
 O shell cuida de tela, entrada, som, tema, HUD e persistência: o jogo só
 implementa a própria lógica e desenha no canvas que recebe.
