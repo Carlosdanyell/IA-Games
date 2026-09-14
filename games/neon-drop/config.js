@@ -14,12 +14,26 @@ export function logicalSize(aspect) {
   };
 }
 
+// Cores das peças. Fixas de propósito. Antes a peça 1 usava a cor de destaque
+// do tema, que muda por fase: nas fases de paleta ciano e âmbar as duas peças
+// saíam praticamente da mesma cor e o tabuleiro virava um borrão. Âmbar contra
+// ciano é o par que mais se separa, inclusive para quem tem daltonismo — a
+// diferença é quente contra fria, não vermelho contra verde. Como reforço, cada
+// peça tem também um desenho interno próprio (anel e núcleo), então dá para
+// distinguir mesmo sem enxergar cor nenhuma.
+export const DISCS = {
+  1: { dark: '#ffc24a', light: '#9a6200', name: 'ÂMBAR', word: 'âmbar', glyph: 'ring' },
+  2: { dark: '#4fd1ff', light: '#0a6d92', name: 'CIANO', word: 'ciano', glyph: 'core' }
+};
+
 export const BOARD = {
-  margin: 16,        // folga entre o tabuleiro e a borda do campo
+  margin: 12,        // folga entre o tabuleiro e a borda do campo
   topBand: 34,       // faixa de cima, onde fica a peça pronta para cair
+  strip: 30,         // faixa reservada no topo para o aviso de vez
+  rail: 16,          // trilho de colunas embaixo do tabuleiro
   gap: 0.1,          // fração da casa usada como respiro entre as peças
   radius: 0.34,      // arredondamento do quadro, em frações da casa
-  maxCell: 78,
+  maxCell: 96,
   minCell: 18
 };
 

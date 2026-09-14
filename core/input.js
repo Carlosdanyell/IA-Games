@@ -13,7 +13,7 @@ export function createInput(element, viewport, options = {}) {
     sensitivity: options.sensitivity || 1.6
   };
   const keys = { left: false, right: false };
-  const listeners = { tap: [], press: [], release: [], key: [] };
+  const listeners = { tap: [], press: [], move: [], release: [], key: [] };
   let pointerId = null;
   let enabled = true;
   let moved = 0;
@@ -69,6 +69,9 @@ export function createInput(element, viewport, options = {}) {
       readPointer(e);
       moved += Math.abs(state.x - before);
       if (pointerId !== null) e.preventDefault();
+      // No toque só chega aqui com o dedo na tela; no mouse chega sempre.
+      // Quem quiser arrasto contínuo (ou prévia sob o cursor) escuta isto.
+      emit('move', { x: state.x, y: state.y, dragging: pointerId !== null });
     }
   });
 

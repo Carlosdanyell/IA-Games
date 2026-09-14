@@ -1,5 +1,5 @@
 import { createRng, hashSeed, todaySeedLabel } from '../../core/rng.js';
-import { LEVELS, MODES, DROP, BOARD, SCORE, TIMING, logicalSize } from './config.js';
+import { LEVELS, MODES, DROP, BOARD, DISCS, SCORE, TIMING, logicalSize } from './config.js';
 import { STAGES, stageAt, generateStage } from './stages.js';
 import { createBoard, restore, drop, landing, legalMoves, finished, other, cloneBoard } from './model.js';
 import { chooseMove, LAST } from './ai.js';
@@ -83,12 +83,17 @@ export function create(services) {
     revealLeft: 0,
     result: null,
     seed: 1,
-    freePlays: 0
+    freePlays: 0,
+    lastMove: null
   };
 
   let hudDirty = true;
   let pausedFrom = null;
   let overlayArgs = null;
+
+  // Nome da peça: usado no resultado, no aviso de vez e no modo dois jogadores.
+  const discName = mark => DISCS[mark].name;
+  const discWord = mark => DISCS[mark].word;
 
   const aiMark = () => other(S.human);
   const isAI = () => MODES[S.mode].ai;
@@ -136,6 +141,7 @@ export function create(services) {
     S.cursor = Math.floor(S.stage.cols / 2);
     S.falling = null;
     S.result = null;
+    S.lastMove = null;
     S.revealLeft = 0;
     S.clock = 0;
     if (!keepScore) progress.score = 0;
@@ -179,6 +185,7 @@ export function create(services) {
     S.cursor = Math.floor(S.stage.cols / 2);
     S.falling = null;
     S.result = null;
+    S.lastMove = lastMoveOf(S.board);
     theme.setAuto(S.stage.palette);
     hud.setHint(S.stage.hint);
     dismiss();
@@ -187,6 +194,18 @@ export function create(services) {
     S.state = 'playing';
     if (isAI() && S.board.turn === aiMark()) startThinking();
     hudDirty = true;
+  }
+
+  // Numa partida retomada só existe a lista de colunas; a peça de cima da
+  // última coluna jogada é, por construção, a última que caiu.
+  function lastMoveOf(board) {
+    if (!board.moves.length) return null;
+    const col = board.moves[board.moves.length - 1];
+    for (let row = 0; row < board.rows; row++) {
+      const v = board.cells[row * board.cols + col];
+      if (v === 1 || v === 2) return { col, row };
+    }
+    return null;
   }
 
   function saveProgress() {
@@ -218,6 +237,7 @@ export function create(services) {
   function landed() {
     const f = S.falling;
     S.falling = null;
+    S.lastMove = { col: f.col, row: f.row };
     sfx.land(f.mark);
     haptics.buzz(8);
     S.shake = 3;
@@ -241,7 +261,7 @@ export function create(services) {
 
   function resultText() {
     if (!S.board.winner) return 'DEU VELHA';
-    if (!isAI()) return S.board.winner === 1 ? 'VERMELHO VENCE' : 'CIANO VENCE';
+    if (!isAI()) return `${discName(S.board.winner)} VENCE`;
     return S.board.winner === S.human ? 'VOCÊ VENCEU' : 'A MÁQUINA VENCEU';
   }
 
@@ -291,7 +311,7 @@ export function create(services) {
         : venceu ? `Fase ${S.stageIndex + 1} vencida`
         : empate ? 'Sem vencedor' : 'Fim da partida',
       title: campanhaFechada ? 'Nove tabuleiros.<br>Todos seus.'
-        : venceu ? (isAI() ? 'Você venceu!' : `${S.board.winner === 1 ? 'Vermelho' : 'Ciano'} venceu!`)
+        : venceu ? (isAI() ? 'Você venceu!' : `Venceu o ${discWord(S.board.winner)}!`)
         : empate ? 'Deu velha.' : 'A máquina fechou a linha.',
       text: `${S.stage.name} · ${S.board.moves.length} jogadas` +
         (ganho ? ` · +${ganho} pontos` : '') +
@@ -352,10 +372,32 @@ export function create(services) {
     if (col !== S.cursor) { S.cursor = col; hudDirty = true; }
   }
 
+  // Texto do aviso de vez, em cima do tabuleiro. É a resposta direta para
+  // "de quem é a vez": nome curto e a peça da cor de quem joga, ao lado.
+  function turnInfo(board) {
+    if (S.state === 'paused') return { label: 'Pausado', mark: 0, waiting: true };
+    if (S.state === 'thinking') return { label: 'A máquina pensa', mark: aiMark(), waiting: true };
+    if (!board || finished(board)) {
+      if (board && board.winner) {
+        return { label: isAI()
+          ? (board.winner === S.human ? 'Você venceu' : 'A máquina venceu')
+          : `Venceu o ${discWord(board.winner)}`, mark: board.winner, waiting: true };
+      }
+      return { label: board && board.draw ? 'Deu velha' : '', mark: 0, waiting: true };
+    }
+    if (!isAI()) return { label: `Vez do ${discWord(board.turn)}`, mark: board.turn, waiting: false };
+    return board.turn === S.human
+      ? { label: 'Sua vez', mark: board.turn, waiting: false }
+      : { label: 'Vez da máquina', mark: board.turn, waiting: true };
+  }
+
   function render(dt, alpha) {
     const board = S.board || createBoard(S.stage);
     const jogando = ['playing', 'thinking', 'falling'].includes(S.state);
     S.preview = jogando && !S.falling ? landing(board, S.cursor) : -1;
+    const vez = turnInfo(board);
+    const cheias = [];
+    for (let col = 0; col < S.stage.cols; col++) cheias.push(landing(board, col) < 0);
     renderer.draw({
       stage: S.stage,
       cells: board.cells,
@@ -366,6 +408,11 @@ export function create(services) {
       preview: S.preview,
       showCursor: S.state === 'playing' && myTurn() && !S.falling,
       falling: S.falling,
+      lastMove: S.lastMove,
+      full: cheias,
+      turnLabel: S.state === 'intro' ? '' : vez.label,
+      turnMark: vez.mark,
+      waiting: vez.waiting,
       clock: S.clock,
       shake: S.shake,
       banner: S.banner,
@@ -388,11 +435,16 @@ export function create(services) {
     const chips = [{ text: S.stage.name, tone: 'accent' }];
     chips.push({ text: `${S.stage.cols}×${S.stage.rows} · conecta ${S.stage.connect}` });
     if (isAI()) chips.push({ text: LEVELS[S.level].label, tone: 'accent' });
+    // A cor da sua peça fica dita na barra: no duo as duas alternam, e mesmo
+    // contra a máquina dá para começar de âmbar ou de ciano.
+    const minha = isAI() ? S.human : null;
+    // A bolinha do chip usa a mesma cor da peça no tabuleiro, que muda entre
+    // tema claro e escuro — senão a pista de cor apontaria para outra coisa.
+    const ponto = mark => `<i style="background:${theme.dark ? DISCS[mark].dark : DISCS[mark].light}"></i>`;
+    if (minha) chips.push({ text: `${ponto(minha)}você é ${discWord(minha)}` });
+    const vez = turnInfo(S.board);
     chips.push({
-      text: S.state === 'thinking' ? 'A máquina pensa…'
-        : !S.board || finished(S.board) ? 'Partida encerrada'
-        : myTurn() ? (isAI() ? 'Sua vez' : `Vez do ${S.board.turn === 1 ? 'vermelho' : 'ciano'}`)
-        : 'Vez da máquina',
+      text: vez.mark && vez.label ? `${ponto(vez.mark)}${vez.label}` : vez.label || 'Partida encerrada',
       tone: 'flow'
     });
     if (progress.score) chips.push({ text: `${progress.score} pts` });
@@ -406,12 +458,24 @@ export function create(services) {
     return Math.max(0, Math.min(S.stage.cols - 1, Math.floor((x - geo.x) / geo.cell)));
   };
 
-  input.on('press', p => {
-    if (hud.dialogOpen || S.state !== 'playing' || !myTurn()) return;
-    S.cursor = columnAt(p.x);
-    cursorFloat = S.cursor;
+  const aiming = () => !hud.dialogOpen && S.state === 'playing' && myTurn() && !S.falling;
+
+  function aimAt(x, soar) {
+    const col = columnAt(x);
+    if (col === S.cursor) return;
+    S.cursor = col;
+    cursorFloat = col;
+    if (soar) sfx.move();
     hudDirty = true;
-  });
+  }
+
+  input.on('press', p => { if (aiming()) aimAt(p.x, true); });
+
+  // A peça acompanha o dedo enquanto ele desliza (e o ponteiro do mouse mesmo
+  // sem clicar): dá para escolher a coluna vendo a prévia antes de soltar. O
+  // clique seco do passo de coluna só sai com o ponteiro pressionado — no
+  // desktop o mouse passeia sem clicar e ficaria apitando à toa.
+  input.on('move', p => { if (aiming()) aimAt(p.x, p.dragging); });
 
   input.on('release', () => {
     if (hud.dialogOpen || S.state !== 'playing' || !myTurn()) return;
@@ -426,6 +490,15 @@ export function create(services) {
       event.preventDefault();
       const col = Number(event.key) - 1;
       if (col < S.stage.cols) { S.cursor = col; cursorFloat = col; play(col); }
+      return;
+    }
+    // Um toque na seta anda uma coluna. Sem isto só o segurar movia (o eixo é
+    // lido por quadro), e uma batidinha na tecla não saía do lugar.
+    if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && S.state === 'playing' && myTurn()) {
+      event.preventDefault();
+      const passo = event.key === 'ArrowRight' ? 1 : -1;
+      const col = Math.max(0, Math.min(S.stage.cols - 1, S.cursor + passo));
+      if (col !== S.cursor) { S.cursor = col; cursorFloat = col; sfx.move(); hudDirty = true; }
       return;
     }
     if (event.key === ' ' || event.key === 'Enter') {
@@ -483,20 +556,34 @@ export function create(services) {
     hudDirty = true;
   }
 
+  // O seletor tem marcação própria (nd-stages) porque o `.level-pick` do shell
+  // foi feito para um número só: com nome, tamanho e placar dentro, o texto
+  // vazava do botão e escrevia por cima do vizinho.
   function openStagePicker() {
     const node = document.createElement('div');
-    node.className = 'level-grid';
+    node.className = 'nd-stages';
     const limite = S.mode === 'campanha' ? progress.unlocked : STAGES.length;
     STAGES.forEach((stage, index) => {
       const liberada = index < limite;
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'level-pick';
+      button.className = 'nd-stage';
       button.disabled = !liberada;
+      if (index === S.stageIndex) button.setAttribute('aria-current', 'step');
       const rec = recordFor(`${S.mode}-${index}-${settings.level}`);
-      button.innerHTML = `<b>${index + 1}</b><span>${stage.name}</span>` +
-        `<small>${stage.cols}×${stage.rows} · ${stage.connect}</small>` +
-        (rec.wins ? `<small>${rec.wins} ${rec.wins === 1 ? 'vitória' : 'vitórias'}</small>` : '');
+      const marca = `<b>${index + 1}</b>`;
+      if (!liberada) {
+        button.innerHTML = `${marca}<span>Bloqueada</span>` +
+          `<small>vença a fase ${index}</small><em>—</em>`;
+        button.setAttribute('aria-label', `Fase ${index + 1}, bloqueada`);
+      } else {
+        const blocos = stage.blocked && stage.blocked.length ? ' · blocos' : '';
+        const placar = rec.wins || rec.losses ? `${rec.wins}V ${rec.losses}D` : 'nunca jogada';
+        button.innerHTML = marca +
+          `<span>${stage.name}</span>` +
+          `<small>${stage.cols}×${stage.rows} · conecta ${stage.connect}</small>` +
+          `<em>${placar}${blocos}</em>`;
+      }
       button.addEventListener('click', () => { hud.closeDialog(); clearMatch(); startStage(index); });
       node.appendChild(button);
     });
@@ -541,7 +628,7 @@ export function create(services) {
   S.stage = stageFor(S.stageIndex);
   S.board = createBoard(S.stage);
   theme.setAuto(S.stage.palette);
-  hud.setHint('Escolha a coluna · <strong>solte para jogar</strong>');
+  hud.setHint('Arraste pelo tabuleiro · <strong>solte para jogar</strong>');
   function showIntro() {
     const m = savedMatch();
     present({
@@ -564,7 +651,7 @@ export function create(services) {
     pauseToggle: () => (S.state === 'paused' ? resume() : pause()),
     openSettings,
     onHidden: pause,
-    onThemeChange: () => renderer.invalidate(),
+    onThemeChange: () => { renderer.invalidate(); hudDirty = true; },
     getState: () => ({
       state: S.state, mode: S.mode, level: S.level, stage: S.stage.name,
       stageIndex: S.stageIndex, cols: S.stage.cols, rows: S.stage.rows, connect: S.stage.connect,

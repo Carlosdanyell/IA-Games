@@ -87,11 +87,13 @@ export function buildDialog({ settings, theme, audio, haptics, progress, stages,
   root.appendChild(el('h3', 'guide-title', 'Como jogar'));
   const how = el('ul');
   [
-    'Toque numa coluna e solte para deixar a peça cair. Ela para na primeira casa livre de baixo para cima.',
+    'Encoste o dedo no tabuleiro e arraste: a peça acompanha a coluna e a sombra mostra onde ela vai parar. Solte para jogar.',
+    'De quem é a vez está escrito no alto do tabuleiro, com a peça da cor de quem joga ao lado.',
+    'As peças são âmbar e ciano. Além da cor, a âmbar é um anel e a ciano tem o miolo cheio — dá para separar as duas sem depender de enxergar cor.',
     'Vence quem alinhar a quantidade pedida pela fase — quatro na maioria, cinco nas grandes — na horizontal, na vertical ou na diagonal.',
     'No teclado: setas escolhem a coluna, 1–9 jogam direto na coluna e espaço solta a peça.',
     'Os blocos riscados não recebem peça: o que fica embaixo deles é espaço morto e nenhuma linha passa por ali.',
-    'No modo dois jogadores, o mesmo aparelho alterna entre vermelho e ciano.'
+    'O círculo branco marca a última peça que caiu, para achar de relance onde o oponente jogou.'
   ].forEach(text => how.appendChild(el('li', null, text)));
   root.appendChild(how);
 
