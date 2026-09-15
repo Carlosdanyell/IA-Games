@@ -1,17 +1,16 @@
 import { DIFFICULTIES, DIFFICULTY_KEYS, ICONS, POWERUPS, UPGRADES, ENEMIES, ENEMY_DESCRIPTIONS, WAVES } from './config.js';
 import { ACHIEVEMENTS, achievementProgress } from './progress.js';
+import { PALETTE_OPTIONS } from '../../core/theme.js';
 
-// Telas em DOM por cima do canvas (menu, pausa, melhorias, fim de jogo) e o
-// conteúdo dos diálogos de configurações e conquistas. Botões grandes, um por
-// linha no retrato: nada de alvo pequeno para o dedo.
+// Início, pausa e fim de jogo usam o painel do shell, como os outros jogos.
+// Aqui ficam só a camada de melhorias (é jogabilidade, não menu) e o diálogo
+// "Ajustes & bônus", montado com os mesmos componentes da biblioteca.
 
 const fmt = n => Math.round(n || 0).toLocaleString('pt-BR');
 const svg = name => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name] || ICONS.star}"/></svg>`;
-const PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true" class="sh-fill"><path d="m8 5 11 7-11 7z"/></svg>';
-const GEAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>';
 const ICON_COLORS = {
-  power: '#ff5a5a', rapid: '#ffe45e', bigshot: '#5ff4ff', double: '#ff9b3d', triple: '#ff7ab8', pierce: '#c6a2ff',
-  crit: '#ffd166', speed: '#7aa8ff', heal: '#6dff9e', shield: '#5fd5ff', magnet: '#b6ff5f', time: '#a47bff'
+  power: '#ff5a5a', rapid: '#e8b923', bigshot: '#2fb8d6', double: '#ff9b3d', triple: '#ff7ab8', pierce: '#a47bff',
+  crit: '#e0a82e', speed: '#6f8fe8', heal: '#35c47a', shield: '#3cb6e0', magnet: '#8fd13f', time: '#a47bff'
 };
 
 export function duration(seconds) {
@@ -21,124 +20,52 @@ export function duration(seconds) {
   return m ? `${m} min ${String(s % 60).padStart(2, '0')} s` : `${s} s`;
 }
 
-export function createScreens(arena, handlers) {
-  const root = document.createElement('div');
-  root.className = 'sh-screens';
-  arena.append(root);
-  let current = '', unlockTimer = 0;
+export function createUpgradeLayer(arena, onPick) {
+  const layer = document.createElement('div');
+  layer.className = 'overlay sh-upgrade';
+  layer.hidden = true;
+  arena.append(layer);
+  let timer = 0;
 
-  root.addEventListener('click', event => {
-    const button = event.target.closest('[data-action]');
-    if (!button || button.disabled || !root.contains(button)) return;
-    handlers.action(button.dataset.action, button.dataset.value);
+  layer.addEventListener('click', event => {
+    const card = event.target.closest('[data-upgrade]');
+    if (card && !card.disabled) onPick(card.dataset.upgrade);
   });
-  // Evita que toque nas telas vire movimento da nave ou zoom.
-  root.addEventListener('pointerdown', event => event.stopPropagation());
-
-  function show(name, html, focus = true) {
-    clearTimeout(unlockTimer);
-    current = name;
-    root.hidden = false;
-    root.innerHTML = html;
-    root.dataset.screen = name;
-    if (focus) requestAnimationFrame(() => root.querySelector('[data-focus]')?.focus({ preventScroll: true }));
-  }
-
-  const miniStats = items => `<div class="sh-mini-stats">${items.map(([label, value]) =>
-    `<div><small>${label}</small><b>${value}</b></div>`).join('')}</div>`;
+  // O toque nos cartões não pode virar movimento da nave.
+  layer.addEventListener('pointerdown', event => event.stopPropagation());
 
   return {
-    get current() { return current; },
-    hide() { clearTimeout(unlockTimer); current = ''; root.hidden = true; root.innerHTML = ''; },
-
-    showMenu({ difficulty, best, unlocked, hint }) {
-      const d = DIFFICULTIES[difficulty];
-      show('menu', `
-        <section class="sh-screen sh-menu" aria-labelledby="nsMenuTitle">
-          <h2 class="sh-logo" id="nsMenuTitle"><span>NEON</span><b>SHOOTER</b></h2>
-          <p class="sh-tagline">Sobreviva às ondas. Derrote os chefes.</p>
-          ${miniStats([['Recorde', best.score ? fmt(best.score) : '—'], ['Maior onda', best.wave || '—']])}
-          <div class="sh-difficulty" role="radiogroup" aria-label="Dificuldade">
-            ${DIFFICULTY_KEYS.map(key => `<button type="button" role="radio" aria-checked="${key === difficulty}"
-              data-action="difficulty" data-value="${key}">${DIFFICULTIES[key].label}</button>`).join('')}
-          </div>
-          <p class="sh-note">${d.note}</p>
-          <button type="button" class="sh-play" data-action="play" data-focus>${PLAY}<span>Jogar</span></button>
-          <div class="sh-row">
-            <button type="button" class="sh-ghost" data-action="settings">${GEAR}<span>Configurações</span></button>
-            <button type="button" class="sh-ghost" data-action="achievements">${svg('trophy')}<span>Conquistas <em>${unlocked}/${ACHIEVEMENTS.length}</em></span></button>
-          </div>
-          <p class="sh-hint">${hint}</p>
-        </section>`);
-    },
-
-    showPause({ wave, score, kills, level }) {
-      show('pause', `
-        <section class="sh-screen sh-pause" aria-labelledby="nsPauseTitle">
-          <p class="sh-eyebrow">Jogo pausado</p>
-          <h2 id="nsPauseTitle">Onda ${wave}</h2>
-          ${miniStats([['Pontos', fmt(score)], ['Abates', fmt(kills)], ['Nível', level]])}
-          <button type="button" class="sh-play" data-action="resume" data-focus>${PLAY}<span>Continuar</span></button>
-          <div class="sh-stack">
-            <button type="button" class="sh-ghost" data-action="restart">Reiniciar partida</button>
-            <button type="button" class="sh-ghost" data-action="settings">${GEAR}<span>Configurações</span></button>
-            <button type="button" class="sh-ghost" data-action="menu">Voltar ao menu</button>
-          </div>
-        </section>`);
-    },
-
-    showUpgrade({ level, options, levels }) {
-      show('upgrade', `
-        <section class="sh-screen sh-upgrade" aria-labelledby="nsUpTitle">
-          <p class="sh-eyebrow">Nível ${level}</p>
-          <h2 id="nsUpTitle">Escolha uma melhoria</h2>
-          <div class="sh-cards">
-            ${options.map((id, i) => {
-              const def = UPGRADES[id], lvl = levels[id] || 0;
-              const pips = def.max > 1 && def.max < 10
-                ? `<span class="sh-pips" aria-label="nível ${lvl + 1} de ${def.max}">${Array.from({ length: def.max }, (_, k) =>
-                    `<i${k <= lvl ? ' class="on"' : ''}></i>`).join('')}</span>` : '';
-              return `<button type="button" class="sh-card" data-action="pick" data-value="${id}" disabled
-                style="--c:${ICON_COLORS[def.icon] || '#5ff4ff'}" ${i === 0 ? 'data-focus' : ''}>
-                <span class="sh-card-icon">${svg(def.icon)}</span>
-                <span class="sh-card-text"><b>${def.name}</b><small>${def.desc}</small>${pips}</span>
-                <kbd aria-hidden="true">${i + 1}</kbd>
-              </button>`;
-            }).join('')}
-          </div>
-        </section>`, false);
+    show({ level, wave, options, levels }) {
+      clearTimeout(timer);
+      layer.innerHTML = `<div class="panel" role="group" aria-labelledby="shUpgradeTitle">
+        <div class="eyebrow">Onda ${wave} concluída · nível ${level}</div>
+        <h2 id="shUpgradeTitle">Escolha uma melhoria</h2>
+        <div class="sh-cards">${options.map((id, i) => {
+          const def = UPGRADES[id], lvl = levels[id] || 0;
+          const pips = def.max > 1 && def.max < 10
+            ? `<span class="sh-pips" aria-label="nível ${lvl + 1} de ${def.max}">${Array.from({ length: def.max }, (_, k) =>
+                `<i${k <= lvl ? ' class="on"' : ''}></i>`).join('')}</span>` : '';
+          return `<button type="button" class="sh-card" data-upgrade="${id}" disabled style="--c:${ICON_COLORS[def.icon] || 'var(--accent)'}">
+            <span class="sh-card-icon">${svg(def.icon)}</span>
+            <span class="sh-card-text"><b>${def.name}</b><small>${def.desc}</small>${pips}</span>
+            <kbd aria-hidden="true">${i + 1}</kbd>
+          </button>`;
+        }).join('')}</div>
+      </div>`;
+      layer.hidden = false;
       // Trava curta: o dedo que estava pilotando não escolhe um cartão sem querer.
-      unlockTimer = setTimeout(() => {
-        root.querySelectorAll('.sh-card').forEach(card => { card.disabled = false; });
-        root.querySelector('[data-focus]')?.focus({ preventScroll: true });
+      timer = setTimeout(() => {
+        layer.querySelectorAll('.sh-card').forEach(card => { card.disabled = false; });
+        layer.querySelector('.sh-card')?.focus({ preventScroll: true });
       }, 450);
     },
-
-    showOver({ score, wave, kills, maxCombo, bosses, time, record, unlocked }) {
-      show('over', `
-        <section class="sh-screen sh-over" aria-labelledby="nsOverTitle">
-          <p class="sh-eyebrow sh-warn">Nave destruída</p>
-          <h2 id="nsOverTitle">Fim de jogo</h2>
-          <div class="sh-final"><small>Pontuação</small><b>${fmt(score)}</b>
-            ${record.score ? '<span class="sh-badge">Novo recorde!</span>' : record.wave ? '<span class="sh-badge">Maior onda!</span>' : ''}</div>
-          ${miniStats([['Onda', wave], ['Abates', fmt(kills)], ['Combo máx.', `x${maxCombo}`]])}
-          ${miniStats([['Chefes', bosses], ['Tempo', duration(time)]])}
-          ${unlocked.length ? `<div class="sh-unlocked"><small>Conquistas nesta partida</small>
-            ${unlocked.map(a => `<span>${svg(a.icon)}${a.name}</span>`).join('')}</div>` : ''}
-          <button type="button" class="sh-play" data-action="restart" data-focus>${PLAY}<span>Jogar de novo</span></button>
-          <button type="button" class="sh-ghost" data-action="menu">Menu</button>
-        </section>`);
-    },
-
-    enableCards() {
-      clearTimeout(unlockTimer);
-      root.querySelectorAll('.sh-card').forEach(card => { card.disabled = false; });
-    },
-    destroy() { clearTimeout(unlockTimer); root.remove(); }
+    unlock() { clearTimeout(timer); layer.querySelectorAll('.sh-card').forEach(card => { card.disabled = false; }); },
+    hide() { clearTimeout(timer); layer.hidden = true; layer.innerHTML = ''; },
+    destroy() { clearTimeout(timer); layer.remove(); }
   };
 }
 
-// ---------------------------------------------------------------- diálogos
+// ---------------------------------------------------------------- diálogo
 const el = (tag, className, html) => {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -192,36 +119,41 @@ function slider(label, value, min, max, step, format, onInput) {
 
 const percent = v => `${Math.round(v * 100)}%`;
 
-export function buildSettings({ settings, masterOn, haptics, theme, onChange, onMaster }) {
+export function buildDialog({ settings, stats, unlocked, playing, masterOn, haptics, theme, onChange, onMaster }) {
   const root = el('div', 'sh-dialog');
+
+  const note = el('p', 'guide-intro', DIFFICULTIES[settings.difficulty].note);
+  root.append(fieldset(playing ? 'Dificuldade · vale na próxima partida' : 'Dificuldade',
+    radios('sh-difficulty', DIFFICULTY_KEYS.map(k => [k, DIFFICULTIES[k].label]), settings.difficulty, v => {
+      note.textContent = DIFFICULTIES[v].note;
+      onChange('difficulty', v);
+    })), note);
+
+  root.append(fieldset('Aparência', radios('sh-theme', [['dark', 'Escuro'], ['light', 'Claro']], theme.mode, v => theme.setMode(v))));
+  root.append(fieldset('Cor neon', radios('sh-palette', PALETTE_OPTIONS.map(o => [o.value, o.label]), theme.choice, v => theme.setChoice(v))));
+
   root.append(fieldset('Controle no toque', radios('sh-control', [['drag', 'Arrastar'], ['joystick', 'Joystick']],
     settings.control, v => onChange('control', v))));
-  root.append(el('p', 'guide-intro', 'Arrastar: deslize em qualquer lugar e a nave acompanha o dedo, sem ficar embaixo dele. Joystick: toque para criar o controle onde estiver o polegar.'));
   root.append(fieldset('Sensibilidade do arrasto',
     slider('Sensibilidade do arrasto', settings.sensitivity, 0.6, 2.2, 0.1, v => `${v.toFixed(1)}×`, v => onChange('sensitivity', v))));
-
-  const play = fieldset('Partida');
-  play.append(toggle('Tiro automático', 'Dispara sozinho quando há inimigos na tela. Desligado: segure o dedo, o clique ou a barra de espaço.',
-    settings.autofire, v => onChange('autofire', v)));
-  play.append(toggle('Vibração', haptics.supported ? 'Retorno tátil ao levar dano e em explosões grandes.' : 'Não disponível neste aparelho.',
-    haptics.enabled, v => haptics.setEnabled(v), !haptics.supported));
-  root.append(play);
-
-  const sound = fieldset('Som');
-  sound.append(toggle('Som ligado', 'Mesmo botão de som do topo da tela.', masterOn, onMaster));
-  sound.append(toggle('Efeitos sonoros', 'Tiros, explosões, power-ups e avisos.', settings.sfx, v => onChange('sfx', v)));
-  sound.append(slider('Volume dos efeitos', settings.sfxVolume, 0, 1, 0.05, percent, v => onChange('sfxVolume', v)));
-  sound.append(toggle('Música', 'Trilha synthwave gerada no aparelho.', settings.music, v => onChange('music', v)));
-  sound.append(slider('Volume da música', settings.musicVolume, 0, 1, 0.05, percent, v => onChange('musicVolume', v)));
-  root.append(sound);
-
   root.append(fieldset('Efeitos visuais', radios('sh-effects', [['full', 'Completos'], ['low', 'Reduzidos']],
     settings.effects, v => onChange('effects', v))));
-  root.append(el('p', 'guide-intro', 'Reduzidos: menos partículas, estrelas e brilho. Use em aparelhos mais simples.'));
-  root.append(toggle('Tremor de tela', 'Sacode a tela em explosões grandes e ao levar dano.', settings.shake, v => onChange('shake', v)));
-  root.append(fieldset('Interface', radios('sh-theme', [['dark', 'Escura'], ['light', 'Clara']], theme.mode, v => theme.setMode(v))));
+
+  const prefs = fieldset('Preferências');
+  prefs.append(toggle('Tiro automático', 'Dispara sozinho quando há inimigos. Desligado: segure o dedo, o clique ou a barra de espaço.',
+    settings.autofire, v => onChange('autofire', v)));
+  prefs.append(toggle('Tremor de tela', 'Sacode a tela em explosões grandes e ao levar dano.', settings.shake, v => onChange('shake', v)));
+  prefs.append(toggle('Vibração', haptics.supported ? 'Retorno tátil ao levar dano e em explosões grandes.' : 'Não disponível neste aparelho.',
+    haptics.enabled, v => haptics.setEnabled(v), !haptics.supported));
+  prefs.append(toggle('Som', 'Mesmo botão de som do topo da tela.', masterOn, onMaster));
+  prefs.append(toggle('Efeitos sonoros', 'Tiros, explosões e power-ups.', settings.sfx, v => onChange('sfx', v)));
+  prefs.append(slider('Volume dos efeitos', settings.sfxVolume, 0, 1, 0.05, percent, v => onChange('sfxVolume', v)));
+  prefs.append(toggle('Música', 'Trilha synthwave gerada no aparelho.', settings.music, v => onChange('music', v)));
+  prefs.append(slider('Volume da música', settings.musicVolume, 0, 1, 0.05, percent, v => onChange('musicVolume', v)));
+  root.append(prefs);
 
   root.append(el('h3', 'guide-title', 'Power-ups'));
+  root.append(el('p', 'guide-intro', 'Inimigos derrubados às vezes soltam cápsulas. O ícone com o tempo restante aparece no canto da arena.'));
   const powers = el('div', 'guide-grid');
   for (const [key, def] of Object.entries(POWERUPS)) {
     powers.append(el('div', 'guide-item sh-guide', `<span class="sh-guide-icon" style="--c:${def.color}">${svg(key)}</span>
@@ -236,14 +168,24 @@ export function buildSettings({ settings, masterOn, haptics, theme, onChange, on
       <div><strong>${def.name} · ${def.role}</strong><p>${ENEMY_DESCRIPTIONS[key]}</p></div>`));
   }
   root.append(foes);
-  root.append(el('p', 'guide-tip', `A cada ${WAVES.bossEvery} ondas surge um chefe com três fases. Todo ataque dele é anunciado: anel branco antes dos tiros, faixa vermelha antes da investida e faixa verde marcando a passagem segura na cortina. Abates sem levar dano sobem o combo, e a cada 10 o multiplicador de pontos aumenta.`));
-  return root;
-}
+  root.append(el('p', 'guide-tip', `A cada ${WAVES.bossEvery} ondas surge um chefe com três fases, e todo ataque dele é anunciado: anel branco antes dos tiros, faixa vermelha antes da investida e faixa verde marcando a passagem na cortina. A barra verde no topo enche com os abates; a melhoria é escolhida no intervalo entre ondas. Abates sem levar dano sobem o combo, e a cada 10 os pontos valem mais.`));
 
-export function buildAchievements({ unlocked, stats }) {
-  const root = el('div', 'sh-dialog');
+  root.append(el('h3', 'guide-title', 'Recordes'));
+  const records = el('div', 'records');
+  const row = (label, value) => records.append(el('div', 'record', `<span>${label}</span><b>${value}</b>`));
+  for (const key of DIFFICULTY_KEYS) {
+    const best = stats.best[key];
+    row(DIFFICULTIES[key].label, best.score ? `${fmt(best.score)} pts · onda ${best.wave}` : '—');
+  }
+  row('Partidas', fmt(stats.games));
+  row('Inimigos destruídos', fmt(stats.kills));
+  row('Chefes derrotados', fmt(stats.bosses));
+  row('Maior combo', `x${fmt(stats.bestCombo)}`);
+  row('Tempo de jogo', duration(stats.time));
+  root.append(records);
+
   const done = ACHIEVEMENTS.filter(a => unlocked[a.id]).length;
-  root.append(el('p', 'guide-intro', `${done} de ${ACHIEVEMENTS.length} conquistas desbloqueadas.`));
+  root.append(el('h3', 'guide-title', `Conquistas · ${done}/${ACHIEVEMENTS.length}`));
   const list = el('div', 'sh-achievements');
   for (const def of ACHIEVEMENTS) {
     const { value, goal, ratio } = achievementProgress(stats, def);
@@ -256,21 +198,5 @@ export function buildAchievements({ unlocked, stats }) {
       <small>${date || `${fmt(value)}/${fmt(goal)}`}</small>`));
   }
   root.append(list);
-
-  root.append(el('h3', 'guide-title', 'Estatísticas'));
-  const records = el('div', 'records');
-  const row = (label, value) => records.append(el('div', 'record', `<span>${label}</span><b>${value}</b>`));
-  row('Partidas', fmt(stats.games));
-  row('Inimigos destruídos', fmt(stats.kills));
-  row('Chefes derrotados', fmt(stats.bosses));
-  row('Power-ups coletados', fmt(stats.powerups));
-  row('Ondas sem dano', fmt(stats.flawless));
-  row('Maior combo', `x${fmt(stats.bestCombo)}`);
-  row('Tempo de jogo', duration(stats.time));
-  for (const key of DIFFICULTY_KEYS) {
-    const best = stats.best[key];
-    row(`Recorde · ${DIFFICULTIES[key].label}`, best.score ? `${fmt(best.score)} pts · onda ${best.wave}` : '—');
-  }
-  root.append(records);
   return root;
 }
