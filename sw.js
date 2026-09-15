@@ -9,7 +9,7 @@
 // HTTP cache do navegador.
 //
 // Ao adicionar um jogo, inclua os arquivos dele em ASSETS e suba VERSION.
-const VERSION = 'ia-games-v26';
+const VERSION = 'ia-games-v27';
 const DOC_TIMEOUT = 3500;   // HTML: vale esperar um pouco mais
 const ASSET_TIMEOUT = 1200; // módulos e CSS: rédea curta, cache logo atrás
 const ASSETS = [
@@ -36,6 +36,13 @@ const ASSETS = [
   './core/debug.js',
   './core/rng.js',
   './core/registry.js',
+  './games/neon-snake/index.js',
+  './games/neon-snake/ui.js',
+  './games/neon-snake/config.js',
+  './games/neon-snake/model.js',
+  './games/neon-snake/render.js',
+  './games/neon-snake/audio.js',
+  './games/neon-snake/style.css',
   './games/neon-break/index.js',
   './games/neon-break/config.js',
   './games/neon-break/content.js',
@@ -77,7 +84,16 @@ const ASSETS = [
   './games/neon-drop/ai.js',
   './games/neon-drop/render.js',
   './games/neon-drop/ui.js',
-  './games/neon-drop/style.css'
+  './games/neon-drop/style.css',
+  './games/neon-shooter/index.js',
+  './games/neon-shooter/config.js',
+  './games/neon-shooter/progress.js',
+  './games/neon-shooter/enemies.js',
+  './games/neon-shooter/world.js',
+  './games/neon-shooter/render.js',
+  './games/neon-shooter/audio.js',
+  './games/neon-shooter/ui.js',
+  './games/neon-shooter/style.css'
 ];
 
 self.addEventListener('install', event => {

@@ -1,0 +1,32 @@
+name: Bug
+description: Algo não funciona como deveria em um jogo ou na biblioteca.
+title: "[bug] "
+labels: [bug]
+body:
+  - type: input
+    id: jogo
+    attributes:
+      label: Jogo
+      description: Qual título, ou "biblioteca" se for no menu.
+      placeholder: Neon Drop
+    validations:
+      required: true
+  - type: textarea
+    id: aconteceu
+    attributes:
+      label: O que aconteceu
+      description: E o que você esperava que acontecesse.
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. Abrir o Neon Drop no nível difícil
+        2. ...
+  - type: input
+    id: aparelho
+    attributes:
+      label: Aparelho e navegador
+      placeholder: Android 15, Chrome, instalado como app
