@@ -18,23 +18,39 @@ body.ns-body>*{justify-self:stretch}
   .ns-app .chipbar,.ns-app .scorebar{opacity:.45}
 }
 
-/* Paisagem de celular: cada pixel de largura vira casa do tabuleiro. */
+/* Paisagem de celular: cada pixel de largura vira casa do tabuleiro, então o
+   cromo da esquerda encolhe e devolve a diferença para a arena. */
 @media(orientation:landscape) and (max-height:560px){
-  .ns-app{max-width:none}
+  .ns-app{max-width:none;grid-template-columns:min(138px,18vw) 1fr;gap:7px;
+    padding:calc(7px + env(safe-area-inset-top)) 9px 7px calc(9px + env(safe-area-inset-left))}
   .ns-app .arena{aspect-ratio:auto;width:100%;justify-self:stretch;margin-block:0}
-}
-
-/* Tela grande: 16/9 lê melhor que uma arena quase quadrada. Por último de
-   propósito, para vencer a regra de paisagem acima. */
-@media(min-width:900px) and (min-height:600px){
-  .ns-app .arena{flex:none;aspect-ratio:16/9;max-height:100%;margin-block:auto}
+  .ns-app .topbar{gap:8px}
+  .ns-app .mark{width:28px;height:28px;border-radius:8px}
+  .ns-app .mark svg{width:16px;height:16px}
+  .ns-app .brand h1{font-size:.78rem;letter-spacing:.03em}
+  .ns-app .icon-button{width:36px;height:36px;border-radius:10px}
+  .ns-app .icon-button svg{width:19px;height:19px}
+  .ns-app .scorebar{padding:6px 2px;border-radius:12px}
+  .ns-app .stat{display:block;padding:0 7px}
+  .ns-app .stat+.stat{margin-top:5px;padding-top:5px}
+  .ns-app .stat .label{font-size:.57rem;letter-spacing:.05em;margin-bottom:1px}
+  .ns-app .stat .value{font-size:.84rem}
+  .ns-app .chipbar{font-size:.6rem;gap:4px}
+  .ns-app .chip{padding:3px 5px;border-radius:6px}
+  .ns-app .footer{font-size:.64rem;gap:3px}
+  .ns-app .link-button{font-size:.7rem;min-height:26px}
 }
 
 /* Diálogo "Ajustes & bônus". */
 .ns-dialog .guide-item{align-items:center}
 .ns-item-icon{display:grid;place-items:center;min-width:34px;height:34px;border-radius:9px;
   border:1.5px solid var(--c);color:var(--c);background:#101418;font:700 1rem ui-monospace,monospace}
-.ns-arenas{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.ns-arenas,.ns-skins{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.ns-skins .level-pick{min-height:64px;padding:9px 4px 17px;border-color:color-mix(in srgb,var(--c) 35%,var(--line))}
+.ns-skins .level-pick[aria-current="step"]{border-color:var(--c)}
+.ns-skins .level-pick b{display:block;margin-top:5px;font:600 .72rem system-ui,sans-serif;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ns-skin{display:block;height:12px;border-radius:99px;margin:0 5px}
 .ns-arenas .level-pick{min-height:60px;padding:8px 4px 17px;border-color:color-mix(in srgb,var(--c) 35%,var(--line))}
 .ns-arenas .level-pick b{display:block;margin-top:3px;font:600 .72rem system-ui,sans-serif;color:var(--text);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

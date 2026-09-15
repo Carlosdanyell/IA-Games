@@ -49,6 +49,33 @@ export const MAPS = [
   { id: 'void', name: 'Void', description: 'A última fronteira: neon azul no vazio.', unlock: 220, color: '#91a0ff' }
 ];
 
+// Aparências da cobra. Cada uma abre com uma marca diferente do histórico, para
+// dar um motivo a mais de voltar: partidas, tamanho, combo, pontos e alimentos.
+export const SKINS = [
+  { id: 'lima', name: 'Lima Neon', description: 'A cobra original da biblioteca.', pattern: 'solid',
+    body: '#c1f760', turbo: '#e6ff9e', glow: '#a6f14b', shine: 'rgba(234,255,196,0.35)', head: '#f2ffc8', eye: '#152312',
+    unlockBy: 'games', unlock: 0 },
+  { id: 'ciano', name: 'Ciano Elétrico', description: 'Vidro de neon azul, recém-aceso.', pattern: 'solid',
+    body: '#53f3dc', turbo: '#a6fff2', glow: '#22c9b1', shine: 'rgba(214,255,250,0.38)', head: '#dbfff9', eye: '#04241f',
+    unlockBy: 'games', unlock: 5 },
+  { id: 'rosa', name: 'Rosa Cibernético', description: 'Magenta de letreiro de esquina.', pattern: 'solid',
+    body: '#ff5ce1', turbo: '#ffa6ef', glow: '#d92bb8', shine: 'rgba(255,214,246,0.38)', head: '#ffd9f6', eye: '#2b0424',
+    unlockBy: 'maxLength', unlock: 25 },
+  { id: 'ambar', name: 'Âmbar Solar', description: 'O calor de uma lâmpada de rua.', pattern: 'solid',
+    body: '#ffb347', turbo: '#ffd79a', glow: '#e8860c', shine: 'rgba(255,233,200,0.4)', head: '#ffe7c2', eye: '#2e1602',
+    unlockBy: 'best', unlock: 1000 },
+  { id: 'gelo', name: 'Gelo', description: 'Listras claras correndo pelo corpo.', pattern: 'stripes',
+    body: '#bfe9ff', turbo: '#e8f7ff', glow: '#4aa8dd', shine: 'rgba(255,255,255,0.72)', head: '#ffffff', eye: '#0b2233',
+    unlockBy: 'bestCombo', unlock: 8 },
+  { id: 'arco', name: 'Arco-Íris', description: 'Todas as cores da grade de uma vez.', pattern: 'rainbow',
+    body: '#ff8a5c', turbo: '#ffd3a1', glow: '#ff5ce1', shine: 'rgba(255,255,255,0.3)', head: '#fff1d6', eye: '#241030',
+    colors: ['#ff5c5c', '#ffb347', '#c1f760', '#53f3dc', '#68bfff', '#b48aff'],
+    unlockBy: 'foods', unlock: 150 }
+];
+
+// Como ler a condição de cada aparência no diálogo.
+export const SKIN_GOALS = { games: 'partidas', maxLength: 'de tamanho', bestCombo: 'de combo', best: 'pontos', foods: 'alimentos' };
+
 export const ITEMS = {
   food: { name: 'Alimento', color: '#ff5c8a', symbol: '●', description: 'Cresça, marque pontos e mantenha o combo.' },
   special: { name: 'Alimento especial', color: '#ffd166', symbol: '★', description: 'Vale cinco vezes mais. Pegue antes que desapareça.' },

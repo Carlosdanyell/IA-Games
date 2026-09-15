@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRun, steer, updateRun, createProfile, recordRun, cellsLong, wrapAngle } from '../games/neon-snake/model.js';
-import { MAPS, SNAKE, turnRate } from '../games/neon-snake/config.js';
+import { MAPS, SKINS, SNAKE, turnRate } from '../games/neon-snake/config.js';
 
 const plain = value => JSON.parse(JSON.stringify(value));
 let seed = 7;
@@ -277,6 +277,23 @@ test('perfil saneia dados corrompidos e permite apenas configurações conhecida
   assert.deepEqual(plain(profile.achievements), ['length25']);
 });
 
+test('aparências: liberam por marcas do histórico e a escolhida precisa estar liberada', () => {
+  const novato = createProfile();
+  assert.deepEqual(plain(novato.unlockedSkins), ['lima']);
+  assert.equal(novato.settings.skin, 'lima');
+  assert.equal(createProfile({ settings: { skin: 'arco' } }).settings.skin, 'lima', 'visual bloqueado volta ao padrão');
+  assert.equal(createProfile({ settings: { skin: 'arco' }, stats: { foods: 200 } }).settings.skin, 'arco');
+  const veterano = createProfile({ stats: { games: 9, maxLength: 40, bestCombo: 9, foods: 200, best: 1500 } });
+  assert.deepEqual(plain(veterano.unlockedSkins), SKINS.map(skin => skin.id));
+
+  const state = run();
+  Object.assign(state, { score: 1200, foods: 3, maxLength: 30, bestCombo: 4, elapsed: 20, status: 'over' });
+  const result = recordRun(createProfile(), state);
+  assert.deepEqual(plain(result.newSkins), ['rosa', 'ambar']);
+  assert.ok(result.profile.unlockedSkins.includes('rosa'));
+  assert.deepEqual(plain(recordRun(result.profile, state).newSkins), [], 'a mesma partida não libera duas vezes');
+});
+
 test('registro acumula estatísticas, recordes e desbloqueios uma única vez por partida', () => {
   const initial = createProfile();
   const state = run({ mode: 'challenge', difficulty: 'hard' });
@@ -287,6 +304,7 @@ test('registro acumula estatísticas, recordes e desbloqueios uma única vez por
   assert.equal(result.profile.bestByDifficulty.hard, 2400); assert.equal(result.profile.stats.time, 190);
   assert.equal(result.profile.stats.games, 1); assert.equal(result.profile.stats.foods, 230);
   assert.equal(result.unlockedMaps.length, 5); assert.equal(result.newAchievements.length, 7);
+  assert.deepEqual(plain(result.newSkins), ['rosa', 'ambar', 'gelo', 'arco'], 'só o Ciano continua preso, por exigir 5 partidas');
   assert.equal(recordRun(result.profile, state).profile.stats.games, 1);
   const abandoned = run(); Object.assign(abandoned, { foods: 2, elapsed: 1.5 });
   const next = recordRun(result.profile, abandoned);

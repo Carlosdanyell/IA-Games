@@ -1,5 +1,5 @@
 import { createRun, steer, updateRun, createProfile, recordRun, cellsLong } from './model.js';
-import { MODES, DIFFICULTIES, MAPS, ACHIEVEMENTS, SNAKE } from './config.js';
+import { MODES, DIFFICULTIES, MAPS, SKINS, ACHIEVEMENTS, SNAKE } from './config.js';
 import { createRenderer } from './render.js';
 import { createSnakeAudio } from './audio.js';
 import { buildDialog } from './ui.js';
@@ -286,6 +286,7 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
     const best = run.score > initialBest;
     const rewards = [
       ...(result?.unlockedMaps || []).map(id => `arena liberada: ${MAPS.find(m => m.id === id)?.name}`),
+      ...(result?.newSkins || []).map(id => `visual liberado: ${SKINS.find(s => s.id === id)?.name}`),
       ...(result?.newAchievements || []).map(id => `conquista: ${ACHIEVEMENTS.find(a => a.id === id)?.name}`)
     ];
     present({
@@ -330,6 +331,7 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
         return;
       }
       renderer.render(run || preview, dt, {
+        skin: profile.settings.skin,
         reducedMotion: profile.settings.reducedMotion || reduced.matches,
         frozen: state !== 'running', joystick: joy, hint: state === 'running'
       });
