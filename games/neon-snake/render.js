@@ -1,10 +1,11 @@
 import { ITEMS, MAPS, SNAKE } from './config.js';
-import { BOARD, wrapAngle } from './model.js';
+import { wrapAngle } from './model.js';
 
 // Desenho em Canvas 2D. A simulação usa unidades do tabuleiro (uma casa = 20);
 // aqui tudo é convertido para o campo lógico do viewport. O cenário estático
 // fica num canvas próprio e só é refeito quando muda a arena ou o tamanho.
 
+const PAD = 10;  // margem entre o tabuleiro e a borda do campo lógico
 const ACCENTS = Object.fromEntries(MAPS.map(map => [map.id, map.color]));
 const TAU = Math.PI * 2;
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
@@ -29,20 +30,20 @@ export function createRenderer(viewport) {
   const { ctx } = viewport.view;
   let background = null, backgroundKey = '';
   let clock = 0, reduced = false, flash = 0;
-  let g = { x: 10, y: 12, cell: 19, w: 380, h: 456, k: 0.95 };
+  let g = { x: PAD, y: 12, cell: 19, w: 380, h: 456, k: 0.95 };
   const particles = [], rings = [], labels = [], trail = [];
 
-  function layout() {
+  function layout(state) {
     const { w, h } = viewport.view;
-    const cell = Math.min((w - 20) / BOARD.cols, (h - 20) / BOARD.rows);
-    return { x: (w - cell * BOARD.cols) / 2, y: (h - cell * BOARD.rows) / 2, cell,
-      w: cell * BOARD.cols, h: cell * BOARD.rows, k: cell / BOARD.cell };
+    const cell = Math.min((w - PAD * 2) / state.cols, (h - PAD * 2) / state.rows);
+    return { x: (w - cell * state.cols) / 2, y: (h - cell * state.rows) / 2, cell,
+      w: cell * state.cols, h: cell * state.rows, k: cell / SNAKE.cell };
   }
   const sx = x => g.x + x * g.k;
   const sy = y => g.y + y * g.k;
 
-  function makeBackground(map) {
-    const { w, h } = viewport.view;
+  function makeBackground(state) {
+    const { map } = state, { w, h } = viewport.view;
     const surface = document.createElement('canvas');
     surface.width = Math.ceil(w);
     surface.height = Math.ceil(h);
@@ -57,8 +58,8 @@ export function createRenderer(viewport) {
     c.strokeStyle = 'rgba(183, 202, 188, 0.05)';
     c.lineWidth = 0.65;
     c.beginPath();
-    for (let i = 1; i < BOARD.cols; i++) { const x = g.x + i * g.cell; c.moveTo(x, g.y); c.lineTo(x, g.y + g.h); }
-    for (let i = 1; i < BOARD.rows; i++) { const y = g.y + i * g.cell; c.moveTo(g.x, y); c.lineTo(g.x + g.w, y); }
+    for (let i = 1; i < state.cols; i++) { const x = g.x + i * g.cell; c.moveTo(x, g.y); c.lineTo(x, g.y + g.h); }
+    for (let i = 1; i < state.rows; i++) { const y = g.y + i * g.cell; c.moveTo(g.x, y); c.lineTo(g.x + g.w, y); }
     c.stroke();
 
     const accent = ACCENTS[map] || ACCENTS.grid;
@@ -72,7 +73,9 @@ export function createRenderer(viewport) {
     } else if (map === 'hex') {
       for (let y = 27, row = 0; y < h; y += 49, row++) for (let x = 30 + row % 2 * 28; x < w; x += 56) { polygon(c, x, y, 32, 6, Math.PI / 6); c.stroke(); }
     } else if (map === 'maze') {
-      for (let i = 0; i < 6; i++) {
+      // Uma faixa de corredores a cada 240 unidades, quantas couberem na altura.
+      const bands = Math.floor((g.h - 108) / 240) + 1;
+      for (let i = 0; i < bands * 3; i++) {
         const x = g.x + 18 + i % 3 * 125, y = g.y + 38 + Math.floor(i / 3) * 240;
         c.beginPath(); c.moveTo(x, y + 70); c.lineTo(x, y); c.lineTo(x + 70, y); c.lineTo(x + 70, y + 36); c.lineTo(x + 34, y + 36); c.stroke();
       }
@@ -89,7 +92,7 @@ export function createRenderer(viewport) {
       c.beginPath(); c.ellipse(w * 0.5, h * 0.5, w * 0.4, h * 0.2, -0.7, 0, TAU); c.stroke();
     } else {
       c.globalAlpha = 0.16;
-      for (let x = 4; x < BOARD.cols; x += 4) for (let y = 4; y < BOARD.rows; y += 4) {
+      for (let x = 4; x < state.cols; x += 4) for (let y = 4; y < state.rows; y += 4) {
         const px = g.x + x * g.cell, py = g.y + y * g.cell;
         c.beginPath(); c.moveTo(px - 2, py); c.lineTo(px + 2, py); c.moveTo(px, py - 2); c.lineTo(px, py + 2); c.stroke();
       }
@@ -212,11 +215,11 @@ export function createRenderer(viewport) {
 
   // O corpo é uma linha contínua pelo caminho da cabeça, quebrada onde a
   // cobra atravessou a borda no modo sem paredes.
-  function bodyPath(points) {
+  function bodyPath(points, state) {
     ctx.beginPath();
     for (let i = points.length - 1; i >= 0; i--) {
       const p = points[i], next = points[i + 1];
-      const jump = next && (Math.abs(p.x - next.x) > BOARD.w / 2 || Math.abs(p.y - next.y) > BOARD.h / 2);
+      const jump = next && (Math.abs(p.x - next.x) > state.w / 2 || Math.abs(p.y - next.y) > state.h / 2);
       if (!next || jump) ctx.moveTo(sx(p.x), sy(p.y)); else ctx.lineTo(sx(p.x), sy(p.y));
     }
   }
@@ -246,14 +249,14 @@ export function createRenderer(viewport) {
     }
     ctx.globalAlpha = blink ? 0.45 : 1;
 
-    bodyPath(points);
+    bodyPath(points, state);
     ctx.strokeStyle = color;
     ctx.lineWidth = width;
     ctx.shadowColor = '#a6f14b';
     ctx.shadowBlur = reduced ? 6 : 13;
     ctx.stroke();
     ctx.shadowBlur = 0;
-    bodyPath(points);
+    bodyPath(points, state);
     ctx.strokeStyle = 'rgba(234,255,196,0.35)';
     ctx.lineWidth = width * 0.28;
     ctx.stroke();
@@ -362,6 +365,50 @@ export function createRenderer(viewport) {
     ctx.globalAlpha = 1;
   }
 
+  // Aviso de girar, em pixels de CSS sobre a arena inteira: deitado, o campo
+  // lógico encolhe e o texto sairia ilegível nas unidades dele.
+  function drawRotate() {
+    const { scale, ox, oy, cssW, cssH } = viewport.view;
+    viewport.begin();
+    ctx.save();
+    ctx.translate(-ox / scale, -oy / scale);
+    ctx.scale(1 / scale, 1 / scale);
+    ctx.fillStyle = '#0b100d';
+    ctx.fillRect(0, 0, cssW, cssH);
+    ctx.translate(cssW / 2, cssH / 2 - 9);
+    ctx.strokeStyle = '#c1f760';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    rounded(ctx, -56, -34, 112, 68, 10);
+    ctx.stroke();
+    const R = 86, end = -Math.PI * 0.2;
+    ctx.beginPath(); ctx.arc(0, 0, R, -Math.PI * 0.8, end); ctx.stroke();
+    const ex = Math.cos(end) * R, ey = Math.sin(end) * R;
+    const tx = -Math.sin(end), ty = Math.cos(end), nx = Math.cos(end), ny = Math.sin(end);
+    ctx.beginPath();
+    ctx.moveTo(ex - tx * 12 + nx * 9, ey - ty * 12 + ny * 9);
+    ctx.lineTo(ex + tx * 3, ey + ty * 3);
+    ctx.lineTo(ex - tx * 12 - nx * 9, ey - ty * 12 - ny * 9);
+    ctx.stroke();
+    // Uma cobrinha deitada dentro do aparelho.
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let x = -34; x <= 24; x += 2) { const y = Math.sin(x / 8) * 8; if (x === -34) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+    ctx.stroke();
+    ctx.fillStyle = '#c1f760';
+    ctx.beginPath(); ctx.arc(28, Math.sin(28 / 8) * 8, 5, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#eaffc4';
+    ctx.font = '800 20px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('Gire o aparelho', 0, 78);
+    ctx.fillStyle = 'rgba(234, 255, 196, 0.62)';
+    ctx.font = '500 13px system-ui, sans-serif';
+    ctx.fillText('A arena da cobra fica em pé.', 0, 101);
+    ctx.restore();
+  }
+
   function event(value) {
     if (value.type === 'over' || value.type === 'shield') flash = 0.3;
     if (!['eat', 'bonus', 'shield'].includes(value.type) || !Number.isFinite(value.x) || !Number.isFinite(value.y)) return;
@@ -396,9 +443,9 @@ export function createRenderer(viewport) {
       const delta = clamp(Number.isFinite(dt) ? dt : 0, 0, 0.05);
       clock += delta;
       flash = Math.max(0, flash - delta);
-      g = layout();
-      const key = `${state.map}:${g.cell}:${viewport.view.w}:${viewport.view.h}`;
-      if (key !== backgroundKey) { background = makeBackground(state.map); backgroundKey = key; }
+      g = layout(state);
+      const key = `${state.map}:${state.rows}:${g.cell}:${viewport.view.w}:${viewport.view.h}`;
+      if (key !== backgroundKey) { background = makeBackground(state); backgroundKey = key; }
       viewport.begin();
       ctx.drawImage(background, 0, 0);
       ctx.save();
@@ -416,6 +463,9 @@ export function createRenderer(viewport) {
     },
     event,
     clear,
+    drawRotate,
+    // Quantas linhas cabem na altura atual com a largura inteira ocupada.
+    fitRows: () => Math.floor((viewport.view.h - PAD * 2) / ((viewport.view.w - PAD * 2) / SNAKE.cols)),
     // Converte um ponto do campo lógico (ponteiro) para unidades do tabuleiro.
     toBoard: (x, y) => ({ x: (x - g.x) / g.k, y: (y - g.y) / g.k }),
     destroy() { clear(); background = null; backgroundKey = ''; }

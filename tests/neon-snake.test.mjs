@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRun, steer, updateRun, createProfile, recordRun, cellsLong, wrapAngle, BOARD } from '../games/neon-snake/model.js';
+import { createRun, steer, updateRun, createProfile, recordRun, cellsLong, wrapAngle } from '../games/neon-snake/model.js';
 import { MAPS, SNAKE, turnRate } from '../games/neon-snake/config.js';
 
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -18,7 +18,7 @@ const tick = (state, seconds) => {
   return events;
 };
 const foodAhead = state => {
-  state.food = { x: (state.head.x + Math.cos(state.angle) * 10 + BOARD.w) % BOARD.w, y: state.head.y + Math.sin(state.angle) * 10, type: 'food' };
+  state.food = { x: (state.head.x + Math.cos(state.angle) * 10 + state.w) % state.w, y: state.head.y + Math.sin(state.angle) * 10, type: 'food' };
 };
 // Corpo atravessado na frente da cabeça, longe dos primeiros pontos do caminho.
 const bodyAcross = state => {
@@ -92,7 +92,7 @@ test('meia-volta não mata; atravessar o próprio corpo mata; no Zen o corpo nã
 test('a borda encerra o Clássico; Sem Paredes e Zen atravessam', () => {
   for (const mode of ['classic', 'wrap', 'zen']) {
     const state = run({ mode });
-    state.head = { x: BOARD.w - 12, y: 240 };
+    state.head = { x: state.w - 12, y: 240 };
     steer(state, 0);
     const events = tick(state, 0.3);
     if (mode === 'classic') {
@@ -102,6 +102,31 @@ test('a borda encerra o Clássico; Sem Paredes e Zen atravessam', () => {
     } else {
       assert.equal(state.status, 'running');
       assert.ok(state.head.x < 40, `${mode} deveria reaparecer do outro lado`);
+    }
+  }
+});
+
+test('tabuleiro em pé: altura saneada, arenas na proporção e saída livre em qualquer altura', () => {
+  assert.equal(createRun({ rows: 'alta' }).rows, SNAKE.rows);
+  assert.equal(createRun({ rows: 10 }).rows, SNAKE.rows);
+  assert.equal(createRun({ rows: 33.8 }).rows, 33);
+  assert.equal(createRun({ rows: 999 }).rows, SNAKE.maxRows);
+  const tall = createRun({ rows: 36 });
+  assert.equal(tall.w, SNAKE.cols * SNAKE.cell);
+  assert.equal(tall.h, 36 * SNAKE.cell);
+  assert.equal(tall.head.y, 18.5 * SNAKE.cell);
+  const count = (map, rows) => createRun({ mode: 'challenge', map, rows }).obstacles.length;
+  assert.equal(count('grid', 36), count('grid', SNAKE.rows), 'peças soltas mantêm o formato');
+  assert.ok(count('maze', 36) > count('maze', SNAKE.rows), 'paredes verticais esticam com a altura');
+  for (let rows = SNAKE.rows; rows <= SNAKE.maxRows; rows++) {
+    const lines = createRun({ mode: 'challenge', map: 'grid', rows }).obstacles.map(r => r.y / SNAKE.cell);
+    assert.equal(Math.min(...lines), rows - 1 - Math.max(...lines), `grid simétrico com ${rows} linhas`);
+    for (const map of MAPS) {
+      const state = run({ mode: 'challenge', map: map.id, rows });
+      assert.ok(state.obstacles.every(r => r.y >= 0 && r.y + r.h <= state.h), `${map.id}/${rows}: peça fora do tabuleiro`);
+      steer(state, 0);
+      tick(state, 0.4);
+      assert.equal(state.status, 'running', `${map.id}/${rows}: a saída precisa estar livre`);
     }
   }
 });
@@ -147,7 +172,7 @@ test('bônus: especial cresce e vale 50, multiplicador dobra, redutor encurta, s
 test('escudo absorve borda, corpo, obstáculo e zona ativa, e a partida continua', () => {
   for (const cause of ['wall', 'body', 'obstacle', 'hazard']) {
     const state = run();
-    if (cause === 'wall') state.head = { x: BOARD.w - 12, y: 240 };
+    if (cause === 'wall') state.head = { x: state.w - 12, y: 240 };
     if (cause === 'body') bodyAcross(state);
     const block = { x: state.head.x + 8, y: state.head.y - 10, w: 20, h: 20 };
     if (cause === 'obstacle') state.obstacles = [block];

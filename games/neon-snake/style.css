@@ -5,6 +5,13 @@
 .ns-app{touch-action:manipulation}
 .ns-app .arena{background:#0b100d}
 
+/* O tabuleiro é em pé. Celular deitado mostra só o aviso de girar: a arena
+   ocupa a coluna inteira e placar e chips ficam apagados até voltar. */
+@media(orientation:landscape) and (max-height:560px) and (pointer:coarse){
+  .ns-app .arena{aspect-ratio:auto;width:100%}
+  .ns-app .chipbar,.ns-app .scorebar{opacity:.45}
+}
+
 /* Diálogo "Ajustes & bônus". */
 .ns-dialog .guide-item{align-items:center}
 .ns-item-icon{display:grid;place-items:center;min-width:34px;height:34px;border-radius:9px;
