@@ -65,7 +65,8 @@ export function createRenderer(viewport) {
     const accent = ACCENTS[map] || ACCENTS.grid;
     c.strokeStyle = accent; c.fillStyle = accent; c.globalAlpha = 0.09; c.lineWidth = 1;
     if (map === 'circuit') {
-      for (let i = 0; i < 8; i++) {
+      const traces = Math.max(8, Math.round(g.w / 90));
+      for (let i = 0; i < traces; i++) {
         const x = g.x + (i * 47 + 18) % g.w, y = g.y + (i * 71 + 22) % g.h, side = i % 2 ? 1 : -1;
         c.beginPath(); c.moveTo(x, y); c.lineTo(x + side * 28, y); c.lineTo(x + side * 46, y + 18); c.lineTo(x + side * 46, y + 60); c.stroke();
         c.beginPath(); c.arc(x, y, 2.2, 0, TAU); c.stroke();
@@ -73,21 +74,21 @@ export function createRenderer(viewport) {
     } else if (map === 'hex') {
       for (let y = 27, row = 0; y < h; y += 49, row++) for (let x = 30 + row % 2 * 28; x < w; x += 56) { polygon(c, x, y, 32, 6, Math.PI / 6); c.stroke(); }
     } else if (map === 'maze') {
-      // Uma faixa de corredores a cada 240 unidades, quantas couberem na altura.
-      const bands = Math.floor((g.h - 108) / 240) + 1;
-      for (let i = 0; i < bands * 3; i++) {
-        const x = g.x + 18 + i % 3 * 125, y = g.y + 38 + Math.floor(i / 3) * 240;
+      // Corredores decorativos repetidos por toda a largura do tabuleiro.
+      for (let x = g.x + 18; x < g.x + g.w - 80; x += 125) for (let y = g.y + 30; y < g.y + g.h - 80; y += 150) {
         c.beginPath(); c.moveTo(x, y + 70); c.lineTo(x, y); c.lineTo(x + 70, y); c.lineTo(x + 70, y + 36); c.lineTo(x + 34, y + 36); c.stroke();
       }
     } else if (map === 'city') {
-      for (let i = 0; i < 10; i++) {
+      const blocks = Math.ceil((g.w - 4) / 39);
+      for (let i = 0; i < blocks; i++) {
         const x = g.x + 4 + i * 39, height = 35 + (i * 37) % 95;
         c.strokeRect(x, g.y + g.h - height, 26, height + 5);
         for (let yy = g.y + g.h - height + 10; yy < g.y + g.h; yy += 10) { c.fillRect(x + 7, yy, 3, 3); c.fillRect(x + 16, yy, 3, 3); }
       }
     } else if (map === 'void') {
       c.globalAlpha = 0.23;
-      for (let i = 0; i < 46; i++) c.fillRect(g.x + (i * 139.7 + 19) % g.w, g.y + (i * 83.3 + 27) % g.h, i % 5 ? 1 : 2, i % 5 ? 1 : 2);
+      const stars = Math.round(g.w * g.h / 3760);
+      for (let i = 0; i < stars; i++) c.fillRect(g.x + (i * 139.7 + 19) % g.w, g.y + (i * 83.3 + 27) % g.h, i % 5 ? 1 : 2, i % 5 ? 1 : 2);
       c.globalAlpha = 0.08;
       c.beginPath(); c.ellipse(w * 0.5, h * 0.5, w * 0.4, h * 0.2, -0.7, 0, TAU); c.stroke();
     } else {
@@ -365,7 +366,7 @@ export function createRenderer(viewport) {
     ctx.globalAlpha = 1;
   }
 
-  // Aviso de girar, em pixels de CSS sobre a arena inteira: deitado, o campo
+  // Aviso de girar, em pixels de CSS sobre a arena inteira: em retrato o campo
   // lógico encolhe e o texto sairia ilegível nas unidades dele.
   function drawRotate() {
     const { scale, ox, oy, cssW, cssH } = viewport.view;
@@ -375,12 +376,12 @@ export function createRenderer(viewport) {
     ctx.scale(1 / scale, 1 / scale);
     ctx.fillStyle = '#0b100d';
     ctx.fillRect(0, 0, cssW, cssH);
-    ctx.translate(cssW / 2, cssH / 2 - 9);
+    ctx.translate(cssW / 2, cssH / 2 - 18);
     ctx.strokeStyle = '#c1f760';
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    rounded(ctx, -56, -34, 112, 68, 10);
+    rounded(ctx, -34, -56, 68, 112, 10);
     ctx.stroke();
     const R = 86, end = -Math.PI * 0.2;
     ctx.beginPath(); ctx.arc(0, 0, R, -Math.PI * 0.8, end); ctx.stroke();
@@ -391,21 +392,21 @@ export function createRenderer(viewport) {
     ctx.lineTo(ex + tx * 3, ey + ty * 3);
     ctx.lineTo(ex - tx * 12 - nx * 9, ey - ty * 12 - ny * 9);
     ctx.stroke();
-    // Uma cobrinha deitada dentro do aparelho.
+    // Uma cobrinha em pé dentro do aparelho, para dizer que ali não cabe.
     ctx.lineWidth = 3;
     ctx.beginPath();
-    for (let x = -34; x <= 24; x += 2) { const y = Math.sin(x / 8) * 8; if (x === -34) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+    for (let y = -34; y <= 24; y += 2) { const x = Math.sin(y / 8) * 8; if (y === -34) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
     ctx.stroke();
     ctx.fillStyle = '#c1f760';
-    ctx.beginPath(); ctx.arc(28, Math.sin(28 / 8) * 8, 5, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(Math.sin(28 / 8) * 8, 28, 5, 0, TAU); ctx.fill();
     ctx.fillStyle = '#eaffc4';
     ctx.font = '800 20px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('Gire o aparelho', 0, 78);
+    ctx.fillText('Gire o aparelho', 0, 100);
     ctx.fillStyle = 'rgba(234, 255, 196, 0.62)';
     ctx.font = '500 13px system-ui, sans-serif';
-    ctx.fillText('A arena da cobra fica em pé.', 0, 101);
+    ctx.fillText('A arena da cobra fica deitada.', 0, 123);
     ctx.restore();
   }
 
@@ -444,7 +445,7 @@ export function createRenderer(viewport) {
       clock += delta;
       flash = Math.max(0, flash - delta);
       g = layout(state);
-      const key = `${state.map}:${state.rows}:${g.cell}:${viewport.view.w}:${viewport.view.h}`;
+      const key = `${state.map}:${state.cols}:${g.cell}:${viewport.view.w}:${viewport.view.h}`;
       if (key !== backgroundKey) { background = makeBackground(state); backgroundKey = key; }
       viewport.begin();
       ctx.drawImage(background, 0, 0);
@@ -464,8 +465,8 @@ export function createRenderer(viewport) {
     event,
     clear,
     drawRotate,
-    // Quantas linhas cabem na altura atual com a largura inteira ocupada.
-    fitRows: () => Math.floor((viewport.view.h - PAD * 2) / ((viewport.view.w - PAD * 2) / SNAKE.cols)),
+    // Quantas colunas cabem na largura atual com a altura inteira ocupada.
+    fitCols: () => Math.floor((viewport.view.w - PAD * 2) / ((viewport.view.h - PAD * 2) / SNAKE.rows)),
     // Converte um ponto do campo lógico (ponteiro) para unidades do tabuleiro.
     toBoard: (x, y) => ({ x: (x - g.x) / g.k, y: (y - g.y) / g.k }),
     destroy() { clear(); background = null; backgroundKey = ''; }

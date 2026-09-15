@@ -24,9 +24,9 @@ export const wrapAngle = angle => {
   return a - Math.PI;
 };
 export const cellsLong = state => Math.round(state.length / C);
-// O tabuleiro tem sempre 20 colunas e ganha linhas para ocupar a tela em pé;
+// O tabuleiro tem sempre 20 linhas e ganha colunas para ocupar a tela deitada;
 // cada partida guarda as próprias dimensões.
-export const boardRows = rows => clamp(Math.floor(number(rows, SNAKE.rows)), SNAKE.rows, SNAKE.maxRows);
+export const boardCols = cols => clamp(Math.floor(number(cols, SNAKE.cols)), SNAKE.cols, SNAKE.maxCols);
 
 // Diferença entre dois pontos; no modo sem paredes, pelo lado mais curto.
 function gap(state, a, b) {
@@ -45,23 +45,24 @@ function circleRect(point, radius, rect) {
 }
 
 // Peças de cada arena em casas [x, y, largura, altura], desenhadas para 24
-// linhas. Num tabuleiro mais alto cada peça desce na proporção da altura e as
-// paredes verticais esticam junto; as outras mantêm o formato.
+// colunas. Num tabuleiro mais largo cada peça anda na proporção da largura e as
+// paredes horizontais esticam junto; as outras mantêm o formato. A faixa do
+// meio fica sempre livre: é de lá que a cobra sai.
 const PIECES = {
-  grid: [[4, 5, 1, 1], [15, 5, 1, 1], [4, 18, 1, 1], [15, 18, 1, 1]],
-  circuit: [[4, 5, 4, 1], [15, 5, 1, 4], [12, 18, 4, 1], [4, 15, 1, 4]],
-  maze: [[3, 6, 5, 1], [11, 6, 5, 1], [4, 17, 5, 1], [12, 17, 5, 1], [3, 8, 1, 3], [16, 8, 1, 3], [3, 13, 1, 3], [16, 13, 1, 3]],
-  hex: [[6, 5], [13, 5], [3, 10], [16, 10], [3, 15], [16, 15], [6, 19], [13, 19]].map(([x, y]) => [x, y, 2, 1]),
-  city: [3, 8, 14].flatMap(x => [[x, 4, 2, 2], [x, 18, 2, 2]]),
-  void: [[4, 4, 1, 1], [15, 4, 1, 1], [3, 12, 1, 1], [16, 12, 1, 1], [4, 19, 1, 1], [15, 19, 1, 1]]
+  grid: [[5, 4, 1, 1], [5, 15, 1, 1], [18, 4, 1, 1], [18, 15, 1, 1]],
+  circuit: [[5, 4, 1, 4], [5, 15, 4, 1], [18, 12, 1, 4], [15, 4, 4, 1]],
+  maze: [[6, 3, 1, 5], [6, 11, 1, 5], [17, 4, 1, 5], [17, 12, 1, 5], [8, 3, 3, 1], [13, 3, 3, 1], [8, 16, 3, 1], [13, 16, 3, 1]],
+  hex: [[5, 6], [5, 13], [10, 3], [10, 16], [15, 3], [15, 16], [19, 6], [19, 13]].map(([x, y]) => [x, y, 1, 2]),
+  city: [3, 8, 14].flatMap(y => [[4, y, 2, 2], [18, y, 2, 2]]),
+  void: [[4, 4, 1, 1], [4, 15, 1, 1], [12, 3, 1, 1], [12, 16, 1, 1], [19, 4, 1, 1], [19, 15, 1, 1]]
 };
 
-function mapObstacles(map, rows) {
-  const scale = rows / SNAKE.rows, rects = [];
+function mapObstacles(map, cols) {
+  const scale = cols / SNAKE.cols, rects = [];
   for (const [x, y, w, h] of PIECES[map] || []) {
-    const tall = h > w ? Math.round(h * scale) : h;
-    const top = Math.round((y + h / 2) * scale - tall / 2);
-    for (let i = 0; i < w; i++) for (let j = 0; j < tall; j++) rects.push({ x: (x + i) * C, y: (top + j) * C, w: C, h: C });
+    const wide = w > h ? Math.round(w * scale) : w;
+    const left = Math.round((x + w / 2) * scale - wide / 2);
+    for (let i = 0; i < wide; i++) for (let j = 0; j < h; j++) rects.push({ x: (left + i) * C, y: (y + j) * C, w: C, h: C });
   }
   return rects;
 }
@@ -103,14 +104,14 @@ function updateSpeed(state) {
 
 export function createRun(options = {}, rng = Math.random) {
   options = object(options);
-  const rows = boardRows(options.rows);
+  const cols = boardCols(options.cols);
   const state = {
     mode: choice(MODES, options.mode, 'classic').id,
     difficulty: choice(DIFFICULTIES, options.difficulty, 'normal').id,
     map: choice(MAPS, options.map, 'grid').id,
-    cols: SNAKE.cols, rows, w: SNAKE.cols * C, h: rows * C,
+    cols, rows: SNAKE.rows, w: cols * C, h: SNAKE.rows * C,
     status: 'running', waiting: true,
-    head: { x: 10.5 * C, y: (Math.floor(rows / 2) + 0.5) * C }, angle: 0, target: 0,
+    head: { x: (Math.floor(cols / 2) + 0.5) * C, y: (Math.floor(SNAKE.rows / 2) + 0.5) * C }, angle: 0, target: 0,
     path: [], travel: 0, length: SNAKE.startLength * C, speed: 0,
     food: null, bonus: null, obstacles: [], hazards: [],
     score: 0, foods: 0, maxLength: SNAKE.startLength, combo: 0, bestCombo: 0, comboRemaining: 0,
@@ -123,7 +124,7 @@ export function createRun(options = {}, rng = Math.random) {
   for (let i = 1; i <= Math.ceil(state.length / SNAKE.spacing); i++) {
     state.path.push({ x: state.head.x - i * SNAKE.spacing, y: state.head.y });
   }
-  if (state.mode === 'challenge') state.obstacles = mapObstacles(state.map, rows);
+  if (state.mode === 'challenge') state.obstacles = mapObstacles(state.map, cols);
   updateSpeed(state);
   spawnFood(state);
   return state;
