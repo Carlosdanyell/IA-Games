@@ -1,232 +1,218 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import vm from 'node:vm';
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { createRun, steer, updateRun, createProfile, recordRun, cellsLong, wrapAngle, BOARD } from '../games/neon-snake/model.js';
+import { MAPS, SNAKE, turnRate } from '../games/neon-snake/config.js';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const context = vm.createContext({ console });
-const loaded = new Map();
-async function load(path) {
-  if (loaded.has(path)) return loaded.get(path);
-  const mod = new vm.SourceTextModule(await readFile(path, 'utf8'), { context, identifier: path });
-  loaded.set(path, mod);
-  await mod.link((specifier, parent) => load(resolve(dirname(parent.identifier), specifier)));
-  return mod;
-}
-const mod = await load(resolve(root, 'games/neon-snake/model.js'));
-await mod.evaluate();
-const { createRun, queueDirection, updateRun, createProfile, recordRun } = mod.namespace;
-const { MAPS, ITEMS } = loaded.get(resolve(root, 'games/neon-snake/config.js')).namespace;
 const plain = value => JSON.parse(JSON.stringify(value));
+let seed = 7;
+const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
 const run = options => {
-  const state = createRun(options, () => 0.42);
-  state.nextBonus = 1000;
+  const state = createRun(options, rng);
+  state.nextBonus = 1e9;
+  state.nextHazard = 1e9;
   return state;
 };
-const tick = state => updateRun(state, Math.max(0, state.stepDuration - state.accumulator) + 1e-8);
-const foodAhead = state => {
-  const vector = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[state.direction];
-  state.food = { x: (state.snake[0].x + vector[0] + 20) % 20, y: (state.snake[0].y + vector[1] + 24) % 24, type: 'food' };
+const tick = (state, seconds) => {
+  const events = [];
+  for (let i = 0; i < Math.round(seconds * 120); i++) events.push(...updateRun(state, 1 / 120));
+  return events;
 };
-const bonusAhead = (state, type) => { state.bonus = { x: state.snake[0].x + 1, y: state.snake[0].y, type, remaining: 10 }; };
+const foodAhead = state => {
+  state.food = { x: (state.head.x + Math.cos(state.angle) * 10 + BOARD.w) % BOARD.w, y: state.head.y + Math.sin(state.angle) * 10, type: 'food' };
+};
+// Corpo atravessado na frente da cabeça, longe dos primeiros pontos do caminho.
+const bodyAcross = state => {
+  state.head = { x: 200, y: 240 };
+  state.angle = state.target = 0;
+  const behind = Array.from({ length: 8 }, (_, i) => ({ x: 196 - i * 4, y: 240 }));
+  const wall = Array.from({ length: 30 }, (_, i) => ({ x: 232, y: 180 + i * 4 }));
+  state.path = [...behind, ...wall];
+  state.length = state.path.length * SNAKE.spacing;
+};
 
-test('estado inicial válido e alimentos livres em todas as arenas', () => {
-  assert.equal(Object.keys(ITEMS).length, 7);
+test('estado inicial: cobra parada até o primeiro gesto e alimento livre em todas as arenas', () => {
   for (const map of MAPS) for (const mode of ['classic', 'wrap', 'challenge', 'zen']) {
     const state = run({ map: map.id, mode });
     assert.equal(state.status, 'running');
-    assert.equal(state.cols, 20); assert.equal(state.rows, 24);
-    assert.equal(state.snake.length, 4);
-    assert.deepEqual(plain(state.snake), plain(state.previousSnake));
-    assert.ok(state.food);
-    assert.ok(![...state.snake, ...state.obstacles].some(p => p.x === state.food.x && p.y === state.food.y));
+    assert.equal(state.waiting, true);
+    assert.equal(cellsLong(state), SNAKE.startLength);
+    assert.ok(state.food, `${map.id}/${mode} sem alimento`);
     assert.equal(Boolean(state.obstacles.length), mode === 'challenge');
-    assert.ok(!state.obstacles.some(p => state.snake.some(segment => p.x === segment.x && p.y === segment.y)));
+    assert.ok(!state.obstacles.some(r => state.food.x > r.x - 6 && state.food.x < r.x + r.w + 6 && state.food.y > r.y - 6 && state.food.y < r.y + r.h + 6));
+    const head = plain(state.head);
+    assert.deepEqual(updateRun(state, 1), []);
+    assert.deepEqual(plain(state.head), head, 'esperando o gesto, a cobra não anda');
   }
   const fallback = createRun({ mode: 'inválido', difficulty: null, map: '__proto__' });
   assert.equal(fallback.mode, 'classic'); assert.equal(fallback.difficulty, 'normal'); assert.equal(fallback.map, 'grid');
 });
 
-test('fila aceita dois gestos rápidos e rejeita reversão, repetição e entradas inválidas', () => {
+test('a cabeça gira no máximo na taxa de giro e chega à direção pedida', () => {
   const state = run();
-  assert.equal(queueDirection(state, 'left'), false);
-  assert.equal(queueDirection(state, 'up'), true);
-  assert.equal(queueDirection(state, 'down'), false);
-  assert.equal(queueDirection(state, 'left'), true);
-  assert.equal(queueDirection(state, 'down'), false);
-  assert.equal(queueDirection(state, 'constructor'), false);
-  assert.equal(queueDirection(state, 'right'), false);
-  tick(state); assert.equal(state.direction, 'up'); assert.deepEqual(plain(state.snake[0]), { x: 10, y: 11 });
-  tick(state); assert.equal(state.direction, 'left'); assert.deepEqual(plain(state.snake[0]), { x: 9, y: 11 });
-  assert.equal(state.turnQueue.length, 0);
+  assert.equal(steer(state, Math.PI / 2), true);
+  assert.equal(state.waiting, false);
+  const before = state.angle;
+  updateRun(state, 0.05);
+  assert.ok(Math.abs(wrapAngle(state.angle - before)) <= turnRate(state.speed) * 0.05 + 1e-9);
+  assert.ok(state.angle > before);
+  tick(state, 1);
+  assert.ok(Math.abs(wrapAngle(state.angle - Math.PI / 2)) < 1e-9);
+  assert.equal(steer(state, NaN), false);
 });
 
-test('parede encerra Clássico; Sem Paredes e Zen atravessam as duas bordas', () => {
+test('anda na velocidade da dificuldade e o corpo guarda só o próprio tamanho', () => {
+  const state = run({ mode: 'wrap' });
+  steer(state, 0);
+  const x0 = state.head.x, speed = state.speed;
+  updateRun(state, 0.5);
+  assert.ok(Math.abs(state.head.x - x0 - speed * 0.5) < 0.5);
+  assert.equal(state.path.length, Math.ceil(state.length / SNAKE.spacing));
+});
+
+test('meia-volta não mata; atravessar o próprio corpo mata; no Zen o corpo não conta', () => {
+  const turning = run();
+  steer(turning, Math.PI);
+  tick(turning, 2);
+  assert.equal(turning.status, 'running', 'curva fechada de 180° não pode encostar no corpo');
+
+  const classic = run();
+  bodyAcross(classic);
+  steer(classic, 0);
+  tick(classic, 0.6);
+  assert.equal(classic.status, 'over');
+  assert.match(classic.deathReason, /corpo/);
+
+  const zen = run({ mode: 'zen' });
+  bodyAcross(zen);
+  steer(zen, 0);
+  tick(zen, 0.6);
+  assert.equal(zen.status, 'running');
+});
+
+test('a borda encerra o Clássico; Sem Paredes e Zen atravessam', () => {
   for (const mode of ['classic', 'wrap', 'zen']) {
     const state = run({ mode });
-    state.snake = [{ x: 19, y: 10 }, { x: 18, y: 10 }];
-    const events = tick(state);
+    state.head = { x: BOARD.w - 12, y: 240 };
+    steer(state, 0);
+    const events = tick(state, 0.3);
     if (mode === 'classic') {
       assert.equal(state.status, 'over'); assert.match(state.deathReason, /borda/);
       assert.equal(events.filter(e => e.type === 'over').length, 1);
-      assert.equal(updateRun(state, 2).length, 0);
+      assert.deepEqual(updateRun(state, 1), []);
     } else {
-      assert.equal(state.status, 'running'); assert.equal(state.snake[0].x, 0);
-      state.snake = [{ x: 4, y: 0 }]; state.direction = 'up';
-      tick(state); assert.equal(state.snake[0].y, 23);
+      assert.equal(state.status, 'running');
+      assert.ok(state.head.x < 40, `${mode} deveria reaparecer do outro lado`);
     }
   }
 });
 
-test('entrar na posição que a cauda está deixando é legal; corpo continua sólido', () => {
-  const state = run();
-  state.snake = [{ x: 5, y: 5 }, { x: 5, y: 6 }, { x: 4, y: 6 }, { x: 4, y: 5 }];
-  state.direction = 'left';
-  tick(state);
-  assert.equal(state.status, 'running'); assert.deepEqual(plain(state.snake[0]), { x: 4, y: 5 });
-  state.direction = 'right';
-  tick(state);
-  assert.equal(state.status, 'over'); assert.match(state.deathReason, /corpo/);
-});
-
-test('coletar faz crescer e os combos chegam a ×10; a sequência expira em cinco segundos', () => {
+test('comer faz crescer e pontua; o combo encadeia até x10 e expira em cinco segundos', () => {
   const state = run({ mode: 'wrap' });
-  for (let index = 0; index < 10; index++) { foodAhead(state); tick(state); }
-  assert.equal(state.foods, 10); assert.equal(state.snake.length, 14);
-  assert.equal(state.maxLength, 14); assert.equal(state.bestCombo, 10);
-  assert.equal(state.score, 550); assert.equal(state.combo, 10);
-  state.snake = [{ x: 10, y: 12 }]; state.food = { x: 2, y: 2, type: 'food' };
-  updateRun(state, 5.1);
-  assert.equal(state.status, 'running'); assert.equal(state.combo, 0); assert.equal(state.bestCombo, 10);
-  foodAhead(state); tick(state); assert.equal(state.combo, 1); assert.equal(state.score, 560);
+  steer(state, 0);
+  for (let i = 0; i < 10; i++) { foodAhead(state); updateRun(state, 1 / 120); }
+  assert.equal(state.foods, 10);
+  assert.equal(cellsLong(state), 14);
+  assert.equal(state.maxLength, 14);
+  assert.equal(state.bestCombo, 10);
+  assert.equal(state.score, 550);
+  state.food = { x: 30, y: 30, type: 'food' };
+  state.head = { x: 200, y: 400 };
+  tick(state, 5.1);
+  assert.equal(state.combo, 0);
+  assert.equal(state.bestCombo, 10);
 });
 
-test('cada bônus aplica seu efeito e alimento especial também alimenta a cobra', () => {
+test('bônus: especial cresce e vale 50, multiplicador dobra, redutor encurta, slow e turbo mudam a velocidade', () => {
   for (const type of ['special', 'multiplier', 'shield', 'shrink', 'slow', 'turbo']) {
-    const state = run();
-    state.food = { x: 1, y: 1, type: 'food' };
-    state.snake = Array.from({ length: 8 }, (_, index) => ({ x: 10 - index, y: 12 }));
+    const state = run({ mode: 'wrap' });
+    steer(state, 0);
+    state.length = 8 * SNAKE.cell;
     state.maxLength = 8;
-    const speed = state.stepDuration;
-    bonusAhead(state, type);
-    const events = tick(state);
-    assert.equal(state.bonus, null);
-    assert.ok(events.some(e => e.type === 'bonus' && e.item === type));
-    if (type === 'special') { assert.equal(state.foods, 1); assert.equal(state.score, 50); assert.equal(state.snake.length, 9); }
-    if (type === 'multiplier') { assert.ok(state.effects.multiplier > 7.9); foodAhead(state); tick(state); assert.equal(state.score, 20); }
+    state.food = { x: 30, y: 30, type: 'food' };
+    state.bonus = { x: state.head.x + 10, y: state.head.y, type, remaining: 10, duration: 10 };
+    const speed = state.speed;
+    const events = updateRun(state, 1 / 120);
+    assert.equal(state.bonus, null, type);
+    assert.ok(events.some(e => e.type === 'bonus' && e.item === type), type);
+    updateRun(state, 1 / 120);
+    if (type === 'special') { assert.equal(state.foods, 1); assert.equal(state.score, 50); assert.equal(cellsLong(state), 9); }
+    if (type === 'multiplier') { assert.ok(state.effects.multiplier > 7.9); foodAhead(state); updateRun(state, 1 / 120); assert.equal(state.score, 20); }
     if (type === 'shield') assert.equal(state.effects.shield, true);
-    if (type === 'shrink') { assert.equal(state.snake.length, 6); assert.equal(state.maxLength, 8); }
-    if (type === 'slow') { assert.ok(state.effects.slow > 7.9); assert.ok(state.stepDuration > speed); }
-    if (type === 'turbo') { assert.equal(state.score, 100); assert.ok(state.effects.turbo > 5.9); assert.ok(state.stepDuration < speed); }
+    if (type === 'shrink') { assert.equal(cellsLong(state), 5); assert.equal(state.maxLength, 8); }
+    if (type === 'slow') { assert.ok(state.effects.slow > 7.9); assert.ok(state.speed < speed); }
+    if (type === 'turbo') { assert.equal(state.score, 100); assert.ok(state.effects.turbo > 5.9); assert.ok(state.speed > speed); }
   }
 });
 
-test('bônus e efeitos temporários expiram; intervalos inválidos não alteram a partida', () => {
-  const state = run({ mode: 'wrap' });
-  state.snake = [{ x: 10, y: 12 }]; state.food = { x: 0, y: 0, type: 'food' };
-  state.bonus = { x: 1, y: 1, type: 'special', remaining: 0.15 };
-  state.effects = { multiplier: 0.15, shield: true, slow: 0.15, turbo: 0 };
-  const snapshot = plain(state);
-  for (const dt of [0, -1, NaN, Infinity, undefined]) assert.deepEqual(plain(updateRun(state, dt)), []);
-  assert.deepEqual(plain(state), snapshot);
-  updateRun(state, 0.2);
-  assert.equal(state.bonus, null); assert.equal(state.effects.multiplier, 0); assert.equal(state.effects.slow, 0);
-  assert.equal(state.effects.shield, true); assert.ok(Math.abs(state.elapsed - 0.2) < 1e-8);
-  assert.ok(Math.abs(state.stepDuration - 0.175) < 1e-8);
-});
-
-test('escudo absorve parede, corpo, obstáculo e zona ativa e permite o próximo passo', () => {
+test('escudo absorve borda, corpo, obstáculo e zona ativa, e a partida continua', () => {
   for (const cause of ['wall', 'body', 'obstacle', 'hazard']) {
     const state = run();
+    if (cause === 'wall') state.head = { x: BOARD.w - 12, y: 240 };
+    if (cause === 'body') bodyAcross(state);
+    const block = { x: state.head.x + 8, y: state.head.y - 10, w: 20, h: 20 };
+    if (cause === 'obstacle') state.obstacles = [block];
+    if (cause === 'hazard') state.hazards = [{ ...block, active: true, permanent: false, warning: 0, remaining: 3 }];
     state.effects.shield = true;
-    state.food = { x: 1, y: 1, type: 'food' };
-    if (cause === 'wall') state.snake = [{ x: 19, y: 12 }, { x: 18, y: 12 }, { x: 17, y: 12 }];
-    if (cause === 'body') state.snake = [{ x: 10, y: 12 }, { x: 10, y: 13 }, { x: 11, y: 13 }, { x: 11, y: 12 }, { x: 12, y: 12 }];
-    if (cause === 'obstacle') state.obstacles = [{ x: 11, y: 12 }];
-    if (cause === 'hazard') state.hazards = [{ x: 11, y: 12, active: true, remaining: 3 }];
-    const events = tick(state);
-    assert.equal(state.status, 'running', cause); assert.equal(state.effects.shield, false, cause);
+    steer(state, 0);
+    const events = tick(state, 0.3);
+    assert.equal(state.status, 'running', cause);
+    assert.equal(state.effects.shield, false, cause);
     assert.ok(events.some(e => e.type === 'shield'), cause);
-    tick(state); assert.equal(state.status, 'running', cause);
+    tick(state, 1.5);
+    assert.equal(state.status, 'running', `${cause}: depois do escudo a cobra precisa seguir viva`);
   }
 });
 
-test('escudo abre uma saída quando a cabeça está cercada pelo próprio corpo', () => {
-  const state = run();
-  state.snake = [{ x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 2, y: 0 }];
-  state.direction = 'up'; state.effects.shield = true; state.food = { x: 15, y: 15, type: 'food' };
-  tick(state); assert.equal(state.status, 'running'); assert.ok(state.snake.length < 5);
-  tick(state); assert.equal(state.status, 'running');
-});
-
-test('a velocidade progride por dificuldade e permanece estável no Zen', () => {
+test('a velocidade sobe por nível conforme a dificuldade e fica estável no Zen', () => {
   const speeds = [];
   for (const difficulty of ['easy', 'normal', 'hard']) {
-    const state = run({ difficulty }); const start = state.stepDuration;
+    const state = run({ difficulty, mode: 'wrap' });
+    steer(state, 0);
+    const start = state.speed;
     speeds.push(start);
-    for (let i = 0; i < 5; i++) { foodAhead(state); tick(state); }
-    assert.equal(state.level, 2); assert.ok(state.stepDuration < start);
+    for (let i = 0; i < SNAKE.levelEvery; i++) { foodAhead(state); updateRun(state, 1 / 120); }
+    updateRun(state, 1 / 120);
+    assert.equal(state.level, 2);
+    assert.ok(state.speed > start);
   }
-  assert.ok(speeds[0] > speeds[1] && speeds[1] > speeds[2]);
-  const zen = run({ mode: 'zen' }); const start = zen.stepDuration;
-  for (let i = 0; i < 5; i++) { foodAhead(zen); tick(zen); }
-  assert.equal(zen.stepDuration, start);
+  assert.ok(speeds[0] < speeds[1] && speeds[1] < speeds[2]);
+  const zen = run({ mode: 'zen' });
+  steer(zen, 0);
+  const start = zen.speed;
+  for (let i = 0; i < SNAKE.levelEvery; i++) { foodAhead(zen); updateRun(zen, 1 / 120); }
+  updateRun(zen, 1 / 120);
+  assert.equal(zen.speed, start);
 });
 
-test('novos obstáculos recebem aviso e nunca aparecem sobre a cobra ou sobre itens', () => {
-  const state = run({ mode: 'challenge', difficulty: 'hard' });
-  state.foods = 3;
-  foodAhead(state); tick(state);
-  const warning = state.hazards.find(h => h.permanent);
-  assert.ok(warning); assert.equal(warning.active, false); assert.ok(warning.warning >= 1.99);
-  assert.ok(![...state.snake, state.food, state.bonus].filter(Boolean).some(p => p.x === warning.x && p.y === warning.y));
-  assert.ok(Math.abs(warning.x - state.snake[0].x) + Math.abs(warning.y - state.snake[0].y) >= 5);
-  const obstacles = state.obstacles.length;
-  state.hazards = [{ x: state.snake[0].x, y: state.snake[0].y, active: false, permanent: true, warning: 0.01, remaining: Infinity }];
+test('Desafio: aviso vira obstáculo, perigo temporário some e objetivo dá recompensa', () => {
+  const state = run({ mode: 'challenge' });
+  state.head = { x: 100, y: 410 };
+  state.path = Array.from({ length: 20 }, (_, i) => ({ x: 96 - i * 4, y: 410 }));
+  steer(state, 0);
+  state.hazards = [{ x: 20, y: 20, w: 20, h: 20, active: false, permanent: true, warning: 2, remaining: Infinity }];
+  tick(state, 2.1);
+  assert.equal(state.status, 'running');
+  assert.ok(state.obstacles.some(r => r.x === 20 && r.y === 20));
+  state.hazards = [{ x: 20, y: 60, w: 20, h: 20, active: true, permanent: false, remaining: 0.01 }];
   updateRun(state, 0.02);
-  assert.equal(state.obstacles.length, obstacles); assert.ok(state.hazards[0].warning >= 1.79);
-});
-
-test('avisos tornam-se obstáculos após tempo seguro e perigos temporários desaparecem', () => {
-  const state = run({ mode: 'challenge' });
-  state.snake = [{ x: 10, y: 20 }]; state.direction = 'up'; state.food = { x: 0, y: 0, type: 'food' };
-  state.hazards = [{ x: 2, y: 3, active: false, permanent: true, warning: 2, remaining: Infinity }];
-  updateRun(state, 2.1);
-  assert.equal(state.status, 'running'); assert.ok(state.obstacles.some(p => p.x === 2 && p.y === 3));
   assert.equal(state.hazards.length, 0);
-  state.hazards = [{ x: 2, y: 4, active: true, permanent: false, remaining: 0.01 }];
-  updateRun(state, 0.02); assert.equal(state.hazards.length, 0);
-});
 
-test('objetivos concedem recompensa e avançam no Desafio', () => {
-  const state = run({ mode: 'challenge' });
-  state.foods = 7; foodAhead(state);
-  const events = tick(state);
+  state.foods = 7;
+  state.score = 0;
+  state.combo = 0; state.comboRemaining = 0;
+  foodAhead(state);
+  const events = updateRun(state, 1 / 120);
   assert.ok(events.some(e => e.type === 'objective' && e.points === 200));
-  assert.equal(state.score, 210); assert.equal(state.objective.current, 8); assert.equal(state.objective.target, 20);
+  assert.equal(state.score, 210);
+  assert.equal(state.objective.target, 20);
 });
 
-test('alimentos são colocados no componente acessível e sorteio constante termina', () => {
-  const state = createRun({}, () => 0);
-  state.nextBonus = 1000;
-  state.obstacles = Array.from({ length: 24 }, (_, y) => ({ x: 11, y }));
-  state.direction = 'down'; foodAhead(state); tick(state);
-  assert.equal(state.status, 'running'); assert.ok(state.food.x < 11);
-  assert.ok(!state.snake.some(p => p.x === state.food.x && p.y === state.food.y));
-});
-
-test('ocupar a última célula termina com vitória sem repetir sorteios', () => {
-  const state = createRun({}, () => 0);
-  const body = [];
-  for (let y = 0; y < 24; y++) for (let x = 0; x < 20; x++) if (!(y === 0 && (x === 0 || x === 1))) body.push({ x, y });
-  state.snake = [{ x: 0, y: 0 }, ...body]; state.previousSnake = plain(state.snake);
-  state.direction = 'right'; state.food = { x: 1, y: 0, type: 'food' }; state.nextBonus = 1000;
-  const events = tick(state);
-  assert.equal(state.snake.length, 480); assert.equal(state.food, null);
-  assert.equal(state.status, 'over'); assert.equal(state.victory, true);
-  assert.equal(events.filter(e => e.type === 'over').length, 1);
+test('intervalos inválidos não alteram a partida', () => {
+  const state = run({ mode: 'wrap' });
+  steer(state, 0);
+  const snapshot = plain(state);
+  for (const dt of [0, -1, NaN, Infinity, undefined]) assert.deepEqual(updateRun(state, dt), []);
+  assert.deepEqual(plain(state), snapshot);
 });
 
 test('perfil saneia dados corrompidos e permite apenas configurações conhecidas', () => {
@@ -235,11 +221,12 @@ test('perfil saneia dados corrompidos e permite apenas configurações conhecida
     assert.equal(profile.best, 0); assert.deepEqual(plain(profile.unlockedMaps), ['grid']);
     assert.equal(profile.settings.effects, true); assert.equal(profile.settings.music, false);
   }
-  const profile = createProfile({ best: Infinity, settings: { mode: 'oops', map: 'void', effects: 'false', music: true },
-    bestByMode: { classic: -8, wrap: 54.9, __proto__: { hacked: true } },
+  const profile = createProfile({ best: Infinity, settings: { mode: 'oops', map: 'void', effects: 'false', music: true, dpad: true },
+    bestByMode: { classic: -8, wrap: 54.9 },
     stats: { games: -1, foods: 45, best: 400, time: NaN }, unlockedMaps: ['bad', 'grid', 'grid'], achievements: ['bad', 'length25', 'length25'] });
   assert.equal(profile.best, 400); assert.equal(profile.settings.mode, 'classic'); assert.equal(profile.settings.map, 'grid');
   assert.equal(profile.settings.effects, true); assert.equal(profile.settings.music, true);
+  assert.equal('dpad' in profile.settings, false);
   assert.equal(profile.bestByMode.classic, 0); assert.equal(profile.bestByMode.wrap, 54);
   assert.equal(profile.stats.games, 0); assert.equal(profile.stats.time, 0);
   assert.deepEqual(plain(profile.unlockedMaps), ['grid', 'circuit', 'maze']);

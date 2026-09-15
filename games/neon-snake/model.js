@@ -1,14 +1,18 @@
-import { MODES, DIFFICULTIES, MAPS, ACHIEVEMENTS } from './config.js';
+import { MODES, DIFFICULTIES, MAPS, ACHIEVEMENTS, SNAKE, turnRate } from './config.js';
 
-const VECTORS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
-const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' };
-const DIRECTIONS = ['up', 'right', 'down', 'left'];
+// Simulação contínua da cobra, sem DOM. A cabeça anda sempre para a frente num
+// ângulo livre e gira até a direção pedida; o corpo segue o caminho que a
+// cabeça deixou, gravado em pontos a cada `SNAKE.spacing` unidades.
+
+const TAU = Math.PI * 2;
+const C = SNAKE.cell;
+export const BOARD = { cols: SNAKE.cols, rows: SNAKE.rows, cell: C, w: SNAKE.cols * C, h: SNAKE.rows * C };
+const W = BOARD.w, H = BOARD.h;
 const RANDOM = new WeakMap();
 const RECORDED = new WeakSet();
 const BONUS_TYPES = ['special', 'special', 'special', 'multiplier', 'shield', 'shrink', 'slow', 'turbo'];
-const same = (a, b) => Boolean(a && b && a.x === b.x && a.y === b.y);
-const key = p => p.y * 20 + p.x;
-const copy = snake => snake.map(p => ({ x: p.x, y: p.y }));
+
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const choice = (values, id, fallback) => values.find(value => value.id === id) || values.find(value => value.id === fallback) || values[0];
 const number = (value, fallback = 0) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.min(value, Number.MAX_SAFE_INTEGER) : fallback;
 const integer = value => Math.floor(number(value));
@@ -16,86 +20,31 @@ const object = value => value && typeof value === 'object' && !Array.isArray(val
 const wraps = state => state.mode === 'wrap' || state.mode === 'zen';
 const random = state => Math.max(0, Math.min(0.999999999, number(RANDOM.get(state)?.(), 0.5)));
 
-function nextCell(state, direction, point = state.snake[0]) {
-  const delta = VECTORS[direction];
-  const next = { x: point.x + delta.x, y: point.y + delta.y };
+export const wrapAngle = angle => {
+  let a = (angle + Math.PI) % TAU;
+  if (a < 0) a += TAU;
+  return a - Math.PI;
+};
+export const cellsLong = state => Math.round(state.length / C);
+
+// Diferença entre dois pontos; no modo sem paredes, pelo lado mais curto.
+function gap(state, a, b) {
+  let dx = b.x - a.x, dy = b.y - a.y;
   if (wraps(state)) {
-    next.x = (next.x + state.cols) % state.cols;
-    next.y = (next.y + state.rows) % state.rows;
+    if (dx > W / 2) dx -= W; else if (dx < -W / 2) dx += W;
+    if (dy > H / 2) dy -= H; else if (dy < -H / 2) dy += H;
   }
-  return next;
+  return Math.hypot(dx, dy);
 }
 
-function inside(state, point) {
-  return point.x >= 0 && point.x < state.cols && point.y >= 0 && point.y < state.rows;
-}
-
-function solid(state, point) {
-  return state.obstacles.some(p => same(p, point)) || state.hazards.some(p => p.active && same(p, point));
-}
-
-function blockedCells(state, includeSnake = true, extra = null) {
-  const blocked = new Set(state.obstacles.map(key));
-  // Reservar também os avisos impede que um item apareça sobre um futuro perigo.
-  state.hazards.forEach(p => blocked.add(key(p)));
-  if (includeSnake) state.snake.slice(1, -1).forEach(p => blocked.add(key(p)));
-  if (extra) blocked.add(key(extra));
-  return blocked;
-}
-
-function reachable(state, includeSnake = true, extra = null) {
-  const blocked = blockedCells(state, includeSnake, extra);
-  const seen = new Set([key(state.snake[0])]);
-  const pending = [state.snake[0]];
-  for (let index = 0; index < pending.length; index++) {
-    for (const direction of DIRECTIONS) {
-      const point = nextCell(state, direction, pending[index]);
-      const id = key(point);
-      if (!inside(state, point) || blocked.has(id) || seen.has(id)) continue;
-      seen.add(id);
-      pending.push(point);
-    }
-  }
-  return seen;
-}
-
-function freeCells(state, includeFood = true, includeBonus = true) {
-  const blocked = new Set([...state.snake, ...state.obstacles, ...state.hazards].map(key));
-  if (includeFood && state.food) blocked.add(key(state.food));
-  if (includeBonus && state.bonus) blocked.add(key(state.bonus));
-  const cells = [];
-  for (let y = 0; y < state.rows; y++) for (let x = 0; x < state.cols; x++) {
-    const point = { x, y };
-    if (!blocked.has(key(point))) cells.push(point);
-  }
-  return cells;
-}
-
-function spawnCell(state) {
-  const seen = reachable(state);
-  const cells = freeCells(state).filter(p => seen.has(key(p)));
-  return cells.length ? cells[Math.floor(random(state) * cells.length)] : null;
-}
-
-function finish(state, events, reason, victory = false) {
-  state.status = 'over';
-  state.deathReason = reason;
-  state.victory = victory;
-  state.accumulator = 0;
-  events.push({ type: 'over', ...state.snake[0], points: state.score });
-}
-
-function spawnFood(state, events) {
-  const point = spawnCell(state);
-  state.food = point ? { ...point, type: 'food' } : null;
-  if (!point && !freeCells(state, false, false).length) {
-    finish(state, events, 'Arena completa! Você dominou toda a grade.', true);
-  }
+function circleRect(point, radius, rect) {
+  const cx = clamp(point.x, rect.x, rect.x + rect.w), cy = clamp(point.y, rect.y, rect.y + rect.h);
+  return (point.x - cx) ** 2 + (point.y - cy) ** 2 < radius * radius;
 }
 
 function mapObstacles(map) {
-  const points = [];
-  const add = (x, y) => points.push({ x, y });
+  const rects = [];
+  const add = (x, y) => rects.push({ x: x * C, y: y * C, w: C, h: C });
   if (map === 'grid') [[4, 5], [15, 5], [4, 18], [15, 18]].forEach(([x, y]) => add(x, y));
   if (map === 'circuit') {
     for (let x = 4; x <= 7; x++) { add(x, 5); add(19 - x, 18); }
@@ -109,18 +58,45 @@ function mapObstacles(map) {
     [[6, 5], [13, 5], [3, 10], [16, 10], [3, 15], [16, 15], [6, 19], [13, 19]].forEach(([x, y]) => { add(x, y); add(x + 1, y); });
   }
   if (map === 'city') {
-    for (const x of [3, 8, 14]) for (const y of [4, 18]) {
-      add(x, y); add(x + 1, y); add(x, y + 1); add(x + 1, y + 1);
-    }
+    for (const x of [3, 8, 14]) for (const y of [4, 18]) { add(x, y); add(x + 1, y); add(x, y + 1); add(x + 1, y + 1); }
   }
   if (map === 'void') [[4, 4], [15, 4], [3, 12], [16, 12], [4, 19], [15, 19]].forEach(([x, y]) => add(x, y));
-  return points;
+  return rects;
+}
+
+function blocked(state, point) {
+  if (state.obstacles.some(r => circleRect(point, 16, r)) || state.hazards.some(r => circleRect(point, 16, r))) return true;
+  if (gap(state, point, state.head) < 60) return true;
+  if (state.path.some(p => gap(state, point, p) < 18)) return true;
+  return [state.food, state.bonus].some(item => item && gap(state, point, item) < 30);
+}
+
+// Sorteia um ponto livre; se o sorteio insistir em lugares ocupados, varre a
+// grade a partir de um deslocamento sorteado e fica com o primeiro livre.
+function freePoint(state) {
+  const margin = 18;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const point = { x: margin + random(state) * (W - margin * 2), y: margin + random(state) * (H - margin * 2) };
+    if (!blocked(state, point)) return point;
+  }
+  const total = SNAKE.cols * SNAKE.rows, offset = Math.floor(random(state) * total);
+  for (let i = 0; i < total; i++) {
+    const index = (offset + i) % total;
+    const point = { x: (index % SNAKE.cols + 0.5) * C, y: (Math.floor(index / SNAKE.cols) + 0.5) * C };
+    if (!blocked(state, point)) return point;
+  }
+  return null;
+}
+
+function spawnFood(state) {
+  const point = freePoint(state);
+  state.food = point ? { ...point, type: 'food' } : null;
 }
 
 function updateSpeed(state) {
-  const difficulty = choice(DIFFICULTIES, state.difficulty, 'normal');
-  const base = state.mode === 'zen' ? Math.max(0.23, difficulty.step * 1.3) : Math.max(difficulty.maxSpeed, difficulty.step * Math.pow(0.94, state.level - 1));
-  state.stepDuration = base * (state.effects.slow > 0 ? 1.65 : 1) * (state.effects.turbo > 0 ? 0.68 : 1);
+  const d = choice(DIFFICULTIES, state.difficulty, 'normal');
+  const base = state.mode === 'zen' ? d.speed * SNAKE.zenSpeed : Math.min(d.maxSpeed, d.speed * SNAKE.levelSpeedup ** (state.level - 1));
+  state.speed = base * (state.effects.slow > 0 ? SNAKE.slow : 1) * (state.effects.turbo > 0 ? SNAKE.turbo : 1);
 }
 
 export function createRun(options = {}, rng = Math.random) {
@@ -129,46 +105,54 @@ export function createRun(options = {}, rng = Math.random) {
     mode: choice(MODES, options.mode, 'classic').id,
     difficulty: choice(DIFFICULTIES, options.difficulty, 'normal').id,
     map: choice(MAPS, options.map, 'grid').id,
-    status: 'running', cols: 20, rows: 24,
-    snake: [{ x: 10, y: 12 }, { x: 9, y: 12 }, { x: 8, y: 12 }, { x: 7, y: 12 }],
-    previousSnake: [], direction: 'right', turnQueue: [], accumulator: 0, stepDuration: 0.175,
+    status: 'running', waiting: true,
+    head: { x: 10.5 * C, y: 12.5 * C }, angle: 0, target: 0,
+    path: [], travel: 0, length: SNAKE.startLength * C, speed: 0,
     food: null, bonus: null, obstacles: [], hazards: [],
-    score: 0, foods: 0, maxLength: 4, combo: 0, bestCombo: 0, comboRemaining: 0,
-    level: 1, elapsed: 0, effects: { multiplier: 0, shield: false, slow: 0, turbo: 0 },
+    score: 0, foods: 0, maxLength: SNAKE.startLength, combo: 0, bestCombo: 0, comboRemaining: 0,
+    level: 1, elapsed: 0,
+    effects: { multiplier: 0, shield: false, slow: 0, turbo: 0, invuln: 0 },
     objective: { label: 'Colete 8 alimentos', current: 0, target: 8 },
-    deathReason: '', victory: false, nextBonus: 5, objectiveStage: 0, nextHazard: 16
+    deathReason: '', nextBonus: 5, objectiveStage: 0, nextHazard: 16
   };
   RANDOM.set(state, typeof rng === 'function' ? rng : Math.random);
-  state.previousSnake = copy(state.snake);
+  for (let i = 1; i <= Math.ceil(state.length / SNAKE.spacing); i++) {
+    state.path.push({ x: state.head.x - i * SNAKE.spacing, y: state.head.y });
+  }
   if (state.mode === 'challenge') state.obstacles = mapObstacles(state.map);
   updateSpeed(state);
-  spawnFood(state, []);
+  spawnFood(state);
   return state;
 }
 
-export function queueDirection(state, direction) {
-  if (state.status !== 'running' || !Object.hasOwn(VECTORS, direction)) return false;
-  const previous = state.turnQueue.at(-1) || state.direction;
-  if (direction === previous || (state.snake.length > 1 && direction === OPPOSITE[previous]) || state.turnQueue.length >= 2) return false;
-  state.turnQueue.push(direction);
+// Direção pedida pelo jogador, em radianos. O primeiro pedido começa a partida.
+export function steer(state, angle) {
+  if (state.status !== 'running' || !Number.isFinite(angle)) return false;
+  state.target = wrapAngle(angle);
+  state.waiting = false;
   return true;
 }
 
+function finish(state, events, reason) {
+  state.status = 'over';
+  state.deathReason = reason;
+  events.push({ type: 'over', x: state.head.x, y: state.head.y, points: state.score });
+}
+
 function addDanger(state, permanent) {
-  // A vizinhança da cabeça e os próximos dois passos ficam sempre livres.
-  const head = state.snake[0];
-  const candidates = freeCells(state).filter(p => Math.abs(p.x - head.x) + Math.abs(p.y - head.y) >= 5);
-  if (!candidates.length || state.obstacles.length + state.hazards.length >= 62) return;
-  const offset = Math.floor(random(state) * candidates.length);
-  const currentSpace = reachable(state, false).size;
-  for (let attempt = 0; attempt < Math.min(candidates.length, 32); attempt++) {
-    const point = candidates[(offset + attempt) % candidates.length];
-    // Não fechar corredores nem isolar o alimento que já está no tabuleiro.
-    const seen = reachable(state, false, point);
-    if (seen.size < currentSpace - 1 || (state.food && !seen.has(key(state.food)))) continue;
-    state.hazards.push({ ...point, active: false, warning: 2, permanent, remaining: permanent ? Infinity : 4.5 });
-    return;
+  if (state.obstacles.length + state.hazards.length >= 62) return;
+  const free = [];
+  for (let cy = 1; cy < SNAKE.rows - 1; cy++) for (let cx = 1; cx < SNAKE.cols - 1; cx++) {
+    const rect = { x: cx * C, y: cy * C, w: C, h: C };
+    if (gap(state, { x: rect.x + C / 2, y: rect.y + C / 2 }, state.head) < 100) continue;
+    if ([...state.obstacles, ...state.hazards].some(r => r.x === rect.x && r.y === rect.y)) continue;
+    if (state.path.some(p => circleRect(p, SNAKE.bodyRadius + 2, rect))) continue;
+    if ([state.food, state.bonus].some(item => item && circleRect(item, 14, rect))) continue;
+    free.push(rect);
   }
+  if (!free.length) return;
+  const rect = free[Math.floor(random(state) * free.length)];
+  state.hazards.push({ ...rect, active: false, warning: 2, permanent, remaining: permanent ? Infinity : 4.5 });
 }
 
 function updateDangers(state, dt) {
@@ -176,14 +160,15 @@ function updateDangers(state, dt) {
     if (hazard.active) { hazard.remaining -= dt; continue; }
     hazard.warning = Math.max(0, hazard.warning - dt);
     if (hazard.warning > 0) continue;
-    const head = state.snake[0];
-    const close = Math.abs(head.x - hazard.x) + Math.abs(head.y - hazard.y) <= 2;
-    if (close || state.snake.some(p => same(p, hazard)) || same(state.food, hazard) || same(state.bonus, hazard)) {
+    // Nunca ativa em cima da cobra ou de um item: espera ela se afastar.
+    const center = { x: hazard.x + C / 2, y: hazard.y + C / 2 };
+    if (gap(state, center, state.head) < 50 || state.path.some(p => circleRect(p, SNAKE.bodyRadius, hazard)) ||
+        [state.food, state.bonus].some(item => item && circleRect(item, 10, hazard))) {
       hazard.warning = 1.8;
       continue;
     }
     if (hazard.permanent) {
-      state.obstacles.push({ x: hazard.x, y: hazard.y });
+      state.obstacles.push({ x: hazard.x, y: hazard.y, w: hazard.w, h: hazard.h });
       hazard.remaining = 0;
     } else hazard.active = true;
   }
@@ -194,16 +179,16 @@ function advanceTimers(state, dt) {
   state.elapsed += dt;
   state.comboRemaining = Math.max(0, state.comboRemaining - dt);
   if (!state.comboRemaining) state.combo = 0;
-  for (const name of ['multiplier', 'slow', 'turbo']) state.effects[name] = Math.max(0, state.effects[name] - dt);
+  for (const name of ['multiplier', 'slow', 'turbo', 'invuln']) state.effects[name] = Math.max(0, state.effects[name] - dt);
   if (state.bonus) {
     state.bonus.remaining -= dt;
     if (state.bonus.remaining <= 0) state.bonus = null;
   }
   state.nextBonus -= dt;
   if (state.nextBonus <= 0 && !state.bonus) {
-    const point = spawnCell(state);
-    const difficulty = choice(DIFFICULTIES, state.difficulty, 'normal');
-    if (point) state.bonus = { ...point, type: BONUS_TYPES[Math.floor(random(state) * BONUS_TYPES.length)], remaining: difficulty.bonusDuration };
+    const point = freePoint(state);
+    const duration = choice(DIFFICULTIES, state.difficulty, 'normal').bonusDuration;
+    if (point) state.bonus = { ...point, type: BONUS_TYPES[Math.floor(random(state) * BONUS_TYPES.length)], remaining: duration, duration };
     state.nextBonus = Math.max(5, 13 - state.level * 0.7) + random(state) * 3;
   }
   if (state.mode === 'challenge') {
@@ -222,18 +207,25 @@ function addScore(state, base) {
   return points;
 }
 
+function grow(state) {
+  state.length += C;
+  state.maxLength = Math.max(state.maxLength, cellsLong(state));
+}
+
 function collectFood(state, type, events) {
   state.foods++;
+  grow(state);
   state.combo = Math.min(12, state.comboRemaining > 0 ? state.combo + 1 : 1);
   state.comboRemaining = 5;
   state.bestCombo = Math.max(state.bestCombo, state.combo);
   const points = addScore(state, type === 'special' ? 50 : 10);
-  events.push({ type: 'eat', ...state.snake[0], points, item: type });
-  if (state.combo > 1) events.push({ type: 'combo', ...state.snake[0], points: 0 });
-  const level = 1 + Math.floor(state.foods / 5);
+  const at = { x: state.head.x, y: state.head.y };
+  events.push({ type: 'eat', ...at, points, item: type });
+  if (state.combo > 1) events.push({ type: 'combo', ...at, points: 0 });
+  const level = 1 + Math.floor(state.foods / SNAKE.levelEvery);
   if (level > state.level) {
     state.level = level;
-    events.push({ type: 'level', ...state.snake[0], points: 0 });
+    events.push({ type: 'level', ...at, points: 0 });
   }
   if (state.mode === 'challenge') {
     const difficulty = choice(DIFFICULTIES, state.difficulty, 'normal');
@@ -242,7 +234,7 @@ function collectFood(state, type, events) {
     if (state.foods >= state.objective.target) {
       const reward = 200 + state.objectiveStage * 100;
       state.score += reward;
-      events.push({ type: 'objective', ...state.snake[0], points: reward });
+      events.push({ type: 'objective', ...at, points: reward });
       state.objectiveStage++;
       const target = state.objective.target + 8 + state.objectiveStage * 4;
       state.objective = { label: `Colete ${target} alimentos`, current: state.foods, target };
@@ -257,91 +249,98 @@ function collectBonus(state, item, events) {
   if (item === 'special') collectFood(state, item, events);
   if (item === 'multiplier') state.effects.multiplier = duration;
   if (item === 'shield') state.effects.shield = true;
-  if (item === 'shrink') state.snake.splice(Math.max(3, Math.ceil(state.snake.length * 0.65)));
+  if (item === 'shrink') {
+    state.length = Math.max(SNAKE.startLength * C, Math.round(state.length * 0.65 / C) * C);
+    state.path.length = Math.min(state.path.length, Math.ceil(state.length / SNAKE.spacing));
+  }
   if (item === 'slow') { state.effects.slow = duration; state.effects.turbo = 0; }
   if (item === 'turbo') { points = addScore(state, 100); state.effects.turbo = duration * 0.75; state.effects.slow = 0; }
-  events.push({ type: 'bonus', ...state.snake[0], points, item });
+  events.push({ type: 'bonus', x: state.head.x, y: state.head.y, points, item });
 }
 
-function collision(state, next, grow = false) {
-  if (!inside(state, next)) return 'Você encontrou a borda da arena.';
-  if (state.obstacles.some(p => same(next, p))) return 'Um obstáculo interrompeu seu caminho.';
-  if (state.hazards.some(p => p.active && same(next, p))) return 'Você entrou em uma zona de perigo ativa.';
-  const body = grow ? state.snake : state.snake.slice(0, -1);
-  if (body.some(p => same(next, p))) return 'Sua cabeça encontrou o próprio corpo.';
-  return '';
+function collision(state) {
+  const head = state.head, r = SNAKE.headRadius;
+  if (!wraps(state) && (head.x < r || head.y < r || head.x > W - r || head.y > H - r)) return ['wall', 'Você encontrou a borda da arena.'];
+  if (state.obstacles.some(rect => circleRect(head, r - 1, rect))) return ['obstacle', 'Um obstáculo interrompeu seu caminho.'];
+  if (state.hazards.some(h => h.active && circleRect(head, r - 1, h))) return ['hazard', 'Você entrou em uma zona de perigo ativa.'];
+  if (state.mode !== 'zen') {
+    // Os pontos logo atrás da cabeça não contam: uma curva fechada não mata.
+    const reach = SNAKE.headRadius + SNAKE.bodyRadius - 3;
+    const skip = Math.ceil((SNAKE.headRadius + SNAKE.bodyRadius) * 1.8 / SNAKE.spacing);
+    for (let i = skip; i < state.path.length; i++) {
+      if (gap(state, head, state.path[i]) < reach) return ['body', 'Sua cabeça encontrou o próprio corpo.'];
+    }
+  }
+  return null;
 }
 
-function useShield(state, events) {
+function useShield(state, events, cause) {
   state.effects.shield = false;
-  state.turnQueue.length = 0;
-  const candidates = [state.direction, ...DIRECTIONS.filter(direction => direction !== state.direction)];
-  // Manter a cabeça no lugar dá um passo de respiro. Em um nó fechado, reduzir
-  // apenas a cauda necessária abre uma saída e garante que o escudo funcione.
-  let escape;
-  while (!escape && state.snake.length) {
-    escape = candidates.find(direction => !collision(state, nextCell(state, direction), false));
-    if (!escape && state.snake.length > 1) state.snake.pop();
-    else break;
+  state.effects.invuln = SNAKE.invuln;
+  if (cause !== 'body') {
+    // Bateu em parede ou bloco: vira para o centro da arena e ganha fôlego.
+    state.angle = state.target = Math.atan2(H / 2 - state.head.y, W / 2 - state.head.x);
   }
-  if (!escape) {
-    // Uma arena externamente alterada pode cercar a cabeça por quatro paredes.
-    escape = candidates.find(direction => inside(state, nextCell(state, direction)));
-    const point = nextCell(state, escape);
-    state.obstacles = state.obstacles.filter(p => !same(p, point));
-    state.hazards = state.hazards.filter(p => !same(p, point));
-  }
-  state.direction = escape;
-  state.previousSnake = copy(state.snake);
-  events.push({ type: 'shield', ...state.snake[0], points: 0 });
+  events.push({ type: 'shield', x: state.head.x, y: state.head.y, points: 0 });
 }
 
-function step(state, events) {
-  if (state.turnQueue.length) state.direction = state.turnQueue.shift();
-  const next = nextCell(state, state.direction);
-  const eat = same(next, state.food);
-  const item = same(next, state.bonus) ? state.bonus.type : null;
-  const grow = eat || item === 'special';
-  const reason = collision(state, next, grow);
-  if (reason) {
-    if (state.effects.shield) useShield(state, events);
-    else finish(state, events, reason);
-    return;
+function move(state, dt, events) {
+  const diff = wrapAngle(state.target - state.angle);
+  const maxTurn = turnRate(state.speed) * dt;
+  state.angle = wrapAngle(state.angle + clamp(diff, -maxTurn, maxTurn));
+  const head = state.head, S = SNAKE.spacing;
+  const dx = Math.cos(state.angle), dy = Math.sin(state.angle);
+  let remaining = state.speed * dt;
+  while (remaining > 1e-9) {
+    const step = Math.min(remaining, S - state.travel);
+    head.x += dx * step;
+    head.y += dy * step;
+    if (wraps(state)) { head.x = (head.x + W) % W; head.y = (head.y + H) % H; }
+    state.travel += step;
+    remaining -= step;
+    if (state.travel >= S - 1e-9) { state.travel = 0; state.path.unshift({ x: head.x, y: head.y }); }
   }
-  state.previousSnake = copy(state.snake);
-  state.snake.unshift(next);
-  if (!grow) state.snake.pop();
-  state.maxLength = Math.max(state.maxLength, state.snake.length);
-  if (eat) {
+  const max = Math.ceil(state.length / S);
+  if (state.path.length > max) state.path.length = max;
+
+  if (state.effects.invuln > 0) {
+    if (!wraps(state)) {
+      const r = SNAKE.headRadius + 1;
+      head.x = clamp(head.x, r, W - r);
+      head.y = clamp(head.y, r, H - r);
+    }
+  } else {
+    const hit = collision(state);
+    if (hit) {
+      if (state.effects.shield) useShield(state, events, hit[0]);
+      else { finish(state, events, hit[1]); return; }
+    }
+  }
+
+  if (state.food && gap(state, head, state.food) < SNAKE.headRadius + SNAKE.foodRadius + 5) {
     state.food = null;
     collectFood(state, 'food', events);
+    spawnFood(state);
   }
-  if (item) {
+  if (state.bonus && gap(state, head, state.bonus) < SNAKE.headRadius + SNAKE.foodRadius + 7) {
+    const type = state.bonus.type;
     state.bonus = null;
-    collectBonus(state, item, events);
+    collectBonus(state, type, events);
   }
-  if (!state.food && state.status === 'running') spawnFood(state, events);
+  if (!state.food) spawnFood(state);
 }
 
 export function updateRun(state, dt) {
   const events = [];
-  if (state.status !== 'running' || !Number.isFinite(dt) || dt <= 0) return events;
-  // O controlador pausa sem chamar esta função; o limite protege chamadas
-  // acidentais com intervalos de horas sem alterar o relógio normal da partida.
+  if (state.status !== 'running' || state.waiting || !Number.isFinite(dt) || dt <= 0) return events;
   let remaining = Math.min(dt, 60);
   while (remaining > 1e-9 && state.status === 'running') {
-    updateSpeed(state);
-    const duration = state.stepDuration;
-    const slice = Math.min(remaining, 1 / 30, Math.max(0, duration - state.accumulator));
+    const slice = Math.min(remaining, 1 / 60);
     advanceTimers(state, slice);
-    state.accumulator += slice;
+    updateSpeed(state);
+    move(state, slice, events);
     remaining -= slice;
-    if (state.accumulator + 1e-9 >= duration) {
-      state.accumulator = Math.max(0, state.accumulator - duration);
-      step(state, events);
-    }
   }
-  updateSpeed(state);
   return events;
 }
 
@@ -358,7 +357,8 @@ export function createProfile(raw = {}) {
       mode: choice(MODES, settings.mode, 'classic').id,
       difficulty: choice(DIFFICULTIES, settings.difficulty, 'normal').id,
       map: unlockedMaps.includes(map) ? map : 'grid',
-      ...Object.fromEntries(Object.entries({ effects: true, music: false, haptics: true, dpad: false, reducedMotion: false }).map(([id, fallback]) => [id, typeof settings[id] === 'boolean' ? settings[id] : fallback]))
+      ...Object.fromEntries(Object.entries({ effects: true, music: false, haptics: true, reducedMotion: false })
+        .map(([id, fallback]) => [id, typeof settings[id] === 'boolean' ? settings[id] : fallback]))
     },
     best,
     bestByMode: Object.fromEntries(MODES.map(({ id }) => [id, integer(object(raw.bestByMode)[id])])),
