@@ -37,6 +37,8 @@ node --experimental-vm-modules --test "tests/*.test.mjs"
 1. `games/<id>/index.js` exportando `meta` e `create(services)`.
 2. Entrada em `core/registry.js` e capa em `covers` no `index.html`.
 3. Arquivos em `ASSETS`, `VERSION` nova e linha na tabela de títulos do `README.md`.
+4. Classes CSS com prefixo próprio do jogo (`ns-` no Neon Snake, `sh-` no Neon Shooter),
+   para um jogo nunca herdar estilos de outro.
 
 ## GitHub
 

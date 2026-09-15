@@ -36,16 +36,16 @@ export function create(services) {
   const lifecycle = new AbortController();
   const signal = lifecycle.signal;
 
-  if (!document.getElementById('ns-style')) {
+  if (!document.getElementById('sh-style')) {
     const link = document.createElement('link');
-    link.id = 'ns-style';
+    link.id = 'sh-style';
     link.rel = 'stylesheet';
     link.href = new URL('./style.css', import.meta.url).href;
     document.head.append(link);
   }
   const app = hud.arena.closest('.app');
-  app.classList.add('ns-app');
-  document.body.classList.add('ns-body');
+  app.classList.add('sh-app');
+  document.body.classList.add('sh-body');
   hud.el.settings.textContent = 'Configurações';
   hud.hideOverlay();
   theme.setAuto('rosa');
@@ -165,8 +165,8 @@ export function create(services) {
   // ------------------------------------------------------------------ HUD
   // Até 10 pontos de vida, um segmento por ponto; acima disso, barra contínua.
   const hpBar = (hp, max) => (max > 10
-    ? `<div class="ns-hp ns-hp-bar${hp <= 1 ? ' low' : ''}"><i class="on" style="width:${Math.round(hp / max * 100)}%"></i></div>`
-    : `<div class="ns-hp${hp <= 1 ? ' low' : ''}">${
+    ? `<div class="sh-hp sh-hp-bar${hp <= 1 ? ' low' : ''}"><i class="on" style="width:${Math.round(hp / max * 100)}%"></i></div>`
+    : `<div class="sh-hp${hp <= 1 ? ' low' : ''}">${
       Array.from({ length: max }, (_, i) => `<i${i < hp ? ' class="on"' : ''}></i>`).join('')}</div>`);
 
   function syncHud(force = false) {
@@ -445,8 +445,8 @@ export function create(services) {
       sound.destroy();
       screens.destroy();
       input.destroy();
-      app.classList.remove('ns-app');
-      document.body.classList.remove('ns-body');
+      app.classList.remove('sh-app');
+      document.body.classList.remove('sh-body');
     }
   };
 }

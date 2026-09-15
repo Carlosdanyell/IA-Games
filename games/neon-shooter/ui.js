@@ -7,7 +7,7 @@ import { ACHIEVEMENTS, achievementProgress } from './progress.js';
 
 const fmt = n => Math.round(n || 0).toLocaleString('pt-BR');
 const svg = name => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name] || ICONS.star}"/></svg>`;
-const PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ns-fill"><path d="m8 5 11 7-11 7z"/></svg>';
+const PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true" class="sh-fill"><path d="m8 5 11 7-11 7z"/></svg>';
 const GEAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>';
 const ICON_COLORS = {
   power: '#ff5a5a', rapid: '#ffe45e', bigshot: '#5ff4ff', double: '#ff9b3d', triple: '#ff7ab8', pierce: '#c6a2ff',
@@ -23,7 +23,7 @@ export function duration(seconds) {
 
 export function createScreens(arena, handlers) {
   const root = document.createElement('div');
-  root.className = 'ns-screens';
+  root.className = 'sh-screens';
   arena.append(root);
   let current = '', unlockTimer = 0;
 
@@ -44,7 +44,7 @@ export function createScreens(arena, handlers) {
     if (focus) requestAnimationFrame(() => root.querySelector('[data-focus]')?.focus({ preventScroll: true }));
   }
 
-  const miniStats = items => `<div class="ns-mini-stats">${items.map(([label, value]) =>
+  const miniStats = items => `<div class="sh-mini-stats">${items.map(([label, value]) =>
     `<div><small>${label}</small><b>${value}</b></div>`).join('')}</div>`;
 
   return {
@@ -54,54 +54,54 @@ export function createScreens(arena, handlers) {
     showMenu({ difficulty, best, unlocked, hint }) {
       const d = DIFFICULTIES[difficulty];
       show('menu', `
-        <section class="ns-screen ns-menu" aria-labelledby="nsMenuTitle">
-          <h2 class="ns-logo" id="nsMenuTitle"><span>NEON</span><b>SHOOTER</b></h2>
-          <p class="ns-tagline">Sobreviva às ondas. Derrote os chefes.</p>
+        <section class="sh-screen sh-menu" aria-labelledby="nsMenuTitle">
+          <h2 class="sh-logo" id="nsMenuTitle"><span>NEON</span><b>SHOOTER</b></h2>
+          <p class="sh-tagline">Sobreviva às ondas. Derrote os chefes.</p>
           ${miniStats([['Recorde', best.score ? fmt(best.score) : '—'], ['Maior onda', best.wave || '—']])}
-          <div class="ns-difficulty" role="radiogroup" aria-label="Dificuldade">
+          <div class="sh-difficulty" role="radiogroup" aria-label="Dificuldade">
             ${DIFFICULTY_KEYS.map(key => `<button type="button" role="radio" aria-checked="${key === difficulty}"
               data-action="difficulty" data-value="${key}">${DIFFICULTIES[key].label}</button>`).join('')}
           </div>
-          <p class="ns-note">${d.note}</p>
-          <button type="button" class="ns-play" data-action="play" data-focus>${PLAY}<span>Jogar</span></button>
-          <div class="ns-row">
-            <button type="button" class="ns-ghost" data-action="settings">${GEAR}<span>Configurações</span></button>
-            <button type="button" class="ns-ghost" data-action="achievements">${svg('trophy')}<span>Conquistas <em>${unlocked}/${ACHIEVEMENTS.length}</em></span></button>
+          <p class="sh-note">${d.note}</p>
+          <button type="button" class="sh-play" data-action="play" data-focus>${PLAY}<span>Jogar</span></button>
+          <div class="sh-row">
+            <button type="button" class="sh-ghost" data-action="settings">${GEAR}<span>Configurações</span></button>
+            <button type="button" class="sh-ghost" data-action="achievements">${svg('trophy')}<span>Conquistas <em>${unlocked}/${ACHIEVEMENTS.length}</em></span></button>
           </div>
-          <p class="ns-hint">${hint}</p>
+          <p class="sh-hint">${hint}</p>
         </section>`);
     },
 
     showPause({ wave, score, kills, level }) {
       show('pause', `
-        <section class="ns-screen ns-pause" aria-labelledby="nsPauseTitle">
-          <p class="ns-eyebrow">Jogo pausado</p>
+        <section class="sh-screen sh-pause" aria-labelledby="nsPauseTitle">
+          <p class="sh-eyebrow">Jogo pausado</p>
           <h2 id="nsPauseTitle">Onda ${wave}</h2>
           ${miniStats([['Pontos', fmt(score)], ['Abates', fmt(kills)], ['Nível', level]])}
-          <button type="button" class="ns-play" data-action="resume" data-focus>${PLAY}<span>Continuar</span></button>
-          <div class="ns-stack">
-            <button type="button" class="ns-ghost" data-action="restart">Reiniciar partida</button>
-            <button type="button" class="ns-ghost" data-action="settings">${GEAR}<span>Configurações</span></button>
-            <button type="button" class="ns-ghost" data-action="menu">Voltar ao menu</button>
+          <button type="button" class="sh-play" data-action="resume" data-focus>${PLAY}<span>Continuar</span></button>
+          <div class="sh-stack">
+            <button type="button" class="sh-ghost" data-action="restart">Reiniciar partida</button>
+            <button type="button" class="sh-ghost" data-action="settings">${GEAR}<span>Configurações</span></button>
+            <button type="button" class="sh-ghost" data-action="menu">Voltar ao menu</button>
           </div>
         </section>`);
     },
 
     showUpgrade({ level, options, levels }) {
       show('upgrade', `
-        <section class="ns-screen ns-upgrade" aria-labelledby="nsUpTitle">
-          <p class="ns-eyebrow">Nível ${level}</p>
+        <section class="sh-screen sh-upgrade" aria-labelledby="nsUpTitle">
+          <p class="sh-eyebrow">Nível ${level}</p>
           <h2 id="nsUpTitle">Escolha uma melhoria</h2>
-          <div class="ns-cards">
+          <div class="sh-cards">
             ${options.map((id, i) => {
               const def = UPGRADES[id], lvl = levels[id] || 0;
               const pips = def.max > 1 && def.max < 10
-                ? `<span class="ns-pips" aria-label="nível ${lvl + 1} de ${def.max}">${Array.from({ length: def.max }, (_, k) =>
+                ? `<span class="sh-pips" aria-label="nível ${lvl + 1} de ${def.max}">${Array.from({ length: def.max }, (_, k) =>
                     `<i${k <= lvl ? ' class="on"' : ''}></i>`).join('')}</span>` : '';
-              return `<button type="button" class="ns-card" data-action="pick" data-value="${id}" disabled
+              return `<button type="button" class="sh-card" data-action="pick" data-value="${id}" disabled
                 style="--c:${ICON_COLORS[def.icon] || '#5ff4ff'}" ${i === 0 ? 'data-focus' : ''}>
-                <span class="ns-card-icon">${svg(def.icon)}</span>
-                <span class="ns-card-text"><b>${def.name}</b><small>${def.desc}</small>${pips}</span>
+                <span class="sh-card-icon">${svg(def.icon)}</span>
+                <span class="sh-card-text"><b>${def.name}</b><small>${def.desc}</small>${pips}</span>
                 <kbd aria-hidden="true">${i + 1}</kbd>
               </button>`;
             }).join('')}
@@ -109,30 +109,30 @@ export function createScreens(arena, handlers) {
         </section>`, false);
       // Trava curta: o dedo que estava pilotando não escolhe um cartão sem querer.
       unlockTimer = setTimeout(() => {
-        root.querySelectorAll('.ns-card').forEach(card => { card.disabled = false; });
+        root.querySelectorAll('.sh-card').forEach(card => { card.disabled = false; });
         root.querySelector('[data-focus]')?.focus({ preventScroll: true });
       }, 450);
     },
 
     showOver({ score, wave, kills, maxCombo, bosses, time, record, unlocked }) {
       show('over', `
-        <section class="ns-screen ns-over" aria-labelledby="nsOverTitle">
-          <p class="ns-eyebrow ns-warn">Nave destruída</p>
+        <section class="sh-screen sh-over" aria-labelledby="nsOverTitle">
+          <p class="sh-eyebrow sh-warn">Nave destruída</p>
           <h2 id="nsOverTitle">Fim de jogo</h2>
-          <div class="ns-final"><small>Pontuação</small><b>${fmt(score)}</b>
-            ${record.score ? '<span class="ns-badge">Novo recorde!</span>' : record.wave ? '<span class="ns-badge">Maior onda!</span>' : ''}</div>
+          <div class="sh-final"><small>Pontuação</small><b>${fmt(score)}</b>
+            ${record.score ? '<span class="sh-badge">Novo recorde!</span>' : record.wave ? '<span class="sh-badge">Maior onda!</span>' : ''}</div>
           ${miniStats([['Onda', wave], ['Abates', fmt(kills)], ['Combo máx.', `x${maxCombo}`]])}
           ${miniStats([['Chefes', bosses], ['Tempo', duration(time)]])}
-          ${unlocked.length ? `<div class="ns-unlocked"><small>Conquistas nesta partida</small>
+          ${unlocked.length ? `<div class="sh-unlocked"><small>Conquistas nesta partida</small>
             ${unlocked.map(a => `<span>${svg(a.icon)}${a.name}</span>`).join('')}</div>` : ''}
-          <button type="button" class="ns-play" data-action="restart" data-focus>${PLAY}<span>Jogar de novo</span></button>
-          <button type="button" class="ns-ghost" data-action="menu">Menu</button>
+          <button type="button" class="sh-play" data-action="restart" data-focus>${PLAY}<span>Jogar de novo</span></button>
+          <button type="button" class="sh-ghost" data-action="menu">Menu</button>
         </section>`);
     },
 
     enableCards() {
       clearTimeout(unlockTimer);
-      root.querySelectorAll('.ns-card').forEach(card => { card.disabled = false; });
+      root.querySelectorAll('.sh-card').forEach(card => { card.disabled = false; });
     },
     destroy() { clearTimeout(unlockTimer); root.remove(); }
   };
@@ -181,7 +181,7 @@ function toggle(title, description, checked, onChange, disabled = false) {
 
 function slider(label, value, min, max, step, format, onInput) {
   const row = el('div', 'slider-row');
-  const out = el('span', 'ns-slider-value', format(value));
+  const out = el('span', 'sh-slider-value', format(value));
   const input = el('input');
   input.type = 'range'; input.min = min; input.max = max; input.step = step; input.value = value;
   input.setAttribute('aria-label', label);
@@ -193,8 +193,8 @@ function slider(label, value, min, max, step, format, onInput) {
 const percent = v => `${Math.round(v * 100)}%`;
 
 export function buildSettings({ settings, masterOn, haptics, theme, onChange, onMaster }) {
-  const root = el('div', 'ns-dialog');
-  root.append(fieldset('Controle no toque', radios('ns-control', [['drag', 'Arrastar'], ['joystick', 'Joystick']],
+  const root = el('div', 'sh-dialog');
+  root.append(fieldset('Controle no toque', radios('sh-control', [['drag', 'Arrastar'], ['joystick', 'Joystick']],
     settings.control, v => onChange('control', v))));
   root.append(el('p', 'guide-intro', 'Arrastar: deslize em qualquer lugar e a nave acompanha o dedo, sem ficar embaixo dele. Joystick: toque para criar o controle onde estiver o polegar.'));
   root.append(fieldset('Sensibilidade do arrasto',
@@ -215,16 +215,16 @@ export function buildSettings({ settings, masterOn, haptics, theme, onChange, on
   sound.append(slider('Volume da música', settings.musicVolume, 0, 1, 0.05, percent, v => onChange('musicVolume', v)));
   root.append(sound);
 
-  root.append(fieldset('Efeitos visuais', radios('ns-effects', [['full', 'Completos'], ['low', 'Reduzidos']],
+  root.append(fieldset('Efeitos visuais', radios('sh-effects', [['full', 'Completos'], ['low', 'Reduzidos']],
     settings.effects, v => onChange('effects', v))));
   root.append(el('p', 'guide-intro', 'Reduzidos: menos partículas, estrelas e brilho. Use em aparelhos mais simples.'));
   root.append(toggle('Tremor de tela', 'Sacode a tela em explosões grandes e ao levar dano.', settings.shake, v => onChange('shake', v)));
-  root.append(fieldset('Interface', radios('ns-theme', [['dark', 'Escura'], ['light', 'Clara']], theme.mode, v => theme.setMode(v))));
+  root.append(fieldset('Interface', radios('sh-theme', [['dark', 'Escura'], ['light', 'Clara']], theme.mode, v => theme.setMode(v))));
 
   root.append(el('h3', 'guide-title', 'Power-ups'));
   const powers = el('div', 'guide-grid');
   for (const [key, def] of Object.entries(POWERUPS)) {
-    powers.append(el('div', 'guide-item ns-guide', `<span class="ns-guide-icon" style="--c:${def.color}">${svg(key)}</span>
+    powers.append(el('div', 'guide-item sh-guide', `<span class="sh-guide-icon" style="--c:${def.color}">${svg(key)}</span>
       <div><strong>${def.name}</strong><p>${def.desc}</p></div>`));
   }
   root.append(powers);
@@ -232,7 +232,7 @@ export function buildSettings({ settings, masterOn, haptics, theme, onChange, on
   root.append(el('h3', 'guide-title', 'Inimigos'));
   const foes = el('div', 'guide-grid');
   for (const [key, def] of Object.entries(ENEMIES)) {
-    foes.append(el('div', 'guide-item ns-guide', `<span class="ns-dot" style="--c:${def.color}"></span>
+    foes.append(el('div', 'guide-item sh-guide', `<span class="sh-dot" style="--c:${def.color}"></span>
       <div><strong>${def.name} · ${def.role}</strong><p>${ENEMY_DESCRIPTIONS[key]}</p></div>`));
   }
   root.append(foes);
@@ -241,17 +241,17 @@ export function buildSettings({ settings, masterOn, haptics, theme, onChange, on
 }
 
 export function buildAchievements({ unlocked, stats }) {
-  const root = el('div', 'ns-dialog');
+  const root = el('div', 'sh-dialog');
   const done = ACHIEVEMENTS.filter(a => unlocked[a.id]).length;
   root.append(el('p', 'guide-intro', `${done} de ${ACHIEVEMENTS.length} conquistas desbloqueadas.`));
-  const list = el('div', 'ns-achievements');
+  const list = el('div', 'sh-achievements');
   for (const def of ACHIEVEMENTS) {
     const { value, goal, ratio } = achievementProgress(stats, def);
     const date = unlocked[def.id] ? new Date(unlocked[def.id]).toLocaleDateString('pt-BR') : '';
-    list.append(el('div', `ns-achievement${date ? ' done' : ''}`, `
-      <span class="ns-achievement-icon">${svg(def.icon)}</span>
+    list.append(el('div', `sh-achievement${date ? ' done' : ''}`, `
+      <span class="sh-achievement-icon">${svg(def.icon)}</span>
       <div><strong>${def.name}</strong><p>${def.desc}</p>
-        <div class="ns-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${goal}" aria-valuenow="${value}"
+        <div class="sh-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${goal}" aria-valuenow="${value}"
           aria-label="${def.name}"><i style="width:${Math.round(ratio * 100)}%"></i></div></div>
       <small>${date || `${fmt(value)}/${fmt(goal)}`}</small>`));
   }
