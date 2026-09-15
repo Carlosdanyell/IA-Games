@@ -13,6 +13,7 @@ Sem framework, sem build, sem dependências: HTML, CSS e JavaScript com módulos
 
 | Jogo | Descrição |
 |---|---|
+| **Neon Snake** | Cobrinha neon para celular: gestos, quatro modos, três dificuldades, seis arenas desbloqueáveis, bônus, combos, conquistas e progresso salvo offline. |
 | **Neon Break** | Quebra-blocos com multibola, 12 cápsulas, 9 tipos de bloco, 3 modos e 25 arenas. Guarda a partida a cada arena. |
 | **Neon Words** | Cruzadinha com roda de letras: 25 fases em português, dicas, desbloqueio progressivo de letras. |
 | **Neon Arrow** | Tiro ao alvo com arco: acerte a maçã na cabeça do parceiro. 25 fases com vento, alvo em movimento e lanterna de vida extra, quatro níveis de dificuldade e efeitos de sangue reguláveis. Só na horizontal. |
@@ -61,6 +62,30 @@ sw.js                 Cache offline (PWA)
 ```
 
 Detalhes do contrato entre shell e jogo: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Neon Snake
+
+Controle a cobra deslizando em uma grande área da tela. No computador, use as
+**setas** ou **WASD**; **Espaço** pausa a partida. A tela de jogo se adapta ao
+celular em retrato, com placar, recorde, combo e nível fora do tabuleiro.
+
+- **Clássico:** evite as paredes e o próprio corpo.
+- **Sem Paredes:** atravesse as bordas para surgir do lado oposto.
+- **Desafio:** cumpra objetivos progressivos entre obstáculos e áreas perigosas.
+- **Zen:** jogue com velocidade mais baixa e progressão tranquila.
+
+As dificuldades **Fácil**, **Normal** e **Difícil** alteram velocidade, obstáculos
+e duração dos bônus. O total de alimentos coletados libera seis mapas: **Grid
+Neon**, **Circuito**, **Labirinto**, **Arena Hex**, **Cyber City** e **Void**.
+Alimentos especiais, multiplicador, escudo, redutor, slow motion e turbo criam
+novas oportunidades de pontuação. Efeitos sonoros e música têm controles separados.
+
+Recordes gerais, por modo e por dificuldade, mapas, configurações, conquistas e
+estatísticas ficam salvos no navegador do aparelho. Após o primeiro carregamento
+completo por HTTP local ou pelo GitHub Pages, o service worker guarda os arquivos
+no cache da PWA para continuar jogando sem internet. Aguarde o indicador
+**Disponível offline** na biblioteca antes de desconectar; nenhum recurso remoto,
+login ou servidor de jogo é necessário durante a partida.
 
 ## Neon Pool multiplayer
 

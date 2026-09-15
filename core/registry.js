@@ -2,6 +2,16 @@
 // acrescentar uma entrada aqui. O launcher e o shell leem daqui.
 export const GAMES = [
   {
+    id: 'neon-snake',
+    title: 'Neon Snake',
+    tagline: 'Siga seu instinto. Quatro modos, seis arenas e combos neon.',
+    tags: ['Snake', '4 modos', 'Offline'],
+    accent: '#b9ff66',
+    status: 'ready',
+    entry: './games/neon-snake/index.js',
+    art: 'snake'
+  },
+  {
     id: 'neon-break',
     title: 'Neon Break',
     tagline: 'Quebra-blocos com multibola, bônus e 25 arenas.',
