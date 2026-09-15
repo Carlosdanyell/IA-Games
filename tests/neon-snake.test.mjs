@@ -106,28 +106,47 @@ test('a borda encerra o Clássico; Sem Paredes e Zen atravessam', () => {
   }
 });
 
-test('tabuleiro em pé: altura saneada, arenas na proporção e saída livre em qualquer altura', () => {
-  assert.equal(createRun({ rows: 'alta' }).rows, SNAKE.rows);
-  assert.equal(createRun({ rows: 10 }).rows, SNAKE.rows);
-  assert.equal(createRun({ rows: 33.8 }).rows, 33);
-  assert.equal(createRun({ rows: 999 }).rows, SNAKE.maxRows);
-  const tall = createRun({ rows: 36 });
-  assert.equal(tall.w, SNAKE.cols * SNAKE.cell);
-  assert.equal(tall.h, 36 * SNAKE.cell);
-  assert.equal(tall.head.y, 18.5 * SNAKE.cell);
-  const count = (map, rows) => createRun({ mode: 'challenge', map, rows }).obstacles.length;
-  assert.equal(count('grid', 36), count('grid', SNAKE.rows), 'peças soltas mantêm o formato');
-  assert.ok(count('maze', 36) > count('maze', SNAKE.rows), 'paredes verticais esticam com a altura');
-  for (let rows = SNAKE.rows; rows <= SNAKE.maxRows; rows++) {
-    const lines = createRun({ mode: 'challenge', map: 'grid', rows }).obstacles.map(r => r.y / SNAKE.cell);
-    assert.equal(Math.min(...lines), rows - 1 - Math.max(...lines), `grid simétrico com ${rows} linhas`);
+test('tabuleiro deitado: largura saneada, arenas na proporção e saída livre em qualquer largura', () => {
+  assert.equal(createRun({ cols: 'larga' }).cols, SNAKE.cols);
+  assert.equal(createRun({ cols: 10 }).cols, SNAKE.cols);
+  assert.equal(createRun({ cols: 33.8 }).cols, 33);
+  assert.equal(createRun({ cols: 999 }).cols, SNAKE.maxCols);
+  const wide = createRun({ cols: 36 });
+  assert.equal(wide.h, SNAKE.rows * SNAKE.cell);
+  assert.equal(wide.w, 36 * SNAKE.cell);
+  assert.equal(wide.head.x, 18.5 * SNAKE.cell);
+  assert.equal(wide.head.y, 10.5 * SNAKE.cell);
+  const count = (map, cols) => createRun({ mode: 'challenge', map, cols }).obstacles.length;
+  assert.equal(count('grid', 36), count('grid', SNAKE.cols), 'peças soltas mantêm o formato');
+  assert.ok(count('maze', 36) > count('maze', SNAKE.cols), 'paredes horizontais esticam com a largura');
+  for (let cols = SNAKE.cols; cols <= SNAKE.maxCols; cols++) {
+    const columns = createRun({ mode: 'challenge', map: 'grid', cols }).obstacles.map(r => r.x / SNAKE.cell);
+    assert.equal(Math.min(...columns), cols - 1 - Math.max(...columns), `grid simétrico com ${cols} colunas`);
     for (const map of MAPS) {
-      const state = run({ mode: 'challenge', map: map.id, rows });
-      assert.ok(state.obstacles.every(r => r.y >= 0 && r.y + r.h <= state.h), `${map.id}/${rows}: peça fora do tabuleiro`);
+      const state = run({ mode: 'challenge', map: map.id, cols });
+      assert.ok(state.obstacles.every(r => r.x >= 0 && r.x + r.w <= state.w), `${map.id}/${cols}: peça fora do tabuleiro`);
       steer(state, 0);
       tick(state, 0.4);
-      assert.equal(state.status, 'running', `${map.id}/${rows}: a saída precisa estar livre`);
+      assert.equal(state.status, 'running', `${map.id}/${cols}: a saída precisa estar livre`);
     }
+  }
+});
+
+test('a meia-volta cabe em pouco mais de uma casa, em qualquer velocidade', () => {
+  for (const difficulty of ['easy', 'normal', 'hard']) {
+    const state = run({ mode: 'wrap', difficulty });
+    steer(state, 0);
+    tick(state, 0.2);
+    const y0 = state.head.y;
+    steer(state, Math.PI);
+    let largura = 0, passos = 0;
+    while (Math.abs(wrapAngle(state.angle - Math.PI)) > 1e-9 && passos++ < 120) {
+      updateRun(state, 1 / 120);
+      largura = Math.max(largura, Math.abs(state.head.y - y0));
+    }
+    assert.ok(passos < 120, `${difficulty}: a meia-volta precisa fechar em menos de um segundo`);
+    assert.ok(largura <= SNAKE.turnRadius * 2 + 2, `${difficulty}: meia-volta ocupou ${largura.toFixed(1)} unidades`);
+    assert.equal(state.status, 'running', `${difficulty}: a meia-volta não pode encostar no corpo`);
   }
 });
 
@@ -211,8 +230,8 @@ test('a velocidade sobe por nível conforme a dificuldade e fica estável no Zen
 
 test('Desafio: aviso vira obstáculo, perigo temporário some e objetivo dá recompensa', () => {
   const state = run({ mode: 'challenge' });
-  state.head = { x: 100, y: 410 };
-  state.path = Array.from({ length: 20 }, (_, i) => ({ x: 96 - i * 4, y: 410 }));
+  state.head = { x: 100, y: 200 };
+  state.path = Array.from({ length: 20 }, (_, i) => ({ x: 96 - i * 4, y: 200 }));
   steer(state, 0);
   state.hazards = [{ x: 20, y: 20, w: 20, h: 20, active: false, permanent: true, warning: 2, remaining: Infinity }];
   tick(state, 2.1);

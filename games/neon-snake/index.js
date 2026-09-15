@@ -7,8 +7,8 @@ import { buildDialog } from './ui.js';
 export const meta = {
   id: 'neon-snake', title: 'NEON<span>SNAKE</span>', subtitle: 'COBRINHA / ARRASTE LIVRE',
   arenaLabel: 'Tabuleiro do Neon Snake. Arraste em qualquer direção para guiar a cobra.',
-  // Largura fixa e altura livre: em pé, o tabuleiro ganha linhas até encher a arena.
-  logicalSize: aspect => ({ w: 400, h: Math.max(480, Math.round(400 / aspect)) }),
+  // Altura fixa e largura livre: deitado, o tabuleiro ganha colunas até encher a arena.
+  logicalSize: aspect => ({ h: 400, w: Math.max(480, Math.round(400 * aspect)) }),
   stats: [
     { id: 'score', label: 'Pontos', accent: true, flex: '1.2fr' },
     { id: 'length', label: 'Tamanho', flex: '.9fr' },
@@ -41,17 +41,16 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
   const sound = createSnakeAudio();
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   const coarse = window.matchMedia('(pointer: coarse)').matches;
-  // O jogo é em pé: celular deitado vê só o aviso de girar.
-  const sideways = window.matchMedia('(orientation: landscape) and (max-height: 560px)');
-  const turned = () => coarse && sideways.matches;
+  // O jogo é deitado: em retrato a arena dá lugar ao aviso de girar.
+  const isPortrait = () => viewport.view.cssW < viewport.view.cssH * 1.1;
 
   let profile = createProfile(store.get(SAVE_KEY, {}));
   let state = 'home';            // home | running | paused | over
-  // Cada partida nasce com as linhas que cabem na arena naquele momento.
-  const newRun = () => createRun({ ...profile.settings, rows: renderer.fitRows() });
+  // Cada partida nasce com as colunas que cabem na arena naquele momento.
+  const newRun = () => createRun({ ...profile.settings, cols: renderer.fitCols() });
   let run = null, preview = newRun(), baseProfile = null;
   let initialBest = profile.best, checkpointTime = 0, storageWarned = false, recordSoundPlayed = false;
-  let masterOn = null, hudKey = '', overlayArgs = null, wasTurned = null;
+  let masterOn = null, hudKey = '', overlayArgs = null, wasPortrait = null;
   const joy = { active: false, x: 0, y: 0, kx: 0, ky: 0, radius: 44 };
   const held = new Set();
 
@@ -173,16 +172,16 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
   }
 
   // --------------------------------------------------------------- telas
-  // Deitado, o painel some com a arena e volta quando o aparelho fica em pé.
+  // Em retrato o painel some com a arena e volta quando o aparelho deita.
   function present(args) {
     overlayArgs = args;
-    if (!turned()) hud.showOverlay(args);
+    if (!isPortrait()) hud.showOverlay(args);
   }
   function dismiss() { overlayArgs = null; hud.hideOverlay(); }
   function syncOrientation() {
-    const now = turned();
-    if (now === wasTurned) return;
-    wasTurned = now;
+    const now = isPortrait();
+    if (now === wasPortrait) return;
+    wasPortrait = now;
     if (now) { hud.hideOverlay(); pause(); }
     else if (overlayArgs) hud.showOverlay(overlayArgs);
   }
@@ -225,7 +224,7 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
   listen(hud.el.dialog, 'close', () => { if (state === 'home') { showHome(); syncHud(true); } });
 
   function start() {
-    if (hud.dialogOpen || turned()) return;
+    if (hud.dialogOpen || isPortrait()) return;
     if (run && baseProfile) checkpoint();
     baseProfile = createProfile(profile);
     initialBest = profile.best;
@@ -256,7 +255,7 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
     hud.setPause(true, true);
   }
   function resume() {
-    if (state !== 'paused' || hud.dialogOpen || turned()) return;
+    if (state !== 'paused' || hud.dialogOpen || isPortrait()) return;
     state = 'running';
     releaseControls();
     dismiss();
@@ -311,7 +310,7 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
     meta,
     update(dt) {
       syncSound();
-      if (state !== 'running' || hud.dialogOpen || turned()) return;
+      if (state !== 'running' || hud.dialogOpen || isPortrait()) return;
       for (const event of updateRun(run, dt)) {
         renderer.event(event);
         sound.play(event.type);
@@ -325,7 +324,7 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
     },
     render(dt) {
       syncOrientation();
-      if (turned()) {
+      if (isPortrait()) {
         renderer.drawRotate();
         hud.flush();
         return;
@@ -340,10 +339,10 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
     },
     resize() {
       viewport.invalidateRect();
-      // Na tela inicial a prévia acompanha a altura nova da arena.
+      // Na tela inicial a prévia acompanha a largura nova da arena.
       if (state === 'home') {
         const fresh = newRun();
-        if (fresh.rows !== preview.rows) preview = fresh;
+        if (fresh.cols !== preview.cols) preview = fresh;
       }
       syncOrientation();
       // O shell troca a dica depois de create(); a do jogo entra aqui.
@@ -356,7 +355,7 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
     onHidden: pause,
     onThemeChange() {},
     getState() {
-      return { state, best: profile.best, turned: turned(), rows: (run || preview).rows, ...(run ? {
+      return { state, best: profile.best, portrait: isPortrait(), cols: (run || preview).cols, ...(run ? {
         mode: run.mode, difficulty: run.difficulty, map: run.map, waiting: run.waiting, score: run.score, level: run.level,
         length: cellsLong(run), head: { ...run.head }, angle: run.angle, target: run.target, speed: run.speed,
         food: run.food && { ...run.food }, bonus: run.bonus && { ...run.bonus }, combo: run.combo, effects: { ...run.effects },

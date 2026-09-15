@@ -106,7 +106,7 @@ export function buildDialog({ profile, playing, theme, haptics, masterOn, onSett
   root.append(prefs);
 
   root.append(el('h3', 'guide-title', 'Como jogar'));
-  root.append(el('p', 'guide-intro', 'Arraste em qualquer lugar da arena: a cobra vira suavemente para a direção do dedo, e a seta na frente da cabeça mostra o rumo. Soltar o dedo mantém a direção. No computador, a cobra segue o mouse, ou use as setas e WASD; Espaço ou P pausa. Coma em até 5 segundos seguidos para subir o combo.'));
+  root.append(el('p', 'guide-intro', 'Arraste em qualquer lugar da arena: a cobra vira suavemente para a direção do dedo, e a seta na frente da cabeça mostra o rumo. Soltar o dedo mantém a direção. No computador, a cobra segue o mouse, ou use as setas e WASD; Espaço ou P pausa. Coma em até 5 segundos seguidos para subir o combo. O jogo é deitado: com o aparelho em pé, a partida pausa e aparece o aviso para girar.'));
 
   root.append(el('h3', 'guide-title', 'Itens'));
   const items = el('div', 'guide-grid');

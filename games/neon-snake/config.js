@@ -15,9 +15,9 @@ export const DIFFICULTIES = [
 
 export const SNAKE = {
   cell: 20,            // tamanho de uma casa da grade de fundo
-  cols: 20,
-  rows: 24,            // mínimo: em pé o tabuleiro ganha linhas até maxRows
-  maxRows: 40,
+  rows: 20,            // altura fixa do tabuleiro, em casas
+  cols: 24,            // mínimo: deitado o tabuleiro ganha colunas até maxCols
+  maxCols: 40,
   spacing: 4,         // distância entre os pontos do caminho do corpo
   headRadius: 7,
   bodyRadius: 6,
@@ -29,12 +29,14 @@ export const SNAKE = {
   slow: 0.6,
   turbo: 1.45,
   invuln: 1.2,         // segundos sem colisão depois do escudo
-  deadZone: 10         // arrasto mínimo do joystick, em unidades lógicas
+  deadZone: 10,        // arrasto mínimo do joystick, em unidades lógicas
+  turnRadius: 12       // raio da curva em unidades: a meia-volta cabe em 1,2 casa
 };
 
-// Giro máximo em rad/s. Cresce com a velocidade para o raio da curva ficar
-// parecido em qualquer ritmo: a meia-volta nunca encosta no próprio corpo.
-export const turnRate = speed => 2.6 + speed / 60;
+// Giro máximo em rad/s. Como acompanha a velocidade, o raio da curva é o mesmo
+// em qualquer ritmo: dá para virar dentro de um corredor de uma casa sem perder
+// o desenho do movimento. O piso serve para quando o slow motion freia a cobra.
+export const turnRate = speed => Math.max(3.4, speed / SNAKE.turnRadius);
 
 // Os desenhos e as cores valem para todos os modos. Obstáculos e zonas de
 // perigo são exclusivos do Desafio, preservando as regras dos outros modos.
