@@ -60,6 +60,16 @@ export const GAMES = [
     status: 'ready',
     entry: './games/neon-drop/index.js',
     art: 'drop'
+  },
+  {
+    id: 'neon-shooter',
+    title: 'Neon Shooter',
+    tagline: 'Tiro espacial em ondas, chefes e melhorias a cada nível.',
+    tags: ['Arcade', 'Chefes', 'Offline'],
+    accent: '#ff4fd8',
+    status: 'ready',
+    entry: './games/neon-shooter/index.js',
+    art: 'shooter'
   }
 ];
 

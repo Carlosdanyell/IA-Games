@@ -19,6 +19,7 @@ Sem framework, sem build, sem dependências: HTML, CSS e JavaScript com módulos
 | **Neon Grid** | Jogo da velha com três níveis de IA: fácil aleatório, médio tático e difícil imbatível. Rodada e placar salvos no aparelho. |
 | **Neon Drop** | Lig 4 com nove tabuleiros diferentes — tamanhos, conecta 4 ou 5 e obstáculos —, quatro níveis de máquina e modo dois jogadores no mesmo aparelho. |
 | **Neon Pool** | Sinuca 8-ball com regras completas, máquina de três níveis, dois jogadores no mesmo aparelho ou multiplayer em aparelhos no mesmo Wi-Fi. Mesa na horizontal. |
+| **Neon Shooter** | Tiro espacial vertical feito para o dedo: oito tipos de inimigo, chefe com três fases a cada cinco ondas, nove power-ups, melhorias a cada nível, combos, conquistas e trilha synthwave gerada no aparelho. |
 
 ---
 
@@ -70,6 +71,28 @@ GitHub Pages. Wi-Fi com isolamento de aparelhos pode impedir a conexão.
 
 Instruções, limitações de rede, arquitetura e testes:
 [`docs/NEON-POOL-MULTIPLAYER.md`](docs/NEON-POOL-MULTIPLAYER.md).
+
+## Neon Shooter
+
+Arraste em qualquer lugar da tela para pilotar: a nave acompanha o dedo sem ficar
+embaixo dele. Nas configurações dá para trocar pelo joystick virtual. O tiro é
+automático enquanto houver inimigos. No computador, use **WASD** ou as **setas**
+para mover, **Espaço** ou clique para atirar com o tiro automático desligado e
+**Esc** para pausar.
+
+- **Ondas:** drones, dardos, ziguezagues, atiradores, blindados, divisores,
+  caçadores e sentinelas entram aos poucos. A cada cinco ondas surge um chefe com
+  três fases, e todo ataque dele é anunciado antes.
+- **Power-ups:** reparo, escudo, cadência, tiro duplo, tiro triplo, perfurante,
+  dano, câmera lenta e bomba.
+- **Melhorias:** a barra verde no topo enche com os abates. A cada nível a ação
+  pausa e você escolhe um entre três cartões.
+- **Pontos:** abates sem levar dano sobem o combo, e a cada 10 o multiplicador
+  aumenta. Onda terminada sem dano vale o dobro de bônus.
+
+Recordes, dificuldade, configurações, conquistas e estatísticas ficam salvos no
+aparelho. Efeitos reduzidos e tremor de tela desligável ajudam em celulares mais
+simples.
 
 ## Rodar localmente
 
