@@ -2,21 +2,20 @@ import { logicalSize, DIFFICULTIES, PLAYER, comboMultiplier } from './config.js'
 import { createWorld } from './world.js';
 import { createRenderer } from './render.js';
 import { createSoundEngine } from './audio.js';
-import { createScreens, buildSettings, buildAchievements } from './ui.js';
+import { createUpgradeLayer, buildDialog, duration } from './ui.js';
 import { cleanSettings, cleanStats, cleanAchievements, liveStats, checkAchievements, recordRun, ACHIEVEMENTS }
   from './progress.js';
 
 export const meta = {
   id: 'neon-shooter',
   title: 'NEON<span>SHOOTER</span>',
-  subtitle: 'ARCADE ESPACIAL',
+  subtitle: 'ARCADE ESPACIAL / ONDAS',
   arenaLabel: 'Área de jogo. Arraste para mover a nave; o tiro é automático.',
   logicalSize,
   stats: [
-    { id: 'score', label: 'Pontos', accent: true, flex: '1.35fr' },
-    { id: 'wave', label: 'Onda', flex: '.7fr' },
-    { id: 'combo', label: 'Combo', flex: '.9fr' },
-    { id: 'hp', label: 'Vida', flex: '1.2fr' }
+    { id: 'score', label: 'Pontos', accent: true, flex: '1.2fr' },
+    { id: 'wave', label: 'Onda', flex: '.8fr' },
+    { id: 'hp', label: 'Vida', type: 'hearts', flex: '1.1fr' }
   ]
 };
 
@@ -46,8 +45,6 @@ export function create(services) {
   const app = hud.arena.closest('.app');
   app.classList.add('sh-app');
   document.body.classList.add('sh-body');
-  hud.el.settings.textContent = 'Configurações';
-  hud.hideOverlay();
   theme.setAuto('rosa');
   input.setMode('absolute');
   input.setInverted(false);
@@ -67,8 +64,9 @@ export function create(services) {
 
   let state = 'menu';            // menu | playing | upgrade | paused | dying | over
   let world = null;
-  let offer = [], runUnlocked = [], runRecorded = false;
-  let levelDelay = 0, dyingTimer = 0, progressDirty = false, hudKey = '';
+  let offer = [], runUnlocked = [], runRecorded = false, lastRecord = { score: false, wave: false };
+  let levelDelay = 0, dyingTimer = 0, progressDirty = false, hudKey = '', upgradeWave = 0;
+  let bonus = { text: '', time: 0 };
 
   // -------------------------------------------------------------- controles
   const keys = { up: false, down: false, left: false, right: false, fire: false };
@@ -156,76 +154,62 @@ export function create(services) {
   }, { signal });
   window.addEventListener('keyup', e => { const key = KEYMAP[e.code]; if (key) keys[key] = false; }, { signal });
 
-  // Sem zoom de pinça, menu de toque longo ou duplo toque durante a partida.
+  // Sem zoom de pinça nem menu de toque longo durante a partida.
   document.addEventListener('gesturestart', e => e.preventDefault(), { signal });
   hud.arena.addEventListener('contextmenu', e => e.preventDefault(), { signal });
-  app.addEventListener('dblclick', e => e.preventDefault(), { signal });
   reducedMotion.addEventListener?.('change', applyVisual, { signal });
 
   // ------------------------------------------------------------------ HUD
-  // Até 10 pontos de vida, um segmento por ponto; acima disso, barra contínua.
-  const hpBar = (hp, max) => (max > 10
-    ? `<div class="sh-hp sh-hp-bar${hp <= 1 ? ' low' : ''}"><i class="on" style="width:${Math.round(hp / max * 100)}%"></i></div>`
-    : `<div class="sh-hp${hp <= 1 ? ' low' : ''}">${
-      Array.from({ length: max }, (_, i) => `<i${i < hp ? ' class="on"' : ''}></i>`).join('')}</div>`);
-
   function syncHud(force = false) {
     const w = world;
-    const key = w ? `${w.score}|${w.wave}|${w.combo}|${w.player.hp}|${w.player.maxHp}` : 'menu';
-    if (!force && key === hudKey) return;
-    hudKey = key;
-    if (!w) {
-      hud.setStat('score', '0');
-      hud.setStat('wave', '—');
-      hud.setStat('combo', 'x0');
-      hud.setStat('hp', hpBar(PLAYER.maxHp, PLAYER.maxHp), `Vida ${PLAYER.maxHp} de ${PLAYER.maxHp}`);
-      return;
+    const hp = w ? w.player.hp : PLAYER.maxHp, maxHp = w ? w.player.maxHp : PLAYER.maxHp;
+    const key = w ? `${w.score}|${w.wave}|${hp}|${maxHp}` : 'menu';
+    if (force || key !== hudKey) {
+      hudKey = key;
+      hud.setStat('score', w ? fmt(w.score) : '0');
+      // Trocar o texto recria o elemento: a animação .sh-flash marca a onda nova.
+      hud.setStat('wave', w ? `<span class="sh-flash">${w.wave}</span>` : '—');
+      if (maxHp <= 6) hud.setHearts('hp', maxHp, hp);
+      else hud.setStat('hp', `♥ ${hp}<small>/${maxHp}</small>`, `${hp} de ${maxHp} vidas`);
     }
-    const mult = comboMultiplier(w.combo);
-    hud.setStat('score', fmt(w.score));
-    hud.setStat('wave', String(w.wave));
-    hud.setStat('combo', `x${w.combo}${mult > 1 ? `<small>×${mult.toLocaleString('pt-BR')}</small>` : ''}`,
-      `Combo ${w.combo}, multiplicador ${mult.toLocaleString('pt-BR')}`);
-    hud.setStat('hp', hpBar(w.player.hp, w.player.maxHp), `Vida ${w.player.hp} de ${w.player.maxHp}`);
+    const chips = [{ text: DIFFICULTIES[settings.difficulty].label, tone: 'accent' }];
+    if (!w) {
+      chips.push({ text: 'Chefe a cada 5 ondas' }, { text: 'Arraste e sobreviva', tone: 'flow' });
+    } else {
+      chips.push(w.pendingLevels > 0 ? { text: '+1 melhoria', tone: 'accent' } : { text: `Nível ${w.level}` });
+      if (bonus.time > 0) chips.push({ text: bonus.text });
+      const mult = comboMultiplier(w.combo);
+      chips.push({ text: w.combo > 1 ? `Combo x${w.combo}${mult > 1 ? ` · ×${mult.toLocaleString('pt-BR')}` : ''}` : 'Sem dano = combo', tone: 'flow' });
+    }
+    hud.setChips(chips);
+  }
+
+  function setHint() {
+    hud.setHint(coarse ? 'Arraste para pilotar · <strong>tiro automático</strong>'
+      : '<span class="key">WASD</span> move · <span class="key">Esc</span> pausa');
   }
 
   // --------------------------------------------------------------- telas
-  const screens = createScreens(hud.arena, {
-    action(name, value) {
-      sound.unlock();
-      switch (name) {
-        case 'play': startGame(); break;
-        case 'difficulty':
-          if (DIFFICULTIES[value] && value !== settings.difficulty) {
-            settings.difficulty = value;
-            saveSettings();
-            sound.play('ui');
-            showMenu();
-          }
-          break;
-        case 'settings': sound.play('ui'); openSettings(); break;
-        case 'achievements': sound.play('ui'); openAchievements(); break;
-        case 'resume': resume(); break;
-        case 'restart': restart(); break;
-        case 'menu': sound.play('ui'); toMenu(); break;
-        case 'pick': pick(value); break;
-      }
-    }
-  });
+  const upgrades = createUpgradeLayer(hud.arena, id => pick(id));
+  const unlockedNames = () => runUnlocked.map(a => a.name).join(', ');
 
-  function showMenu() {
-    const move = coarse
-      ? (settings.control === 'joystick' ? 'Toque e arraste para usar o joystick.' : 'Arraste em qualquer lugar da tela para mover a nave.')
-      : 'WASD ou setas para mover · Esc pausa.';
-    const fire = settings.autofire ? ' O tiro é automático.' : coarse ? ' Segure o dedo na tela para atirar.' : ' Espaço ou clique para atirar.';
-    screens.showMenu({ difficulty: settings.difficulty, best: stats.best[settings.difficulty],
-                       unlocked: Object.keys(unlocked).length, hint: move + fire });
+  function showIntro() {
+    const d = DIFFICULTIES[settings.difficulty], best = stats.best[settings.difficulty];
+    hud.showOverlay({
+      tag: 'Pronto para decolar',
+      title: 'Desvie. Atire.<br>Evolua.',
+      text: `${coarse ? 'Arraste em qualquer lugar para pilotar.' : 'Use WASD ou as setas para pilotar.'} O tiro é automático e cada onda deixa a nave mais forte.`,
+      action: 'Jogar agora',
+      secondary: 'Mudar dificuldade',
+      note: `${d.label} · ${best.score ? `recorde ${fmt(best.score)} · onda ${best.wave}` : 'sem recorde ainda'} · ajustes no rodapé`
+    });
   }
 
   function openSettings() {
     if (state === 'playing') pause();
-    hud.setDialogContent(buildSettings({
-      settings, masterOn: audio.enabled, haptics, theme,
+    hud.setDialogContent(buildDialog({
+      settings, stats, unlocked, masterOn: audio.enabled, haptics, theme,
+      playing: state === 'paused' || state === 'upgrade',
       onChange(key, value) {
         settings[key] = value;
         saveSettings();
@@ -244,16 +228,11 @@ export function create(services) {
         sound.unlock();
         sound.configure(settings);
       }
-    }), 'Neon Shooter · configurações');
+    }), 'Neon Shooter · ajustes & bônus');
     hud.openDialog();
   }
 
-  function openAchievements() {
-    hud.setDialogContent(buildAchievements({ unlocked, stats }), 'Conquistas e estatísticas');
-    hud.openDialog();
-  }
-
-  hud.el.dialog.addEventListener('close', () => { if (state === 'menu') showMenu(); }, { signal });
+  hud.el.dialog.addEventListener('close', () => { if (state === 'menu') { showIntro(); syncHud(true); } }, { signal });
 
   // ------------------------------------------------------------- partida
   const runData = () => ({
@@ -261,38 +240,38 @@ export function create(services) {
     powerups: world.powerups, flawless: world.flawless, maxCombo: world.maxCombo, time: world.time
   });
 
+  // Conquistas são gravadas na hora, mas só aparecem na pausa e no fim de jogo.
   function checkRun() {
     if (!world) return;
     const fresh = checkAchievements(liveStats(stats, runData()), unlocked);
-    for (const def of fresh) {
-      runUnlocked.push(def);
-      renderer.achievement(def);
-      sound.play('achievement');
-    }
-    if (fresh.length) store.set('achievements-v1', unlocked);
+    if (!fresh.length) return;
+    runUnlocked.push(...fresh);
+    store.set('achievements-v1', unlocked);
   }
 
   function finishRun() {
-    if (!world || runRecorded) return { score: false, wave: false };
+    if (!world || runRecorded) return lastRecord;
     runRecorded = true;
     checkRun();
-    const record = recordRun(stats, runData());
+    lastRecord = recordRun(stats, runData());
     store.set('stats-v1', stats);
     store.set('achievements-v1', unlocked);
-    return record;
+    return lastRecord;
   }
 
   function startGame() {
-    if (state === 'playing') return;
+    if (state === 'playing' || hud.dialogOpen) return;
     if (world && !runRecorded) finishRun();
     sound.unlock();
     sound.play('select');
     world = createWorld({ w: view.w, h: view.h, difficulty: settings.difficulty, seed: (Date.now() ^ (Math.random() * 1e9)) >>> 0 });
     renderer.reset();
-    offer = []; runUnlocked = []; runRecorded = false; levelDelay = 0; progressDirty = false;
+    offer = []; runUnlocked = []; runRecorded = false;
+    levelDelay = 0; progressDirty = false; upgradeWave = 0; bonus = { text: '', time: 0 };
     resetControls();
     state = 'playing';
-    screens.hide();
+    upgrades.hide();
+    hud.hideOverlay();
     sound.duck(false);
     sound.setMusic('play');
     hud.setPause(false, true);
@@ -305,24 +284,22 @@ export function create(services) {
     resetControls();
     sound.duck(true);
     sound.play('ui');
-    screens.showPause({ wave: world.wave, score: world.score, kills: world.kills, level: world.level });
+    hud.showOverlay({
+      tag: 'Pausa', title: `Onda ${world.wave}`,
+      text: `${fmt(world.score)} pontos · ${fmt(world.kills)} abates · nível ${world.level}`,
+      action: 'Continuar', secondary: 'Encerrar partida',
+      note: runUnlocked.length ? `Conquistas nesta partida: ${unlockedNames()}` : 'Ajustes & bônus no rodapé'
+    });
     hud.setPause(true, true);
   }
 
   function resume() {
     if (state !== 'paused' || hud.dialogOpen) return;
     state = 'playing';
-    screens.hide();
+    hud.hideOverlay();
     resetControls();
     sound.duck(false);
-    sound.play('ui');
     hud.setPause(false, true);
-  }
-
-  function restart() {
-    if (world && !runRecorded) finishRun();
-    state = 'menu';
-    startGame();
   }
 
   function toMenu() {
@@ -330,11 +307,12 @@ export function create(services) {
     world = null;
     state = 'menu';
     resetControls();
+    upgrades.hide();
     sound.duck(false);
     sound.setMusic('menu');
     hud.setPause(false, false);
     renderer.reset();
-    showMenu();
+    showIntro();
     syncHud(true);
   }
 
@@ -347,15 +325,15 @@ export function create(services) {
     sound.duck(true);
     haptics.buzz(12);
     hud.setPause(false, false);
-    screens.showUpgrade({ level: world.level - world.pendingLevels + 1, options: offer, levels: world.up });
+    upgrades.show({ level: world.level - world.pendingLevels + 1, wave: world.wave, options: offer, levels: world.up });
   }
 
+  // Uma escolha por onda. Níveis a mais ficam guardados para o próximo intervalo.
   function pick(id) {
     if (state !== 'upgrade' || !world.applyUpgrade(id)) return;
     sound.play('upgrade');
-    if (world.pendingLevels > 0) { openUpgrade(); return; }
     state = 'playing';
-    screens.hide();
+    upgrades.hide();
     resetControls();
     sound.duck(false);
     hud.setPause(false, true);
@@ -364,10 +342,17 @@ export function create(services) {
 
   function gameOver() {
     const record = finishRun();
+    const data = runData();
     state = 'over';
     sound.setMusic('menu');
     hud.setPause(false, false);
-    screens.showOver({ ...runData(), record, unlocked: runUnlocked });
+    hud.showOverlay({
+      tag: record.score ? 'Novo recorde' : record.wave ? 'Maior onda' : 'Nave destruída',
+      title: `${fmt(data.score)} pontos`,
+      text: `Onda ${data.wave} · ${fmt(data.kills)} abates · combo máx. x${data.maxCombo} · ${data.bosses} ${data.bosses === 1 ? 'chefe' : 'chefes'} · ${duration(data.time)}`,
+      action: 'Jogar de novo', secondary: 'Menu',
+      note: runUnlocked.length ? `Conquistas: ${unlockedNames()}` : 'Cada onda deixa a nave mais forte.'
+    });
   }
 
   function handleEvents() {
@@ -379,6 +364,10 @@ export function create(services) {
         case 'hit': sound.play(e.crit ? 'crit' : 'hit'); break;
         case 'kill': sound.play('kill', e); if (e.r >= 20) haptics.buzz(14); break;
         case 'playerHit': sound.play('playerHit'); haptics.buzz([30, 40, 30]); break;
+        case 'waveClear':
+          sound.play('waveClear');
+          bonus = { text: `${e.flawless ? 'Sem dano ' : ''}+${fmt(e.bonus)}`, time: 2.5 };
+          break;
         case 'bossWarning': sound.play('bossWarning'); sound.setMusic('boss'); break;
         case 'bossDown': sound.play('bossDown'); haptics.buzz([40, 30, 90]); sound.setMusic('play'); break;
         case 'gameOver':
@@ -396,7 +385,7 @@ export function create(services) {
     world.events.length = 0;
   }
 
-  showMenu();
+  showIntro();
   sound.setMusic('menu');
   hud.setPause(false, false);
   syncHud(true);
@@ -409,9 +398,11 @@ export function create(services) {
       world.update(dt, state === 'playing' ? controls() : IDLE);
       handleEvents();
       if (progressDirty) { progressDirty = false; checkRun(); }
-      if (state === 'playing' && world.pendingLevels > 0) {
+      if (bonus.time > 0) bonus.time -= dt;
+      // Melhoria só no intervalo entre ondas, nunca no meio do combate.
+      if (state === 'playing' && world.stage === 'rest' && world.pendingLevels > 0 && upgradeWave !== world.wave) {
         levelDelay += dt;
-        if (levelDelay >= 0.45) { levelDelay = 0; openUpgrade(); }
+        if (levelDelay >= 0.35) { levelDelay = 0; upgradeWave = world.wave; openUpgrade(); }
       }
       if (state === 'dying' && (dyingTimer -= dt) <= 0) gameOver();
     },
@@ -424,10 +415,15 @@ export function create(services) {
     resize() {
       if (world) world.resize(view.w, view.h);
       renderer.invalidate();
+      // O shell troca a dica depois de create(); a do jogo entra aqui.
+      setHint();
       hud.flush();
     },
     primaryAction: () => (state === 'menu' || state === 'over' ? startGame() : state === 'paused' ? resume() : undefined),
-    secondaryAction: () => { if (state === 'paused') restart(); },
+    secondaryAction: () => {
+      if (state === 'menu') openSettings();
+      else if (state === 'paused' || state === 'over') toMenu();
+    },
     pause,
     resume,
     pauseToggle: () => (state === 'playing' ? pause() : state === 'paused' ? resume() : undefined),
@@ -443,7 +439,7 @@ export function create(services) {
     destroy() {
       lifecycle.abort();
       sound.destroy();
-      screens.destroy();
+      upgrades.destroy();
       input.destroy();
       app.classList.remove('sh-app');
       document.body.classList.remove('sh-body');

@@ -52,7 +52,7 @@ export function createRenderer(viewport, debug) {
   const particles = [], rings = [], floats = [], flashes = [], delayed = [];
   const stars = Array.from({ length: 120 }, (_, i) => ({ x: Math.random(), y: Math.random(), layer: i % 3, tw: Math.random() * TAU }));
   let rs = 1, low = false, shakeOn = true, clock = 0, grid = 0;
-  let shake = 0, flash = 0, flashColor = '#ffffff', hurt = 0, banner = null, toast = null;
+  let shake = 0, flash = 0, flashColor = '#ffffff', hurt = 0, strip = null;
   let vignette = null, vignetteKey = '';
 
   // ------------------------------------------------------------- sprites
@@ -191,40 +191,35 @@ export function createRenderer(viewport, debug) {
     if (r >= 20) addShake(3);
   }
 
-  function setBanner(text, sub, color, duration, alarm = false) { banner = { text, sub, color, duration, t: 0, alarm }; }
+  // Aviso curto numa faixa fina no topo da arena: nunca no meio do campo.
+  function setStrip(text, color, duration, alarm = false) { strip = { text, color, duration, t: 0, alarm }; }
 
   function event(e, W) {
     switch (e.type) {
       case 'hit': burst(e.x, e.y + 4, e.crit ? '#ffe45e' : e.color, low ? 1 : 3, 90, 0.25, 2); break;
       case 'kill':
         explode(e.x, e.y, e.color, e.r);
-        float(e.x, e.y - 10, `+${fmt(e.points)}`, e.combo >= 10 ? '#ffe45e' : '#ffffff');
+        // Texto só no que merece atenção: marco de combo ou inimigo grande.
+        if (e.combo > 0 && e.combo % 10 === 0) float(e.x, e.y - 12, `COMBO x${e.combo}`, '#ffe45e', 1);
+        else if (e.r >= 20) float(e.x, e.y - 12, `+${fmt(e.points)}`, '#ffffff');
         break;
       case 'playerHit': explode(e.x, e.y, '#ff4d6d', 14); addShake(8); hurt = 0.6; break;
       case 'shieldBlock': ring(e.x, e.y, '#5fd5ff', 12, 36, 0.35, 3); break;
       case 'aegis': ring(e.x, e.y, '#5fd5ff', 8, 44, 0.5); break;
-      case 'pickup':
-        ring(e.x, e.y, e.color, 10, 46, 0.45, 3);
-        float(e.x, e.y - 20, POWERUPS[e.kind].name.toUpperCase(), e.color, 1.1);
-        break;
+      case 'pickup': ring(e.x, e.y, e.color, 10, 46, 0.45, 3); break;
       case 'bomb':
         flashScreen('#ffffff', 0.75);
         ring(e.x, e.y, '#ffffff', 10, Math.max(view.w, view.h), 0.8, 5);
         addShake(10);
         break;
       case 'levelUp': ring(W.player.x, W.player.y, '#b6ff5f', 12, 64, 0.6, 3); break;
-      case 'waveStart': setBanner(`ONDA ${e.wave}`, 'Prepare-se', '#5ff4ff', 1.6); break;
-      case 'bossWarning': setBanner('ALERTA', `Chefe se aproximando · onda ${e.wave}`, '#ff4d6d', 2.5, true); break;
+      case 'bossWarning': setStrip('Chefe se aproximando', '#ff4d6d', 2, true); break;
       case 'bossSpawn': addShake(5); break;
-      case 'waveClear':
-        setBanner('ONDA CONCLUÍDA', e.flawless ? `Sem dano! +${fmt(e.bonus)}` : `+${fmt(e.bonus)} pontos`,
-          e.flawless ? '#b6ff5f' : '#5ff4ff', 1.4);
-        break;
       case 'bossPhase':
-        addShake(7);
-        flashScreen(W.boss?.def.color || '#ffffff', 0.35);
+        // A troca de fase aparece no próprio chefe: brilho na cor dele e onda de choque.
+        addShake(5);
         ring(e.x, e.y, '#ffffff', 20, 130, 0.6, 4);
-        setBanner(`FASE ${e.phase + 1}`, 'O chefe ficou mais agressivo', '#ffb13d', 1.2);
+        if (!low) flashes.push({ x: e.x, y: e.y, size: 240, color: W.boss?.def.color || '#ffffff', life: 0.6, max: 0.6 });
         break;
       case 'bossSlam': addShake(6); ring(e.x, e.y, '#ffffff', 10, 96, 0.5, 4); break;
       case 'bossDown':
@@ -232,7 +227,7 @@ export function createRenderer(viewport, debug) {
           delayed.push({ t: i * 0.13, fn: () => explode(e.x + (Math.random() - 0.5) * e.r * 2, e.y + (Math.random() - 0.5) * e.r * 2, i % 2 ? '#ffffff' : e.color, 16 + Math.random() * 12) });
         }
         delayed.push({ t: 1.2, fn: () => { explode(e.x, e.y, e.color, 44); flashScreen('#ffffff', 0.8); addShake(14); ring(e.x, e.y, e.color, 20, 260, 0.9, 6); } });
-        setBanner('CHEFE DERROTADO', `${e.name} · +${fmt(e.points)}`, e.color, 2.2);
+        setStrip(`Chefe derrotado · +${fmt(e.points)}`, e.color, 1.8);
         break;
       case 'gameOver':
         explode(e.x, e.y, SHIP, 26);
@@ -576,55 +571,19 @@ export function createRenderer(viewport, debug) {
       ctx.fillRect(0, 0, w, h);
       ctx.globalAlpha = 1;
     }
-    if (banner) {
-      banner.t += dt;
-      if (banner.t >= banner.duration) banner = null;
+    if (strip) {
+      strip.t += dt;
+      if (strip.t >= strip.duration) strip = null;
       else {
-        const a = Math.min(1, banner.t * 5, (banner.duration - banner.t) * 3);
-        const blink = banner.alarm && Math.floor(banner.t * 5) % 2 === 1 ? 0.45 : 1;
-        ctx.globalAlpha = a * blink;
+        const a = Math.min(1, strip.t * 6, (strip.duration - strip.t) * 4);
+        ctx.globalAlpha = a * (strip.alarm ? 0.55 + 0.45 * Math.sin(strip.t * 14) : 1);
+        ctx.fillStyle = strip.color;
+        ctx.fillRect(0, 0, w, 3);
+        ctx.globalAlpha = a;
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = '900 30px system-ui,-apple-system,"Segoe UI",sans-serif';
-        if (!low) { ctx.shadowColor = banner.color; ctx.shadowBlur = 18; }
-        ctx.fillStyle = banner.color;
-        ctx.fillText(banner.text, w / 2, h * 0.3);
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = a;
-        ctx.font = '600 12px ui-monospace,SFMono-Regular,Consolas,monospace';
-        ctx.fillStyle = '#ffffffd0';
-        ctx.fillText(banner.sub, w / 2, h * 0.3 + 26);
-        ctx.globalAlpha = 1;
-      }
-    }
-    if (toast) {
-      toast.t += dt;
-      if (toast.t >= 3.2) toast = null;
-      else {
-        const a = Math.min(1, toast.t * 5, (3.2 - toast.t) * 4);
-        const tw = Math.min(290, w - 24), x = (w - tw) / 2, y = h - 124 + (1 - Math.min(1, toast.t * 5)) * 20;
-        ctx.globalAlpha = a;
-        ctx.fillStyle = '#0c0818ee';
-        ctx.strokeStyle = '#ffd166';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(x, y, tw, 46, 12); else ctx.rect(x, y, tw, 46);
-        ctx.fill();
-        ctx.stroke();
-        ctx.save();
-        ctx.translate(x + 12, y + 11);
-        ctx.strokeStyle = '#ffd166';
-        ctx.lineWidth = 2;
-        ctx.stroke(icon(toast.icon));
-        ctx.restore();
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = '#ffd166';
-        ctx.font = '700 9px ui-monospace,SFMono-Regular,Consolas,monospace';
-        ctx.fillText('CONQUISTA DESBLOQUEADA', x + 46, y + 19);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '750 14px system-ui,-apple-system,"Segoe UI",sans-serif';
-        ctx.fillText(toast.name, x + 46, y + 36);
+        ctx.textBaseline = 'top';
+        ctx.font = '700 10px ui-monospace,SFMono-Regular,Consolas,monospace';
+        ctx.fillText(strip.text.toUpperCase(), w / 2, 8);
         ctx.globalAlpha = 1;
       }
     }
@@ -669,10 +628,9 @@ export function createRenderer(viewport, debug) {
   return {
     draw, event,
     setOptions({ effects, shake: allowShake }) { low = effects === 'low'; shakeOn = !!allowShake; if (!shakeOn) shake = 0; sprites.clear(); },
-    achievement(def) { toast = { name: def.name, icon: def.icon, t: 0 }; },
     reset() {
       particles.length = rings.length = floats.length = flashes.length = delayed.length = 0;
-      banner = toast = null;
+      strip = null;
       shake = flash = hurt = 0;
     },
     invalidate: () => sprites.clear()

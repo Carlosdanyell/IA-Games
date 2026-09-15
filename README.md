@@ -110,8 +110,8 @@ para mover, **Espaço** ou clique para atirar com o tiro automático desligado e
   três fases, e todo ataque dele é anunciado antes.
 - **Power-ups:** reparo, escudo, cadência, tiro duplo, tiro triplo, perfurante,
   dano, câmera lenta e bomba.
-- **Melhorias:** a barra verde no topo enche com os abates. A cada nível a ação
-  pausa e você escolhe um entre três cartões.
+- **Melhorias:** a barra verde no topo enche com os abates. No intervalo entre
+  ondas a ação pausa e você escolhe um entre três cartões.
 - **Pontos:** abates sem levar dano sobem o combo, e a cada 10 o multiplicador
   aumenta. Onda terminada sem dano vale o dobro de bônus.
 

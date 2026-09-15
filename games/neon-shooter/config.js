@@ -119,7 +119,7 @@ export const WAVES = {
   bossEvery: 5,
   intro: 1.6,
   rest: 1.5,
-  bossWarning: 2.6,
+  bossWarning: 2,
   baseCount: 7,
   perWave: 2.1,
   maxCount: 64,
