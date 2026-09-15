@@ -13,7 +13,7 @@ Sem framework, sem build, sem dependências: HTML, CSS e JavaScript com módulos
 
 | Jogo | Descrição |
 |---|---|
-| **Neon Snake** | Cobrinha neon para celular: gestos, quatro modos, três dificuldades, seis arenas desbloqueáveis, bônus, combos, conquistas e progresso salvo offline. |
+| **Neon Snake** | Cobrinha neon com movimento livre e controle por arrasto, quatro modos, três dificuldades, seis arenas desbloqueáveis, bônus, combos, conquistas e progresso salvo offline. |
 | **Neon Break** | Quebra-blocos com multibola, 12 cápsulas, 9 tipos de bloco, 3 modos e 25 arenas. Guarda a partida a cada arena. |
 | **Neon Words** | Cruzadinha com roda de letras: 25 fases em português, dicas, desbloqueio progressivo de letras. |
 | **Neon Arrow** | Tiro ao alvo com arco: acerte a maçã na cabeça do parceiro. 25 fases com vento, alvo em movimento e lanterna de vida extra, quatro níveis de dificuldade e efeitos de sangue reguláveis. Só na horizontal. |
@@ -65,9 +65,10 @@ Detalhes do contrato entre shell e jogo: [`docs/ARCHITECTURE.md`](docs/ARCHITECT
 
 ## Neon Snake
 
-Controle a cobra deslizando em uma grande área da tela. No computador, use as
-**setas** ou **WASD**; **Espaço** pausa a partida. A tela de jogo se adapta ao
-celular em retrato, com placar, recorde, combo e nível fora do tabuleiro.
+Arraste em qualquer lugar da arena e a cobra vira suavemente para a direção do
+dedo, como no slither.io: uma seta na frente da cabeça mostra o rumo, e soltar
+mantém a direção. No computador, a cobra segue o mouse ou as **setas**/**WASD**;
+**Espaço** pausa a partida.
 
 - **Clássico:** evite as paredes e o próprio corpo.
 - **Sem Paredes:** atravesse as bordas para surgir do lado oposto.
