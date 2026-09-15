@@ -16,8 +16,9 @@ export const DIFFICULTIES = [
 export const SNAKE = {
   cell: 20,            // tamanho de uma casa da grade de fundo
   cols: 20,
-  rows: 24,
-  spacing: 4,          // distância entre os pontos do caminho do corpo
+  rows: 24,            // mínimo: em pé o tabuleiro ganha linhas até maxRows
+  maxRows: 40,
+  spacing: 4,         // distância entre os pontos do caminho do corpo
   headRadius: 7,
   bodyRadius: 6,
   foodRadius: 6,

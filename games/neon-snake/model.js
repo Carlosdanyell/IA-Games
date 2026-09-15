@@ -6,8 +6,6 @@ import { MODES, DIFFICULTIES, MAPS, ACHIEVEMENTS, SNAKE, turnRate } from './conf
 
 const TAU = Math.PI * 2;
 const C = SNAKE.cell;
-export const BOARD = { cols: SNAKE.cols, rows: SNAKE.rows, cell: C, w: SNAKE.cols * C, h: SNAKE.rows * C };
-const W = BOARD.w, H = BOARD.h;
 const RANDOM = new WeakMap();
 const RECORDED = new WeakSet();
 const BONUS_TYPES = ['special', 'special', 'special', 'multiplier', 'shield', 'shrink', 'slow', 'turbo'];
@@ -26,13 +24,17 @@ export const wrapAngle = angle => {
   return a - Math.PI;
 };
 export const cellsLong = state => Math.round(state.length / C);
+// O tabuleiro tem sempre 20 colunas e ganha linhas para ocupar a tela em pé;
+// cada partida guarda as próprias dimensões.
+export const boardRows = rows => clamp(Math.floor(number(rows, SNAKE.rows)), SNAKE.rows, SNAKE.maxRows);
 
 // Diferença entre dois pontos; no modo sem paredes, pelo lado mais curto.
 function gap(state, a, b) {
   let dx = b.x - a.x, dy = b.y - a.y;
   if (wraps(state)) {
-    if (dx > W / 2) dx -= W; else if (dx < -W / 2) dx += W;
-    if (dy > H / 2) dy -= H; else if (dy < -H / 2) dy += H;
+    const { w, h } = state;
+    if (dx > w / 2) dx -= w; else if (dx < -w / 2) dx += w;
+    if (dy > h / 2) dy -= h; else if (dy < -h / 2) dy += h;
   }
   return Math.hypot(dx, dy);
 }
@@ -42,25 +44,25 @@ function circleRect(point, radius, rect) {
   return (point.x - cx) ** 2 + (point.y - cy) ** 2 < radius * radius;
 }
 
-function mapObstacles(map) {
-  const rects = [];
-  const add = (x, y) => rects.push({ x: x * C, y: y * C, w: C, h: C });
-  if (map === 'grid') [[4, 5], [15, 5], [4, 18], [15, 18]].forEach(([x, y]) => add(x, y));
-  if (map === 'circuit') {
-    for (let x = 4; x <= 7; x++) { add(x, 5); add(19 - x, 18); }
-    for (let y = 5; y <= 8; y++) { add(15, y); add(4, 23 - y); }
+// Peças de cada arena em casas [x, y, largura, altura], desenhadas para 24
+// linhas. Num tabuleiro mais alto cada peça desce na proporção da altura e as
+// paredes verticais esticam junto; as outras mantêm o formato.
+const PIECES = {
+  grid: [[4, 5, 1, 1], [15, 5, 1, 1], [4, 18, 1, 1], [15, 18, 1, 1]],
+  circuit: [[4, 5, 4, 1], [15, 5, 1, 4], [12, 18, 4, 1], [4, 15, 1, 4]],
+  maze: [[3, 6, 5, 1], [11, 6, 5, 1], [4, 17, 5, 1], [12, 17, 5, 1], [3, 8, 1, 3], [16, 8, 1, 3], [3, 13, 1, 3], [16, 13, 1, 3]],
+  hex: [[6, 5], [13, 5], [3, 10], [16, 10], [3, 15], [16, 15], [6, 19], [13, 19]].map(([x, y]) => [x, y, 2, 1]),
+  city: [3, 8, 14].flatMap(x => [[x, 4, 2, 2], [x, 18, 2, 2]]),
+  void: [[4, 4, 1, 1], [15, 4, 1, 1], [3, 12, 1, 1], [16, 12, 1, 1], [4, 19, 1, 1], [15, 19, 1, 1]]
+};
+
+function mapObstacles(map, rows) {
+  const scale = rows / SNAKE.rows, rects = [];
+  for (const [x, y, w, h] of PIECES[map] || []) {
+    const tall = h > w ? Math.round(h * scale) : h;
+    const top = Math.round((y + h / 2) * scale - tall / 2);
+    for (let i = 0; i < w; i++) for (let j = 0; j < tall; j++) rects.push({ x: (x + i) * C, y: (top + j) * C, w: C, h: C });
   }
-  if (map === 'maze') {
-    for (let x = 3; x <= 15; x++) if (x < 8 || x > 10) { add(x, 6); add(19 - x, 17); }
-    for (let y = 8; y <= 15; y++) if (y < 11 || y > 12) { add(3, y); add(16, y); }
-  }
-  if (map === 'hex') {
-    [[6, 5], [13, 5], [3, 10], [16, 10], [3, 15], [16, 15], [6, 19], [13, 19]].forEach(([x, y]) => { add(x, y); add(x + 1, y); });
-  }
-  if (map === 'city') {
-    for (const x of [3, 8, 14]) for (const y of [4, 18]) { add(x, y); add(x + 1, y); add(x, y + 1); add(x + 1, y + 1); }
-  }
-  if (map === 'void') [[4, 4], [15, 4], [3, 12], [16, 12], [4, 19], [15, 19]].forEach(([x, y]) => add(x, y));
   return rects;
 }
 
@@ -76,13 +78,13 @@ function blocked(state, point) {
 function freePoint(state) {
   const margin = 18;
   for (let attempt = 0; attempt < 40; attempt++) {
-    const point = { x: margin + random(state) * (W - margin * 2), y: margin + random(state) * (H - margin * 2) };
+    const point = { x: margin + random(state) * (state.w - margin * 2), y: margin + random(state) * (state.h - margin * 2) };
     if (!blocked(state, point)) return point;
   }
-  const total = SNAKE.cols * SNAKE.rows, offset = Math.floor(random(state) * total);
+  const total = state.cols * state.rows, offset = Math.floor(random(state) * total);
   for (let i = 0; i < total; i++) {
     const index = (offset + i) % total;
-    const point = { x: (index % SNAKE.cols + 0.5) * C, y: (Math.floor(index / SNAKE.cols) + 0.5) * C };
+    const point = { x: (index % state.cols + 0.5) * C, y: (Math.floor(index / state.cols) + 0.5) * C };
     if (!blocked(state, point)) return point;
   }
   return null;
@@ -101,12 +103,14 @@ function updateSpeed(state) {
 
 export function createRun(options = {}, rng = Math.random) {
   options = object(options);
+  const rows = boardRows(options.rows);
   const state = {
     mode: choice(MODES, options.mode, 'classic').id,
     difficulty: choice(DIFFICULTIES, options.difficulty, 'normal').id,
     map: choice(MAPS, options.map, 'grid').id,
+    cols: SNAKE.cols, rows, w: SNAKE.cols * C, h: rows * C,
     status: 'running', waiting: true,
-    head: { x: 10.5 * C, y: 12.5 * C }, angle: 0, target: 0,
+    head: { x: 10.5 * C, y: (Math.floor(rows / 2) + 0.5) * C }, angle: 0, target: 0,
     path: [], travel: 0, length: SNAKE.startLength * C, speed: 0,
     food: null, bonus: null, obstacles: [], hazards: [],
     score: 0, foods: 0, maxLength: SNAKE.startLength, combo: 0, bestCombo: 0, comboRemaining: 0,
@@ -119,7 +123,7 @@ export function createRun(options = {}, rng = Math.random) {
   for (let i = 1; i <= Math.ceil(state.length / SNAKE.spacing); i++) {
     state.path.push({ x: state.head.x - i * SNAKE.spacing, y: state.head.y });
   }
-  if (state.mode === 'challenge') state.obstacles = mapObstacles(state.map);
+  if (state.mode === 'challenge') state.obstacles = mapObstacles(state.map, rows);
   updateSpeed(state);
   spawnFood(state);
   return state;
@@ -142,7 +146,7 @@ function finish(state, events, reason) {
 function addDanger(state, permanent) {
   if (state.obstacles.length + state.hazards.length >= 62) return;
   const free = [];
-  for (let cy = 1; cy < SNAKE.rows - 1; cy++) for (let cx = 1; cx < SNAKE.cols - 1; cx++) {
+  for (let cy = 1; cy < state.rows - 1; cy++) for (let cx = 1; cx < state.cols - 1; cx++) {
     const rect = { x: cx * C, y: cy * C, w: C, h: C };
     if (gap(state, { x: rect.x + C / 2, y: rect.y + C / 2 }, state.head) < 100) continue;
     if ([...state.obstacles, ...state.hazards].some(r => r.x === rect.x && r.y === rect.y)) continue;
@@ -260,7 +264,7 @@ function collectBonus(state, item, events) {
 
 function collision(state) {
   const head = state.head, r = SNAKE.headRadius;
-  if (!wraps(state) && (head.x < r || head.y < r || head.x > W - r || head.y > H - r)) return ['wall', 'Você encontrou a borda da arena.'];
+  if (!wraps(state) && (head.x < r || head.y < r || head.x > state.w - r || head.y > state.h - r)) return ['wall', 'Você encontrou a borda da arena.'];
   if (state.obstacles.some(rect => circleRect(head, r - 1, rect))) return ['obstacle', 'Um obstáculo interrompeu seu caminho.'];
   if (state.hazards.some(h => h.active && circleRect(head, r - 1, h))) return ['hazard', 'Você entrou em uma zona de perigo ativa.'];
   if (state.mode !== 'zen') {
@@ -279,7 +283,7 @@ function useShield(state, events, cause) {
   state.effects.invuln = SNAKE.invuln;
   if (cause !== 'body') {
     // Bateu em parede ou bloco: vira para o centro da arena e ganha fôlego.
-    state.angle = state.target = Math.atan2(H / 2 - state.head.y, W / 2 - state.head.x);
+    state.angle = state.target = Math.atan2(state.h / 2 - state.head.y, state.w / 2 - state.head.x);
   }
   events.push({ type: 'shield', x: state.head.x, y: state.head.y, points: 0 });
 }
@@ -295,7 +299,7 @@ function move(state, dt, events) {
     const step = Math.min(remaining, S - state.travel);
     head.x += dx * step;
     head.y += dy * step;
-    if (wraps(state)) { head.x = (head.x + W) % W; head.y = (head.y + H) % H; }
+    if (wraps(state)) { head.x = (head.x + state.w) % state.w; head.y = (head.y + state.h) % state.h; }
     state.travel += step;
     remaining -= step;
     if (state.travel >= S - 1e-9) { state.travel = 0; state.path.unshift({ x: head.x, y: head.y }); }
@@ -306,8 +310,8 @@ function move(state, dt, events) {
   if (state.effects.invuln > 0) {
     if (!wraps(state)) {
       const r = SNAKE.headRadius + 1;
-      head.x = clamp(head.x, r, W - r);
-      head.y = clamp(head.y, r, H - r);
+      head.x = clamp(head.x, r, state.w - r);
+      head.y = clamp(head.y, r, state.h - r);
     }
   } else {
     const hit = collision(state);

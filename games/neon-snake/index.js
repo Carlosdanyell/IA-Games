@@ -7,7 +7,8 @@ import { buildDialog } from './ui.js';
 export const meta = {
   id: 'neon-snake', title: 'NEON<span>SNAKE</span>', subtitle: 'COBRINHA / ARRASTE LIVRE',
   arenaLabel: 'Tabuleiro do Neon Snake. Arraste em qualquer direção para guiar a cobra.',
-  logicalSize: () => ({ w: 400, h: 480 }),
+  // Largura fixa e altura livre: em pé, o tabuleiro ganha linhas até encher a arena.
+  logicalSize: aspect => ({ w: 400, h: Math.max(480, Math.round(400 / aspect)) }),
   stats: [
     { id: 'score', label: 'Pontos', accent: true, flex: '1.2fr' },
     { id: 'length', label: 'Tamanho', flex: '.9fr' },
@@ -40,12 +41,17 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
   const sound = createSnakeAudio();
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   const coarse = window.matchMedia('(pointer: coarse)').matches;
+  // O jogo é em pé: celular deitado vê só o aviso de girar.
+  const sideways = window.matchMedia('(orientation: landscape) and (max-height: 560px)');
+  const turned = () => coarse && sideways.matches;
 
   let profile = createProfile(store.get(SAVE_KEY, {}));
   let state = 'home';            // home | running | paused | over
-  let run = null, preview = createRun(profile.settings), baseProfile = null;
+  // Cada partida nasce com as linhas que cabem na arena naquele momento.
+  const newRun = () => createRun({ ...profile.settings, rows: renderer.fitRows() });
+  let run = null, preview = newRun(), baseProfile = null;
   let initialBest = profile.best, checkpointTime = 0, storageWarned = false, recordSoundPlayed = false;
-  let masterOn = null, hudKey = '';
+  let masterOn = null, hudKey = '', overlayArgs = null, wasTurned = null;
   const joy = { active: false, x: 0, y: 0, kx: 0, ky: 0, radius: 44 };
   const held = new Set();
 
@@ -167,9 +173,23 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
   }
 
   // --------------------------------------------------------------- telas
+  // Deitado, o painel some com a arena e volta quando o aparelho fica em pé.
+  function present(args) {
+    overlayArgs = args;
+    if (!turned()) hud.showOverlay(args);
+  }
+  function dismiss() { overlayArgs = null; hud.hideOverlay(); }
+  function syncOrientation() {
+    const now = turned();
+    if (now === wasTurned) return;
+    wasTurned = now;
+    if (now) { hud.hideOverlay(); pause(); }
+    else if (overlayArgs) hud.showOverlay(overlayArgs);
+  }
+
   function showHome() {
     const s = profile.settings;
-    hud.showOverlay({
+    present({
       tag: 'Pronto para deslizar',
       title: 'Deslize. Cresça.<br>Não se morda.',
       text: coarse ? 'Arraste em qualquer lugar: a cobra segue a direção do seu dedo.' : 'Mova o mouse ou use as setas: a cobra segue a direção.',
@@ -190,7 +210,7 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
         save();
         sound.unlock();
         syncSound(true);
-        if (['mode', 'difficulty', 'map'].includes(key)) preview = createRun(profile.settings);
+        if (['mode', 'difficulty', 'map'].includes(key)) preview = newRun();
         sound.play('ui');
       },
       onMaster(value) {
@@ -205,16 +225,16 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
   listen(hud.el.dialog, 'close', () => { if (state === 'home') { showHome(); syncHud(true); } });
 
   function start() {
-    if (hud.dialogOpen) return;
+    if (hud.dialogOpen || turned()) return;
     if (run && baseProfile) checkpoint();
     baseProfile = createProfile(profile);
     initialBest = profile.best;
     recordSoundPlayed = false;
-    run = createRun(profile.settings);
+    run = newRun();
     renderer.clear();
     releaseControls();
     state = 'running';
-    hud.hideOverlay();
+    dismiss();
     hud.setPause(false, true);
     sound.unlock();
     sound.play('ui');
@@ -228,7 +248,7 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
     releaseControls();
     sound.setPlaying(false);
     checkpoint();
-    hud.showOverlay({
+    present({
       tag: 'Pausa', title: `Tamanho ${cellsLong(run)}`,
       text: `${number(run.score)} pontos · ${run.foods} alimentos · nível ${run.level}`,
       action: 'Continuar', secondary: 'Encerrar partida', note: 'Ajustes & bônus no rodapé'
@@ -236,10 +256,10 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
     hud.setPause(true, true);
   }
   function resume() {
-    if (state !== 'paused' || hud.dialogOpen) return;
+    if (state !== 'paused' || hud.dialogOpen || turned()) return;
     state = 'running';
     releaseControls();
-    hud.hideOverlay();
+    dismiss();
     hud.setPause(false, true);
     sound.unlock();
     sound.setPlaying(true);
@@ -249,7 +269,7 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
     checkpoint();
     baseProfile = null;
     run = null;
-    preview = createRun(profile.settings);
+    preview = newRun();
     state = 'home';
     releaseControls();
     sound.setPlaying(false);
@@ -269,7 +289,7 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
       ...(result?.unlockedMaps || []).map(id => `arena liberada: ${MAPS.find(m => m.id === id)?.name}`),
       ...(result?.newAchievements || []).map(id => `conquista: ${ACHIEVEMENTS.find(a => a.id === id)?.name}`)
     ];
-    hud.showOverlay({
+    present({
       tag: best ? 'Novo recorde' : 'Fim de partida',
       title: `${number(run.score)} pontos`,
       text: `${run.deathReason} Tamanho ${run.maxLength} · ${run.foods} alimentos · combo ×${run.bestCombo}`,
@@ -291,7 +311,7 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
     meta,
     update(dt) {
       syncSound();
-      if (state !== 'running' || hud.dialogOpen) return;
+      if (state !== 'running' || hud.dialogOpen || turned()) return;
       for (const event of updateRun(run, dt)) {
         renderer.event(event);
         sound.play(event.type);
@@ -304,6 +324,12 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
       else if (checkpointTime >= 5) checkpoint();
     },
     render(dt) {
+      syncOrientation();
+      if (turned()) {
+        renderer.drawRotate();
+        hud.flush();
+        return;
+      }
       renderer.render(run || preview, dt, {
         reducedMotion: profile.settings.reducedMotion || reduced.matches,
         frozen: state !== 'running', joystick: joy, hint: state === 'running'
@@ -314,6 +340,12 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
     },
     resize() {
       viewport.invalidateRect();
+      // Na tela inicial a prévia acompanha a altura nova da arena.
+      if (state === 'home') {
+        const fresh = newRun();
+        if (fresh.rows !== preview.rows) preview = fresh;
+      }
+      syncOrientation();
       // O shell troca a dica depois de create(); a do jogo entra aqui.
       setHint();
       hud.flush();
@@ -324,7 +356,7 @@ export function create({ viewport, input, hud, store, debug, theme, audio, hapti
     onHidden: pause,
     onThemeChange() {},
     getState() {
-      return { state, best: profile.best, ...(run ? {
+      return { state, best: profile.best, turned: turned(), rows: (run || preview).rows, ...(run ? {
         mode: run.mode, difficulty: run.difficulty, map: run.map, waiting: run.waiting, score: run.score, level: run.level,
         length: cellsLong(run), head: { ...run.head }, angle: run.angle, target: run.target, speed: run.speed,
         food: run.food && { ...run.food }, bonus: run.bonus && { ...run.bonus }, combo: run.combo, effects: { ...run.effects },

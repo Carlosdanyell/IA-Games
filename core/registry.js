@@ -5,7 +5,7 @@ export const GAMES = [
     id: 'neon-snake',
     title: 'Neon Snake',
     tagline: 'Siga seu instinto. Quatro modos, seis arenas e combos neon.',
-    tags: ['Snake', '4 modos', 'Offline'],
+    tags: ['Snake', '4 modos', 'Vertical'],
     accent: '#b9ff66',
     status: 'ready',
     entry: './games/neon-snake/index.js',
