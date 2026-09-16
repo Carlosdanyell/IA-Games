@@ -1,0 +1,46 @@
+/* A moldura e os menus vêm do shell; a arena ocupa toda a janela. */
+body.nl-body{overflow:hidden;overscroll-behavior:none;display:block;user-select:none;-webkit-user-select:none}
+.nl-body #root{width:100%;height:100dvh}
+.nl-app.app{position:relative;display:block;width:100%;max-width:none;max-height:none;min-height:0;height:100dvh;padding:0;margin:0;touch-action:none}
+.nl-app .arena{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:0;aspect-ratio:auto;margin:0}
+/* Só o canvas do shell ocupa a arena: o filho direto. Sem o `>`, esta regra
+   também estica o canvas do minimapa, que vive dentro do HUD do jogo. */
+.nl-app .arena>canvas{width:100%;height:100%;display:block;touch-action:none}
+.nl-app>.topbar{position:absolute;z-index:4;top:0;left:0;right:0;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;background:linear-gradient(var(--bg),transparent);pointer-events:none}
+.nl-app .topbar a,.nl-app .topbar button{pointer-events:auto}
+.nl-app>.scorebar,.nl-app>.chipbar{display:none}
+.nl-app>.footer{position:absolute;z-index:4;bottom:0;left:0;right:0;padding:10px 16px calc(12px + env(safe-area-inset-bottom));background:var(--surface)}
+.nl-app[data-playing="true"]>.footer{display:none}
+.nl-app[data-playing="true"] .brand h1,.nl-app[data-playing="true"] .edition{display:none}
+.nl-app .overlay{z-index:3;padding:90px 20px 70px;overflow:auto;background:var(--overlay)}
+.nl-app .panel{margin:auto;width:min(100%,420px)}
+.nl-hud{position:absolute;inset:0;z-index:2;pointer-events:none;color:#eaf3ff;font:12px system-ui}
+.nl-hud[hidden]{display:none}
+.nl-score{position:absolute;top:calc(74px + env(safe-area-inset-top));left:14px;padding:8px 12px;border-radius:10px;background:#0b111bbd;color:#dce8f8;font:12px ui-monospace,monospace}
+.nl-score b{display:block;font-size:23px;color:#a9f2d2}
+.nl-ranking{position:absolute;right:14px;top:calc(74px + env(safe-area-inset-top));background:#0b111bbd;border-radius:10px;padding:9px 12px;min-width:118px;font-size:11px}
+.nl-ranking strong{font-size:10px;letter-spacing:.12em;color:#aabbd0}
+.nl-ranking ol{padding:0;margin:6px 0 0;list-style:none}
+.nl-ranking li{display:flex;justify-content:space-between;gap:12px;line-height:1.65}
+.nl-ranking li[data-player="true"]{color:#a9f2d2}
+.nl-app .nl-map{position:absolute;left:14px;bottom:calc(16px + env(safe-area-inset-bottom));width:82px;height:82px}
+.nl-boost{position:absolute;right:18px;bottom:calc(22px + env(safe-area-inset-bottom));width:78px;height:78px;border:1px solid #9cedc6aa;border-radius:50%;background:#132b2bde;color:#c6ffe5;pointer-events:auto;touch-action:none;font:700 11px system-ui;letter-spacing:.04em}
+.nl-boost span{display:block;font-size:26px;margin-bottom:2px}
+.nl-boost[aria-pressed="true"]{background:#62dba9;color:#0b2520;box-shadow:0 0 28px #66ffc04d}
+.nl-help{position:absolute;top:48%;left:15%;right:15%;text-align:center;color:#dce8f8;background:#0b111bcc;border-radius:12px;padding:12px;font-size:13px}
+.nl-skins{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.nl-skin{min-height:76px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface);text-align:left}
+.nl-skin[aria-pressed="true"]{border-color:var(--accent);background:var(--wash)}
+.nl-skin i{display:block;height:10px;border-radius:8px;margin-bottom:8px}
+.nl-skin small{display:block;color:var(--muted);margin-top:4px}
+.nl-field{display:block;margin:16px 0;color:var(--text)}
+.nl-field select{display:block;width:100%;min-height:44px;margin-top:7px;border:1px solid var(--line);border-radius:9px;padding:8px;background:var(--surface);color:var(--text);font:inherit}
+.nl-field input{margin-right:8px}
+/* Em paisagem o shell empilha topbar e rodapé em coluna, para a grade dele.
+   Aqui a arena é a tela inteira, então os dois voltam a ser faixas — senão os
+   botões do topo caem em cima do placar da partida. */
+@media(orientation:landscape) and (max-height:560px){
+  .nl-app>.topbar{flex-direction:row;align-items:center;gap:8px;padding:calc(8px + env(safe-area-inset-top)) 14px 8px}
+  .nl-app>.footer{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+}
+@media(max-height:480px){.nl-app .overlay{padding:66px 18px 50px}.nl-app .panel h2{font-size:1.5rem}.nl-app .panel p{margin:8px 0}.nl-ranking{top:62px}.nl-score{top:62px}.nl-app .nl-map{width:60px;height:60px}.nl-boost{width:62px;height:62px}.nl-app .brand .edition{display:none}}

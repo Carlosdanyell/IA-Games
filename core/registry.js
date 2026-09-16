@@ -80,6 +80,16 @@ export const GAMES = [
     status: 'ready',
     entry: './games/neon-shooter/index.js',
     art: 'shooter'
+  },
+  {
+    id: 'neon-slither',
+    title: 'Neon Slither',
+    tagline: 'Arena aberta com rivais controlados por IA: colete luz e cresça.',
+    tags: ['Arena', 'Rivais por IA', 'Offline'],
+    accent: '#65f3cb',
+    status: 'ready',
+    entry: './games/neon-slither/index.js',
+    art: 'slither'
   }
 ];
 
