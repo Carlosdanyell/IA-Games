@@ -1,11 +1,11 @@
-import { ITEMS, MAPS, SNAKE } from './config.js';
+import { ITEMS, MAPS, SKINS, SNAKE } from './config.js';
 import { wrapAngle } from './model.js';
 
 // Desenho em Canvas 2D. A simulação usa unidades do tabuleiro (uma casa = 20);
 // aqui tudo é convertido para o campo lógico do viewport. O cenário estático
 // fica num canvas próprio e só é refeito quando muda a arena ou o tamanho.
 
-const PAD = 10;  // margem entre o tabuleiro e a borda do campo lógico
+const PAD = 6;  // margem entre o tabuleiro e a borda do campo lógico
 const ACCENTS = Object.fromEntries(MAPS.map(map => [map.id, map.color]));
 const TAU = Math.PI * 2;
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
@@ -225,10 +225,20 @@ export function createRenderer(viewport) {
     }
   }
 
-  function drawSnake(state, dt) {
+  // Arco-íris: um degradê da cabeça à ponta da cauda, em vez de um traço por
+  // ponto do caminho. Degradê entre pontos iguais não pinta nada, daí a guarda.
+  function bodyGradient(skin, points) {
+    const head = points[0], tail = points[points.length - 1];
+    if (!skin.colors || Math.hypot(head.x - tail.x, head.y - tail.y) < 1) return null;
+    const gradient = ctx.createLinearGradient(sx(head.x), sy(head.y), sx(tail.x), sy(tail.y));
+    skin.colors.forEach((color, i) => gradient.addColorStop(i / (skin.colors.length - 1), color));
+    return gradient;
+  }
+
+  function drawSnake(state, dt, skin) {
     const points = [state.head, ...state.path];
     const turbo = state.effects.turbo > 0;
-    const color = turbo ? '#e0ff81' : '#c1f760';
+    const color = turbo ? skin.turbo : skin.body;
     const width = SNAKE.bodyRadius * 2.3 * g.k;
     const blink = state.effects.invuln > 0 && Math.floor(clock * 12) % 2 === 0;
     ctx.save();
@@ -251,16 +261,19 @@ export function createRenderer(viewport) {
     ctx.globalAlpha = blink ? 0.45 : 1;
 
     bodyPath(points, state);
-    ctx.strokeStyle = color;
+    ctx.strokeStyle = skin.pattern === 'rainbow' ? bodyGradient(skin, points) || color : color;
     ctx.lineWidth = width;
-    ctx.shadowColor = '#a6f14b';
+    ctx.shadowColor = skin.glow;
     ctx.shadowBlur = reduced ? 6 : 13;
     ctx.stroke();
     ctx.shadowBlur = 0;
     bodyPath(points, state);
-    ctx.strokeStyle = 'rgba(234,255,196,0.35)';
-    ctx.lineWidth = width * 0.28;
+    ctx.strokeStyle = skin.shine;
+    // As listras são o mesmo traço de brilho, quebrado em tracinhos largos.
+    if (skin.pattern === 'stripes') { ctx.lineWidth = width * 0.6; ctx.setLineDash([width * 0.5, width * 0.8]); }
+    else ctx.lineWidth = width * 0.28;
     ctx.stroke();
+    ctx.setLineDash([]);
 
     const hx = sx(state.head.x), hy = sy(state.head.y), r = SNAKE.headRadius * 1.3 * g.k;
     if (state.effects.shield) {
@@ -270,11 +283,11 @@ export function createRenderer(viewport) {
       ctx.shadowBlur = 0;
     }
     const headFill = ctx.createRadialGradient(hx - r * 0.3, hy - r * 0.3, 1, hx, hy, r);
-    headFill.addColorStop(0, '#f2ffc8'); headFill.addColorStop(1, color);
+    headFill.addColorStop(0, skin.head); headFill.addColorStop(1, color);
     ctx.fillStyle = headFill;
     ctx.beginPath(); ctx.arc(hx, hy, r, 0, TAU); ctx.fill();
     // Olhos voltados para onde a cabeça aponta.
-    ctx.fillStyle = '#152312';
+    ctx.fillStyle = skin.eye;
     for (const side of [-1, 1]) {
       const a = state.angle + side * 0.62;
       ctx.beginPath(); ctx.arc(hx + Math.cos(a) * r * 0.55, hy + Math.sin(a) * r * 0.55, r * 0.2, 0, TAU); ctx.fill();
@@ -283,7 +296,7 @@ export function createRenderer(viewport) {
   }
 
   // Seta para onde a cobra está virando: é o retorno imediato do gesto.
-  function drawIndicator(state, showHint) {
+  function drawIndicator(state, showHint, skin) {
     if (state.status !== 'running') return;
     const hx = sx(state.head.x), hy = sy(state.head.y), r = SNAKE.headRadius * 1.3 * g.k;
     const angle = state.waiting ? state.angle : state.target;
@@ -293,13 +306,13 @@ export function createRenderer(viewport) {
     ctx.translate(hx + Math.cos(angle) * d, hy + Math.sin(angle) * d);
     ctx.rotate(angle);
     ctx.globalAlpha = 0.9 * pulse;
-    ctx.fillStyle = '#eaffc4';
+    ctx.fillStyle = skin.head;
     ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-3, -5); ctx.lineTo(-1, 0); ctx.lineTo(-3, 5); ctx.closePath(); ctx.fill();
     ctx.restore();
     const turn = wrapAngle(state.target - state.angle);
     if (!state.waiting && Math.abs(turn) > 0.08) {
       ctx.save();
-      ctx.strokeStyle = '#eaffc4';
+      ctx.strokeStyle = skin.head;
       ctx.globalAlpha = 0.35;
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -310,7 +323,7 @@ export function createRenderer(viewport) {
     if (state.waiting && showHint) {
       ctx.save();
       ctx.globalAlpha = 0.6 + 0.4 * pulse;
-      ctx.fillStyle = '#eaffc4';
+      ctx.fillStyle = skin.head;
       ctx.font = '600 12px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -319,15 +332,15 @@ export function createRenderer(viewport) {
     }
   }
 
-  function drawJoystick(joystick) {
+  function drawJoystick(joystick, skin) {
     if (!joystick || !joystick.active) return;
     ctx.save();
     ctx.globalAlpha = 0.3;
-    ctx.strokeStyle = '#eaffc4';
+    ctx.strokeStyle = skin.head;
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(joystick.x, joystick.y, joystick.radius, 0, TAU); ctx.stroke();
     ctx.globalAlpha = 0.45;
-    ctx.fillStyle = '#c1f760';
+    ctx.fillStyle = skin.body;
     ctx.beginPath(); ctx.arc(joystick.x + joystick.kx, joystick.y + joystick.ky, 16, 0, TAU); ctx.fill();
     ctx.restore();
   }
@@ -441,6 +454,7 @@ export function createRenderer(viewport) {
     render(state, dt = 0, options = {}) {
       if (!state) return;
       reduced = Boolean(options.reducedMotion);
+      const skin = SKINS.find(item => item.id === options.skin) || SKINS[0];
       const delta = clamp(Number.isFinite(dt) ? dt : 0, 0, 0.05);
       clock += delta;
       flash = Math.max(0, flash - delta);
@@ -455,12 +469,12 @@ export function createRenderer(viewport) {
       drawObstacles(state, clock);
       drawItem(state.food, clock);
       drawItem(state.bonus, clock);
-      drawSnake(state, options.frozen ? 0 : delta);
+      drawSnake(state, options.frozen ? 0 : delta, skin);
       drawFeedback(options.frozen ? 0 : delta);
       ctx.restore();
-      drawIndicator(state, options.hint);
+      drawIndicator(state, options.hint, skin);
       drawFrame(state);
-      drawJoystick(options.joystick);
+      drawJoystick(options.joystick, skin);
     },
     event,
     clear,

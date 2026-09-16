@@ -1,4 +1,4 @@
-import { MODES, DIFFICULTIES, MAPS, ACHIEVEMENTS, SNAKE, turnRate } from './config.js';
+import { MODES, DIFFICULTIES, MAPS, SKINS, ACHIEVEMENTS, SNAKE, turnRate } from './config.js';
 
 // Simulação contínua da cobra, sem DOM. A cabeça anda sempre para a frente num
 // ângulo livre e gira até a direção pedida; o corpo segue o caminho que a
@@ -357,11 +357,17 @@ export function createProfile(raw = {}) {
   const unlockedMaps = MAPS.filter(map => map.unlock <= integer(stats.foods) || unlocked.includes(map.id)).map(map => map.id);
   const map = choice(MAPS, settings.map, 'grid').id;
   const best = Math.max(integer(raw.best), integer(stats.best));
+  // Cada aparência abre com uma marca diferente do histórico.
+  const reached = { best, ...Object.fromEntries(['games', 'maxLength', 'bestCombo', 'foods'].map(id => [id, integer(stats[id])])) };
+  const keptSkins = Array.isArray(raw.unlockedSkins) ? raw.unlockedSkins : [];
+  const unlockedSkins = SKINS.filter(skin => skin.unlock <= reached[skin.unlockBy] || keptSkins.includes(skin.id)).map(skin => skin.id);
+  const skin = choice(SKINS, settings.skin, 'lima').id;
   return {
     settings: {
       mode: choice(MODES, settings.mode, 'classic').id,
       difficulty: choice(DIFFICULTIES, settings.difficulty, 'normal').id,
       map: unlockedMaps.includes(map) ? map : 'grid',
+      skin: unlockedSkins.includes(skin) ? skin : 'lima',
       ...Object.fromEntries(Object.entries({ effects: true, music: false, haptics: true, reducedMotion: false })
         .map(([id, fallback]) => [id, typeof settings[id] === 'boolean' ? settings[id] : fallback]))
     },
@@ -369,6 +375,7 @@ export function createProfile(raw = {}) {
     bestByMode: Object.fromEntries(MODES.map(({ id }) => [id, integer(object(raw.bestByMode)[id])])),
     bestByDifficulty: Object.fromEntries(DIFFICULTIES.map(({ id }) => [id, integer(object(raw.bestByDifficulty)[id])])),
     unlockedMaps,
+    unlockedSkins,
     achievements: ACHIEVEMENTS.filter(({ id }) => Array.isArray(raw.achievements) && raw.achievements.includes(id)).map(({ id }) => id),
     stats: { games: integer(stats.games), maxLength: integer(stats.maxLength), bestCombo: integer(stats.bestCombo), foods: integer(stats.foods), time: number(stats.time), best }
   };
@@ -376,7 +383,7 @@ export function createProfile(raw = {}) {
 
 export function recordRun(rawProfile, state) {
   const profile = createProfile(rawProfile);
-  if (!state || RECORDED.has(state)) return { profile, unlockedMaps: [], newAchievements: [] };
+  if (!state || RECORDED.has(state)) return { profile, unlockedMaps: [], newSkins: [], newAchievements: [] };
   RECORDED.add(state);
   const score = integer(state.score);
   profile.best = Math.max(profile.best, score);
@@ -390,6 +397,8 @@ export function recordRun(rawProfile, state) {
   profile.stats.best = profile.best;
   const unlockedMaps = MAPS.filter(map => map.unlock <= profile.stats.foods && !profile.unlockedMaps.includes(map.id)).map(map => map.id);
   profile.unlockedMaps.push(...unlockedMaps);
+  const newSkins = SKINS.filter(skin => skin.unlock <= profile.stats[skin.unlockBy] && !profile.unlockedSkins.includes(skin.id)).map(skin => skin.id);
+  profile.unlockedSkins.push(...newSkins);
   const conditions = {
     length25: profile.stats.maxLength >= 25,
     length50: profile.stats.maxLength >= 50,
@@ -401,5 +410,5 @@ export function recordRun(rawProfile, state) {
   };
   const newAchievements = ACHIEVEMENTS.filter(({ id }) => conditions[id] && !profile.achievements.includes(id)).map(({ id }) => id);
   profile.achievements.push(...newAchievements);
-  return { profile, unlockedMaps, newAchievements };
+  return { profile, unlockedMaps, newSkins, newAchievements };
 }

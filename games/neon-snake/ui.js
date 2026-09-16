@@ -1,4 +1,4 @@
-import { MODES, DIFFICULTIES, MAPS, ITEMS, ACHIEVEMENTS } from './config.js';
+import { MODES, DIFFICULTIES, MAPS, SKINS, SKIN_GOALS, ITEMS, ACHIEVEMENTS } from './config.js';
 import { PALETTE_OPTIONS } from '../../core/theme.js';
 
 // Diálogo "Ajustes & bônus", montado com os componentes do shell como nos
@@ -92,6 +92,35 @@ export function buildDialog({ profile, playing, theme, haptics, masterOn, onSett
   });
   root.append(fieldset(`Arena${later}`, arenas));
   root.append(el('p', 'guide-intro', 'Alimentos coletados em qualquer modo liberam arenas novas. Os obstáculos de cada arena aparecem no modo Desafio.'));
+
+  const skins = el('div', 'ns-skins');
+  const skinButtons = SKINS.map(skin => {
+    const open = profile.unlockedSkins.includes(skin.id);
+    const stripe = skin.pattern === 'rainbow'
+      ? `linear-gradient(90deg,${skin.colors.join(',')})`
+      : `linear-gradient(90deg,${skin.body},${skin.head})`;
+    const goal = `${number(profile.stats[skin.unlockBy])}/${number(skin.unlock)} ${SKIN_GOALS[skin.unlockBy]}`;
+    const button = el('button', 'level-pick',
+      `<span class="ns-skin" style="background:${stripe}"></span><b>${skin.name}</b><i>${open ? (s.skin === skin.id ? '✓' : 'livre') : goal}</i>`);
+    button.type = 'button';
+    button.disabled = !open;
+    button.style.setProperty('--c', skin.body);
+    if (s.skin === skin.id) button.setAttribute('aria-current', 'step');
+    button.setAttribute('aria-label', `${skin.name}: ${open ? skin.description : `libera com ${goal}`}`);
+    button.addEventListener('click', () => {
+      for (const other of skinButtons) {
+        other.removeAttribute('aria-current');
+        if (!other.disabled) other.querySelector('i').textContent = 'livre';
+      }
+      button.setAttribute('aria-current', 'step');
+      button.querySelector('i').textContent = '✓';
+      onSetting('skin', skin.id);
+    });
+    skins.append(button);
+    return button;
+  });
+  root.append(fieldset('Aparência da cobra', skins));
+  root.append(el('p', 'guide-intro', 'Cada visual abre com uma marca do seu histórico e vale na hora, mesmo no meio da partida.'));
 
   root.append(fieldset('Aparência', radios('ns-theme', [['dark', 'Escuro'], ['light', 'Claro']], theme.mode, v => theme.setMode(v))));
   root.append(fieldset('Cor neon', radios('ns-palette', PALETTE_OPTIONS.map(o => [o.value, o.label]), theme.choice, v => theme.setChoice(v))));

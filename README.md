@@ -13,7 +13,7 @@ Sem framework, sem build, sem dependências: HTML, CSS e JavaScript com módulos
 
 | Jogo | Descrição |
 |---|---|
-| **Neon Snake** | Cobrinha neon com movimento livre e controle por arrasto, quatro modos, três dificuldades, seis arenas desbloqueáveis, bônus, combos, conquistas e progresso salvo offline. Só na horizontal: o tabuleiro ganha colunas até ocupar a largura da tela. |
+| **Neon Snake** | Cobrinha neon com movimento livre e controle por arrasto, quatro modos, três dificuldades, seis arenas e seis visuais desbloqueáveis, bônus, combos, conquistas e progresso salvo offline. Só na horizontal: o tabuleiro ganha colunas até ocupar a largura da tela. |
 | **Neon Break** | Quebra-blocos com multibola, 12 cápsulas, 9 tipos de bloco, 3 modos e 25 arenas. Guarda a partida a cada arena. |
 | **Neon Words** | Cruzadinha com roda de letras: 25 fases em português, dicas, desbloqueio progressivo de letras. |
 | **Neon Arrow** | Tiro ao alvo com arco: acerte a maçã na cabeça do parceiro. 25 fases com vento, alvo em movimento e lanterna de vida extra, quatro níveis de dificuldade e efeitos de sangue reguláveis. Só na horizontal. |
@@ -84,6 +84,10 @@ qualquer velocidade.
 As dificuldades **Fácil**, **Normal** e **Difícil** alteram velocidade, obstáculos
 e duração dos bônus. O total de alimentos coletados libera seis mapas: **Grid
 Neon**, **Circuito**, **Labirinto**, **Arena Hex**, **Cyber City** e **Void**.
+Seis aparências da cobra — **Lima Neon**, **Ciano Elétrico**, **Rosa
+Cibernético**, **Âmbar Solar**, **Gelo** e **Arco-Íris** — abrem com marcas do
+histórico: partidas jogadas, tamanho, combo, pontuação e alimentos. A troca vale
+na hora, mesmo no meio da partida.
 Alimentos especiais, multiplicador, escudo, redutor, slow motion e turbo criam
 novas oportunidades de pontuação. Efeitos sonoros e música têm controles separados.
 
