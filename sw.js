@@ -9,7 +9,7 @@
 // HTTP cache do navegador.
 //
 // Ao adicionar um jogo, inclua os arquivos dele em ASSETS e suba VERSION.
-const VERSION = 'ia-games-v32';
+const VERSION = 'ia-games-v33';
 const DOC_TIMEOUT = 3500;   // HTML: vale esperar um pouco mais
 const ASSET_TIMEOUT = 1200; // módulos e CSS: rédea curta, cache logo atrás
 const ASSETS = [
@@ -93,7 +93,12 @@ const ASSETS = [
   './games/neon-shooter/render.js',
   './games/neon-shooter/audio.js',
   './games/neon-shooter/ui.js',
-  './games/neon-shooter/style.css'
+  './games/neon-shooter/style.css',
+  './games/neon-slither/index.js',
+  './games/neon-slither/config.js',
+  './games/neon-slither/model.js',
+  './games/neon-slither/render.js',
+  './games/neon-slither/style.css'
 ];
 
 self.addEventListener('install', event => {
