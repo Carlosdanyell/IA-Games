@@ -125,7 +125,10 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
       if (!s.player && (s.think -= dt) <= 0) { think(s); s.think = level.reaction; }
       s.boost = s.boost && s.mass > ARENA.minMass + 1;
       const speed = s.boost ? ARENA.boost : ARENA.speed;
-      const turn = speed / (24 + radiusOf(s) * 1.6);
+      // Raio da curva, em unidades: o giro acompanha a velocidade, então
+      // acelerar não abre a curva. Cobra maior vira um pouco mais largo — só um
+      // pouco, senão o jogo perde a precisão justamente quando fica difícil.
+      const turn = speed / (14 + radiusOf(s) * .9);
       s.angle += Math.max(-turn * dt, Math.min(turn * dt, angleDelta(s.target - s.angle)));
       s.px = s.x; s.py = s.y; s.x += Math.cos(s.angle) * speed * dt; s.y += Math.sin(s.angle) * speed * dt;
       const previous = s.path[1];
