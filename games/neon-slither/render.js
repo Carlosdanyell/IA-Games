@@ -2,7 +2,15 @@ import { ARENA, skinFor } from './config.js';
 import { radiusOf } from './model.js';
 
 const COLORS = ['#78efd0', '#c4a0ff', '#ff99bf', '#ffd887', '#7dcfff', '#b8ef81'];
-const BLOCK = 6; // pontos do corpo por faixa de cor da skin
+// Comprimento de cada faixa de cor, em larguras de corpo: a estampa acompanha a
+// espessura, senão numa cobra grossa as faixas viram listras finas demais.
+const BAND = 2;
+// O zoom acompanha a espessura, então a cabeça ocupa sempre mais ou menos a
+// mesma fatia da tela e quem encolhe é o mundo em volta — é assim que o
+// slither.io mostra que você cresceu. A curva é assintótica: o antigo
+// `1 - raiz(massa)` batia no piso já na massa 2800 e a partir dali crescer não
+// mudava mais nada na tela.
+export const zoomFor = mass => Math.max(.28, 1 / (1 + Math.sqrt(mass) * .0105));
 export function createRenderer(viewport, theme) {
   const v = viewport.view, c = v.ctx;
   const camera = { x: 0, y: 0, zoom: 1 };
@@ -16,8 +24,7 @@ export function createRenderer(viewport, theme) {
     const p = world.player;
     const factor = 1 - Math.exp(-Math.min(dt, .1) * 9);
     camera.x += (p.x - camera.x) * factor; camera.y += (p.y - camera.y) * factor;
-    // Campo de visão largo o bastante para a velocidade dar tempo de reagir.
-    const targetZoom = Math.max(.55, 1 - Math.sqrt(p.mass) * .0085);
+    const targetZoom = zoomFor(p.mass);
     camera.zoom += (targetZoom - camera.zoom) * factor;
     viewport.begin();
     c.fillStyle = theme.dark ? '#0b111b' : '#e8eef4'; c.fillRect(0, 0, v.w, v.h);
@@ -41,6 +48,7 @@ export function createRenderer(viewport, theme) {
     for (const s of ordered) {
       if (!s.alive) continue;
       const colors = skinFor(s.skin).colors, r = radiusOf(s), path = s.path;
+      const bandPoints = Math.max(3, Math.round(r * 2 * BAND / ARENA.spacing));
       // A cabeça é interpolada; o corpo começa nela para os dois não descolarem.
       const hx = s.px + (s.x - s.px) * alpha, hy = s.py + (s.y - s.py) * alpha;
       c.globalAlpha = s.invulnerable > 0 ? .55 : 1;
@@ -54,7 +62,7 @@ export function createRenderer(viewport, theme) {
         let ax = hx, ay = hy, pen = false;
         for (let i = 1; i < path.length; i++) {
           const b = path[i];
-          const mine = band < 0 || Math.floor((i - 1) / BLOCK) % colors.length === band;
+          const mine = band < 0 || Math.floor((i - 1) / bandPoints) % colors.length === band;
           // Trechos fora da câmera não entram no traço.
           const seen = Math.max(ax, b.x) >= left - r && Math.min(ax, b.x) <= right + r
             && Math.max(ay, b.y) >= top - r && Math.min(ay, b.y) <= bottom + r;

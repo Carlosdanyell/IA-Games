@@ -3,7 +3,9 @@ import { createRng } from '../../core/rng.js';
 
 const TAU = Math.PI * 2;
 export const angleDelta = a => Math.atan2(Math.sin(a), Math.cos(a));
-export const radiusOf = s => 7 + Math.min(9, Math.sqrt(s.mass) * .17);
+// Espessura: cresce até quatro vezes a inicial e só então para, como no
+// slither.io, onde engordar é o sinal visível de que a cobra está grande.
+export const radiusOf = s => 7 + Math.min(25, Math.sqrt(s.mass) * .17);
 export const lengthOf = s => 65 + Math.sqrt(s.mass) * 22;
 // Raio da curva em unidades do mundo. Não depende da velocidade: acelerar não
 // abre a curva e, quanto mais rápida a cobra, menos tempo leva a meia-volta.
@@ -81,7 +83,11 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
       safe = world.snakes.every(s => {
         if (!s.alive) return true;
         const clear = s.player ? 520 : 340;
-        return distance(p, s) > clear && s.path.every(v => distance(p, v) > clear * .72);
+        if (distance(p, s) <= clear) return false;
+        // Corpo inteiro longe demais: não vale varrer ponto a ponto, o que ficou
+        // caro depois que uma cobra grande passou a ter mais de mil pontos.
+        if (distance(p, s) > clear + lengthOf(s)) return true;
+        return s.path.every(v => distance(p, v) > clear * .72);
       });
     }
     if (!safe) return null;
@@ -183,7 +189,9 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
   function die(s, killer = null) {
     if (!s.alive) return;
     s.alive = false; s.boost = false; s.prey = null;
-    const step = Math.max(2, Math.ceil(s.path.length / 100)), drops = Math.ceil(s.path.length / step);
+    // Uma cobra grande vira um rastro de luz. Com o teto antigo de 100 pontos,
+    // quanto maior a cobra mais absurdo o valor de cada pelota solta.
+    const step = Math.max(1, Math.ceil(s.path.length / 420)), drops = Math.ceil(s.path.length / step);
     for (let i = 0; i < s.path.length; i += step) food(s.path[i], Math.max(1, s.mass * .75 / drops), s.id % 6);
     world.events.push({ type: 'death', x: s.x, y: s.y, player: s.player });
     if (killer?.player) world.kills++;
@@ -249,7 +257,7 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
     world.foodClock += dt;
     if (world.foodClock >= .25) {
       world.foodClock = 0; world.foods = world.foods.filter(f => !f.eaten);
-      for (let i = 0; i < 12 && world.foods.length < ARENA.food; i++) food(point(30));
+      for (let i = 0; i < ARENA.refill && world.foods.length < ARENA.food; i++) food(point(30));
       foodIndex();
     }
     if (deaths.size) world.snakes = world.snakes.filter(s => s.player || s.alive);

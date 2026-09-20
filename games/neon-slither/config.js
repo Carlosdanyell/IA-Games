@@ -1,6 +1,13 @@
 export const ARENA = {
-  radius: 1800, food: 900, maxFood: 2200, speed: 175, boost: 300,
-  startMass: 32, minMass: 26, maxMass: 6000, spacing: 6,
+  // A arena acompanha o teto de crescimento: com o raio antigo de 1800 uma
+  // cobra grande enxergava quase o mapa inteiro e não sobrava para onde fugir.
+  radius: 3600, food: 3400, maxFood: 8000, speed: 175, boost: 300,
+  // O teto de massa é alto de propósito: no ritmo real de uma partida ele nunca
+  // é alcançado, então crescer não esbarra em parede como acontecia com 6000.
+  startMass: 32, minMass: 26, maxMass: 120000, spacing: 6,
+  // Luz reposta por ciclo de 0,25 s. Acompanha o tamanho da arena, senão uma
+  // cobra grande limpa a região e o mapa demora a repor.
+  refill: 40,
   // Luz comum vale mais de um ponto: o crescimento inicial precisa ser sentido
   // nos primeiros segundos, como no slither.io.
   foodValue: 1.8,
@@ -14,11 +21,11 @@ export const ARENA = {
 // da leitura de perigo; aggression: chance de caçar quem já está em desvantagem;
 // skill: precisão do rumo escolhido; mass: faixa de massa no nascimento.
 export const DIFFICULTIES = {
-  easy: { name: 'Fácil', bots: 12, reaction: .30, foresight: 120, aggression: .05, skill: .55, mass: [24, 70],
+  easy: { name: 'Fácil', bots: 20, reaction: .30, foresight: 120, aggression: .05, skill: .55, mass: [24, 70],
     note: 'Rivais pequenos e distraídos, quase sempre atrás de alimento.' },
-  normal: { name: 'Normal', bots: 16, reaction: .22, foresight: 155, aggression: .20, skill: .78, mass: [26, 120],
+  normal: { name: 'Normal', bots: 28, reaction: .22, foresight: 155, aggression: .20, skill: .78, mass: [26, 120],
     note: 'Rivais disputam alimento e cortam caminho de quem está menor que eles.' },
-  hard: { name: 'Difícil', bots: 18, reaction: .14, foresight: 195, aggression: .36, skill: 1, mass: [28, 170],
+  hard: { name: 'Difícil', bots: 32, reaction: .14, foresight: 195, aggression: .36, skill: 1, mass: [28, 170],
     note: 'Rivais antecipam curvas e aceleram para interceptar presas menores.' }
 };
 export const SKINS = [
