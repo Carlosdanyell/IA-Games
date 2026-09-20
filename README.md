@@ -15,7 +15,7 @@ Sem framework, sem build, sem dependências: HTML, CSS e JavaScript com módulos
 |---|---|
 | **Neon Snake** | Cobrinha neon com movimento livre e controle por arrasto, quatro modos, três dificuldades, seis arenas e seis visuais desbloqueáveis, bônus, combos, conquistas e progresso salvo offline. Só na horizontal: o tabuleiro ganha colunas até ocupar a largura da tela. |
 | **Neon Break** | Quebra-blocos com multibola, 12 cápsulas, 9 tipos de bloco, 3 modos e 25 arenas. Guarda a partida a cada arena. |
-| **Neon Words** | Cruzadinha com roda de letras: 25 fases em português, dicas, desbloqueio progressivo de letras. |
+| **Neon Words** | Cruzadinha com roda de letras: 50 fases em português, palavras bônus fora da grade, dicas e desbloqueio progressivo de letras. |
 | **Neon Arrow** | Tiro ao alvo com arco: acerte a maçã na cabeça do parceiro. 25 fases com vento, alvo em movimento e lanterna de vida extra, quatro níveis de dificuldade e efeitos de sangue reguláveis. Só na horizontal. |
 | **Neon Grid** | Jogo da velha com três níveis de IA: fácil aleatório, médio tático e difícil imbatível. Rodada e placar salvos no aparelho. |
 | **Neon Drop** | Lig 4 com nove tabuleiros diferentes — tamanhos, conecta 4 ou 5 e obstáculos —, quatro níveis de máquina e modo dois jogadores no mesmo aparelho. |

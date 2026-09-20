@@ -125,10 +125,12 @@ function create({ hud, input, theme, audio, haptics, store }) {
     hud.setStat('level', `${String(campaign.current + 1).padStart(2, '0')}<small> / ${LEVELS.length}</small>`);
     hud.setStat('words', `${found}<small> / ${total}</small>`, `${found} de ${total} palavras`);
     hud.setStat('score', String(session.score).padStart(3, '0'));
+    const bonus = session.bonusFound.size, bonusTotal = session.bonusTotal;
     hud.setChips([
       { text: `${session.availableLetters().length} letras` },
-      { text: next ? `+ ${next.letters.length} letra${next.letters.length > 1 ? 's' : ''} após ${next.after - found} palavra${next.after - found > 1 ? 's' : ''}` : 'Todas as letras liberadas', tone: 'flow' }
-    ], next ? `Nova letra ao encontrar mais ${next.after - found} palavras.` : 'Todas as letras estão disponíveis.');
+      ...(bonusTotal ? [{ text: `Bônus ${bonus}/${bonusTotal}`, tone: bonus === bonusTotal ? 'accent' : '' }] : []),
+      { text: next ? `+ ${next.letters.length} letra${next.letters.length > 1 ? 's' : ''} em ${next.after - found} palavra${next.after - found > 1 ? 's' : ''}` : 'Todas as letras', tone: 'flow' }
+    ], (bonusTotal ? `${bonus} de ${bonusTotal} palavras bônus. ` : '') + (next ? `Nova letra ao encontrar mais ${next.after - found} palavras.` : 'Todas as letras estão disponíveis.'));
     hud.setSubtitle(`${LEVELS.length} CONSTELAÇÕES / PALAVRAS EM PORTUGUÊS`);
     hud.setPause(state === 'paused', state === 'playing' || state === 'paused');
     hud.setHint('Sem pressa. <strong>Conecte as letras.</strong>');
@@ -219,8 +221,9 @@ function create({ hud, input, theme, audio, haptics, store }) {
       const run = createSession(level, campaign.levels[index]);
       totals.score += run.score; totals.words += run.found.size; totals.total += level.words.length;
       totals.hints += run.hintsLeft; if (run.complete) totals.done++;
+      totals.bonus += run.bonusFound.size; totals.bonusTotal += run.bonusTotal;
       return totals;
-    }, { score: 0, words: 0, total: 0, hints: 0, done: 0 });
+    }, { score: 0, words: 0, total: 0, hints: 0, done: 0, bonus: 0, bonusTotal: 0 });
   }
   let celebration = [];
   function stopCelebration() { celebration.forEach(clearTimeout); celebration = []; }
@@ -230,8 +233,9 @@ function create({ hud, input, theme, audio, haptics, store }) {
     finale.querySelector('.nw-finale-stats').innerHTML = [
       ['Fases', `${totals.done}<small> / ${LEVELS.length}</small>`],
       ['Palavras', `${totals.words}<small> / ${totals.total}</small>`],
-      ['Pontos', String(totals.score)],
-      ['Dicas guardadas', `${totals.hints}<small> / ${LEVELS.length * 3}</small>`]
+      ['Bônus', `${totals.bonus}<small> / ${totals.bonusTotal}</small>`],
+      ['Dicas', `${totals.hints}<small> / ${LEVELS.length * 3}</small>`],
+      ['Pontos', String(totals.score)]
     ].map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('');
     finale.querySelector('.nw-finale-note').textContent = `Última fase: ${session.level.name} · ${session.score} pontos · ${session.hintsLeft} dicas restantes`;
     hud.hideOverlay(); finale.hidden = false; app.dataset.finale = 'on';
@@ -265,9 +269,17 @@ function create({ hud, input, theme, audio, haptics, store }) {
     syncHud(); showSelection();
   }
   function applyResult(result, before) {
+    if (result.status === 'bonus') {
+      // Bônus não ocupa casa na grade: só pontua e atualiza o placar.
+      save(); syncHud();
+      tell(`Bônus! ${result.word} não está na grade e vale ${result.points} pontos.`, 'success', 4);
+      audio.tone({ freq: 880, dur: .08, vol: .04, slide: 1 }); audio.tone({ freq: 1320, dur: .16, vol: .035, slide: 1 });
+      haptics.buzz([8, 30, 10]);
+      return;
+    }
     if (!['correct', 'hint'].includes(result.status)) {
-      const messages = { short: 'Forme uma palavra com pelo menos 3 letras.', unavailable: 'Use somente as letras disponíveis.', duplicate: 'Você já encontrou essa palavra.', 'not-in-board': 'Essa palavra não faz parte desta cruzadinha.', 'no-hints': 'As três dicas desta fase já foram usadas.', 'no-hint-target': 'Encontre mais uma palavra para liberar letras.' };
-      tell(messages[result.status] || 'Essa fase já está completa.', result.status === 'duplicate' ? '' : 'warn');
+      const messages = { short: 'Forme uma palavra com pelo menos 3 letras.', unavailable: 'Use somente as letras disponíveis.', duplicate: 'Você já encontrou essa palavra.', 'bonus-duplicate': 'Essa palavra bônus já está na sua lista.', 'not-in-board': 'Essa palavra não faz parte desta cruzadinha.', 'no-hints': 'As três dicas desta fase já foram usadas.', 'no-hint-target': 'Encontre mais uma palavra para liberar letras.' };
+      tell(messages[result.status] || 'Essa fase já está completa.', ['duplicate', 'bonus-duplicate'].includes(result.status) ? '' : 'warn');
       return;
     }
     const fresh = new Set([...session.visibleCells()].filter(key => !before.has(key)));
@@ -358,9 +370,15 @@ function create({ hud, input, theme, audio, haptics, store }) {
     content.appendChild(radioGroup('Efeitos visuais', 'nw-effects', [['full', 'Suaves'], ['low', 'Mínimos']], effects, value => { effects = value; app.dataset.effects = value; store.set('effects', value); }));
     content.appendChild(radioGroup('Som', 'nw-sound', [['off', 'Desligado'], ['on', 'Ligado']], audio.enabled ? 'on' : 'off', value => { audio.setEnabled(value === 'on'); hud.setSound(audio.enabled); audio.resume(); }));
     if (haptics.supported) content.appendChild(radioGroup('Vibração', 'nw-haptics', [['off', 'Desligada'], ['on', 'Ligada']], haptics.enabled ? 'on' : 'off', value => haptics.setEnabled(value === 'on')));
+    if (session.bonusTotal) {
+      content.appendChild(node('h3', 'guide-title', 'Palavras bônus desta fase'));
+      const encontradas = [...session.bonusFound];
+      content.appendChild(node('p', 'nw-bonus', encontradas.length ? encontradas.join(' · ') : 'Nenhuma encontrada ainda.'));
+      content.appendChild(node('p', '', `${encontradas.length} de ${session.bonusTotal}. Elas saem das mesmas letras, valem 5 pontos por letra e não entram na grade.`));
+    }
     content.appendChild(node('h3', 'guide-title', 'Como jogar'));
     const rules = node('ul');
-    ['Arraste pelas letras e solte para formar a palavra. Você também pode tocar uma letra de cada vez e usar Formar.', 'Cada botão de letra pode ser usado uma vez por palavra. Se houver duas letras A, você pode usar as duas.', 'As palavras certas preenchem a cruzadinha. Acentos não fazem diferença ao digitar.', 'Em algumas fases, novas letras aparecem após encontrar palavras. As casas pontilhadas ficam disponíveis depois.', 'Você tem três dicas por fase. Misturar só muda a posição das letras.', 'Não há relógio nem perda de vidas. Seu progresso é salvo neste aparelho.'].forEach(text => rules.appendChild(node('li', '', text)));
+    ['Arraste pelas letras e solte para formar a palavra. Você também pode tocar uma letra de cada vez e usar Formar.', 'Cada botão de letra pode ser usado uma vez por palavra. Se houver duas letras A, você pode usar as duas.', 'As palavras certas preenchem a cruzadinha. Acentos não fazem diferença ao digitar.', 'Em algumas fases, novas letras aparecem após encontrar palavras. As casas pontilhadas ficam disponíveis depois.', 'Palavras que saem das letras mas não estão na grade contam como bônus: valem pontos e não são necessárias para completar a fase.', 'Você tem três dicas por fase. Misturar só muda a posição das letras.', 'Não há relógio nem perda de vidas. Seu progresso é salvo neste aparelho.'].forEach(text => rules.appendChild(node('li', '', text)));
     content.appendChild(rules);
     if (!storageAvailable) content.appendChild(node('p', 'nw-storage-note', 'Este navegador bloqueou o salvamento. A partida funciona, mas o progresso pode se perder ao fechar.'));
     hud.setDialogContent(content, 'Fases & ajustes'); hud.openDialog();
@@ -385,7 +403,7 @@ function create({ hud, input, theme, audio, haptics, store }) {
     secondaryAction() { if (state === 'paused') loadLevel(campaign.current, true); },
     pauseToggle() { state === 'paused' ? resume() : pause(); }, openSettings, onHidden: pause,
     onThemeChange() {},
-    getState: () => ({ state, game: meta.id, level: campaign.current + 1, title: session.level.name, wordsFound: session.found.size, wordsTotal: session.level.words.length, letters: session.availableLetters(), score: session.score, hintsLeft: session.hintsLeft, unlockedLevels: campaign.unlocked + 1 }),
+    getState: () => ({ state, game: meta.id, level: campaign.current + 1, title: session.level.name, wordsFound: session.found.size, wordsTotal: session.level.words.length, bonusFound: session.bonusFound.size, bonusTotal: session.bonusTotal, letters: session.availableLetters(), score: session.score, hintsLeft: session.hintsLeft, unlockedLevels: campaign.unlocked + 1 }),
     destroy() { stopPointer(); stopCelebration(); observer?.disconnect(); lifecycle.abort(); finale.remove(); view.remove(); app.classList.remove('nw-app'); delete app.dataset.finale; input.destroy(); }
   };
 }

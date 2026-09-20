@@ -35,6 +35,10 @@ function createSession(level, saved = {}) {
   const board = buildBoard(level);
   const dictionary = new Map(level.words.map(word => [word.text, word]));
   const found = new Set((Array.isArray(saved.found) ? saved.found : []).filter(word => dictionary.has(word)));
+  // Palavras bônus: saem das mesmas letras, mas não ocupam casa na grade.
+  const bonusList = new Set(Array.isArray(level.bonus) ? level.bonus : []);
+  const bonusFound = new Set((Array.isArray(saved.bonus) ? saved.bonus : []).filter(word => bonusList.has(word)));
+  const bonusPoints = word => word.length * 5;
   const hints = new Set((Array.isArray(saved.hints) ? saved.hints : []).filter(key => board.has(key)).slice(0, 3));
   let hintsUsed = Math.min(3, Math.max(hints.size, Number.isInteger(saved.hintsUsed) ? saved.hintsUsed : 0));
 
@@ -66,7 +70,12 @@ function createSession(level, saved = {}) {
     if (text.length < 3) return { status: 'short' };
     if (!canSpell(text, availableLetters())) return { status: 'unavailable' };
     if (found.has(text)) return { status: 'duplicate', word: text };
-    if (!dictionary.has(text)) return { status: 'not-in-board' };
+    if (!dictionary.has(text)) {
+      if (!bonusList.has(text)) return { status: 'not-in-board' };
+      if (bonusFound.has(text)) return { status: 'bonus-duplicate', word: text };
+      bonusFound.add(text);
+      return { status: 'bonus', word: text, points: bonusPoints(text) };
+    }
     const before = new Set(found), letters = availableLetters();
     found.add(text); completeCrossings();
     return result(before, letters);
@@ -89,9 +98,12 @@ function createSession(level, saved = {}) {
     get found() { return new Set(found); },
     get hintsLeft() { return 3 - hintsUsed; },
     get complete() { return found.size === level.words.length; },
-    get score() { return [...found].reduce((total, word) => total + word.length * 10, 0); },
+    get score() { return [...found].reduce((total, word) => total + word.length * 10, 0) + this.bonusScore; },
+    get bonusFound() { return new Set(bonusFound); },
+    get bonusTotal() { return bonusList.size; },
+    get bonusScore() { return [...bonusFound].reduce((total, word) => total + bonusPoints(word), 0); },
     get nextUnlock() { return level.unlocks.find(unlock => found.size < unlock.after) || null; },
-    snapshot: () => ({ found: [...found], hints: [...hints], hintsUsed })
+    snapshot: () => ({ found: [...found], hints: [...hints], hintsUsed, bonus: [...bonusFound] })
   };
 }
 
