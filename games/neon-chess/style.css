@@ -1,0 +1,126 @@
+
+/* Neon Chess usa o chrome, as cores, o som e a persistência da biblioteca.
+   Todo seletor leva o prefixo nx- para nenhum outro jogo herdar estes estilos. */
+.nx-app{width:min(100%,560px);min-height:560px;margin-inline:auto;
+  --nx-light:#cfd9ef;--nx-dark:#5d6f9c;--nx-outline:#0a0f1d;
+  --nx-white:#f4f7ff;--nx-black:#161d31}
+body.nx-body{place-items:stretch}
+body.nx-body>*{justify-self:stretch}
+:root[data-theme="light"] .nx-app{--nx-light:#e7edfb;--nx-dark:#8095c2;--nx-outline:#131a2b}
+.nx-app .brand>div{min-width:0}
+.nx-app .edition{font-size:.6rem;white-space:nowrap}
+.nx-app .tools{flex-shrink:0}
+.nx-app .arena{touch-action:pan-y;background:radial-gradient(ellipse at 50% 38%,var(--glow),transparent 70%),var(--arena)}
+.nx-app canvas{position:absolute;inset:0;opacity:0;pointer-events:none}
+.nx-app .overlay{background:var(--overlay)}
+.nx-app .footer{font-size:.72rem}
+.nx-app .stat .value{font-variant-numeric:tabular-nums}
+
+.nx-surface{position:absolute;inset:0;display:grid;
+  grid-template-rows:auto auto minmax(180px,1fr) auto auto auto auto;
+  gap:9px;padding:15px 16px 14px;overflow:auto;scrollbar-width:thin}
+.nx-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  color:var(--muted);font:500 .6rem ui-monospace,monospace;letter-spacing:.12em}
+.nx-mode{display:flex;align-items:center;gap:7px}
+.nx-mode i{width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 9px var(--accent)}
+.nx-ply{white-space:nowrap}
+
+/* ------------------------------------------------------------- jogadores */
+.nx-player{display:flex;align-items:center;gap:8px;min-height:32px;padding:5px 10px;
+  border:1px solid var(--line);border-radius:11px;background:var(--surface);
+  transition:border-color .2s,background .2s}
+.nx-player[data-active="true"]{border-color:var(--accent);background:var(--wash)}
+.nx-player-name{color:var(--text);font:700 .64rem ui-monospace,monospace;letter-spacing:.06em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
+.nx-taken{display:flex;flex-wrap:wrap;gap:1px;flex:1 1 auto;min-width:0;justify-content:flex-end}
+.nx-taken .nx-piece{width:15px;height:15px}
+.nx-edge{color:var(--accent);font:700 .68rem ui-monospace,monospace;flex-shrink:0}
+
+/* -------------------------------------------------------------- tabuleiro */
+.nx-board-zone{display:grid;place-items:center;position:relative;min-height:0}
+.nx-board{display:grid;grid-template-columns:repeat(8,1fr);
+  width:var(--nx-board-size,300px);aspect-ratio:1;
+  border:2px solid var(--line);border-radius:8px;overflow:hidden;
+  box-shadow:0 0 30px var(--glow),inset 0 0 0 1px rgba(0,0,0,.35)}
+.nx-square{display:grid;place-items:center;padding:0;border:0;position:relative;
+  background:var(--nx-light);transition:background .15s}
+.nx-square[data-shade="dark"]{background:var(--nx-dark)}
+.nx-square .nx-piece{width:86%;height:86%;pointer-events:none;position:relative;z-index:2}
+.nx-square:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;z-index:4}
+.nx-from,.nx-to{box-shadow:inset 0 0 0 100px color-mix(in srgb,var(--accent) 24%,transparent)}
+.nx-selected{box-shadow:inset 0 0 0 3px var(--accent)}
+/* Destino livre vira ponto; destino com peça vira moldura. A diferença entre
+   "ando até aqui" e "capturo aqui" precisa ser lida sem cor, no toque rápido. */
+.nx-target::after{content:"";position:absolute;width:30%;height:30%;border-radius:50%;
+  background:color-mix(in srgb,var(--accent) 70%,transparent);z-index:1}
+.nx-capture::before{content:"";position:absolute;inset:4%;border-radius:50%;
+  border:3px solid color-mix(in srgb,var(--accent) 75%,transparent);z-index:1}
+.nx-check{background:radial-gradient(circle,#ff5f6d 10%,transparent 72%),var(--nx-light)}
+.nx-check[data-shade="dark"]{background:radial-gradient(circle,#ff5f6d 10%,transparent 72%),var(--nx-dark)}
+
+.nx-piece path,.nx-piece circle{fill:currentColor;stroke:var(--nx-outline);stroke-width:1.5;
+  stroke-linejoin:round;paint-order:stroke fill}
+.nx-piece[data-color="white"]{color:var(--nx-white)}
+.nx-piece[data-color="black"]{color:var(--nx-black)}
+.nx-piece[data-color="black"] path,.nx-piece[data-color="black"] circle{stroke:#e8eefc;stroke-width:1.1}
+.nx-piece .nx-cut,.nx-piece .nx-eye{fill:var(--nx-outline);stroke:none}
+.nx-piece[data-color="black"] .nx-cut,.nx-piece[data-color="black"] .nx-eye{fill:#e8eefc}
+
+/* -------------------------------------------------------------- promoção */
+.nx-promotion{position:absolute;inset:0;display:grid;place-content:center;gap:10px;
+  background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(3px);z-index:5;
+  border-radius:8px;padding:14px}
+.nx-promotion[hidden]{display:none}
+.nx-promotion p{margin:0;text-align:center;color:var(--text);font:700 .72rem ui-monospace,monospace;letter-spacing:.06em}
+.nx-promotion-list{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.nx-promotion-option{display:grid;place-items:center;width:58px;height:66px;gap:2px;
+  border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text)}
+.nx-promotion-option:hover,.nx-promotion-option:focus-visible{border-color:var(--accent);background:var(--wash)}
+.nx-promotion-option .nx-piece{width:38px;height:38px}
+.nx-promotion-option span{font:700 .7rem ui-monospace,monospace}
+
+/* ------------------------------------------------------- texto e histórico */
+.nx-feedback{display:grid;gap:2px;min-height:34px}
+.nx-message{color:var(--text);font:700 .78rem/1.3 ui-monospace,monospace;letter-spacing:.04em}
+.nx-message[data-tone="alert"]{color:#ff9c78}
+.nx-detail{color:var(--muted);font-size:.7rem;line-height:1.35}
+.nx-feedback[data-thinking="true"] .nx-message::after{content:"";display:inline-block;width:4px;height:4px;
+  margin-left:6px;border-radius:50%;background:var(--accent);animation:nx-pulse 1s infinite}
+@keyframes nx-pulse{0%,100%{opacity:.25}50%{opacity:1}}
+
+.nx-history[hidden]{display:none}
+.nx-history{max-height:74px;overflow:auto;scrollbar-width:thin;
+  border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.nx-moves{margin:0;padding:6px 8px;list-style:none;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:2px 10px}
+.nx-move-pair{display:grid;grid-template-columns:24px 1fr 1fr;gap:4px;
+  font:500 .68rem ui-monospace,monospace;color:var(--text)}
+.nx-move-pair b{color:var(--muted);font-weight:500}
+.nx-move-pair[data-last="true"] span:last-child:not(:empty),
+.nx-move-pair[data-last="true"] span:nth-child(2):last-child{color:var(--accent)}
+
+.nx-controls{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.nx-controls button{display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 6px;
+  border:1px solid var(--line);border-radius:11px;background:var(--surface);color:var(--text);
+  font:600 .68rem ui-monospace,monospace;letter-spacing:.03em}
+.nx-controls button:hover:not(:disabled),.nx-controls button:focus-visible:not(:disabled){
+  border-color:var(--accent);background:var(--wash)}
+.nx-controls button:disabled{opacity:.42}
+.nx-controls svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.nx-controls span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.nx-settings .choices{display:grid;gap:6px}
+.nx-settings .guide-title{margin:14px 0 4px}
+.nx-hint-setting{display:flex;align-items:center;gap:8px;margin-top:10px}
+.nx-storage-warning{color:#ff9c78}
+
+@media (max-width:360px){
+  .nx-surface{padding:12px 11px;gap:7px}
+  .nx-controls span{display:none}
+  .nx-player-name{font-size:.58rem}
+}
+@media (prefers-reduced-motion:reduce){
+  .nx-square,.nx-player{transition:none}
+  .nx-feedback[data-thinking="true"] .nx-message::after{animation:none;opacity:.8}
+}
