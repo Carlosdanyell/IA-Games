@@ -63,6 +63,55 @@ function create({ hud, input, theme, audio, haptics, store }) {
   const hintButton = $('.nw-hint'), shuffleButton = $('.nw-shuffle'), message = $('.nw-message');
   let positions = new Map();
 
+  // Tela de conquista da última fase. Fica na arena, ao lado da superfície,
+  // para cobrir o tabuleiro inteiro sem depender do overlay genérico do shell.
+  const finale = document.createElement('div');
+  finale.className = 'nw-finale'; finale.hidden = true; finale.tabIndex = -1;
+  finale.setAttribute('role', 'region'); finale.setAttribute('aria-label', 'Jornada completa');
+  finale.innerHTML = `
+    <div class="nw-finale-sky" aria-hidden="true"><svg viewBox="0 0 320 150"><polyline class="nw-finale-trail"/><g class="nw-finale-stars"></g></svg></div>
+    <p class="nw-finale-tag">Jornada completa</p>
+    <h2 class="nw-finale-title">Parabéns! Você ligou todas as estrelas.</h2>
+    <p class="nw-finale-text"></p>
+    <dl class="nw-finale-stats"></dl>
+    <div class="nw-finale-actions">
+      <button class="nw-finale-primary" type="button">Escolher uma fase</button>
+      <button class="nw-finale-secondary" type="button">Refazer esta fase</button>
+    </div>
+    <p class="nw-finale-note"></p>`;
+  hud.arena.appendChild(finale);
+  buildConstellation();
+
+  function buildConstellation() {
+    // Uma estrela por fase do catálogo: acrescentar fases não exige mexer aqui.
+    // O espalhamento vem de um hash estável (e não de um seno), para o traço
+    // parecer um mapa estelar em vez de um gráfico de linha.
+    const scatter = seed => { const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453; return value - Math.floor(value); };
+    const perRow = Math.ceil(Math.sqrt(LEVELS.length * 2.6)), rows = Math.ceil(LEVELS.length / perRow);
+    const points = LEVELS.map((_, index) => {
+      // Trilha em bustrofédon: a linha vai e volta pelas fileiras, como um
+      // mapa estelar, em vez de cruzar a tela inteira a cada fase.
+      const row = Math.floor(index / perRow), col = index % perRow;
+      const step = perRow > 1 ? (row % 2 ? perRow - 1 - col : col) / (perRow - 1) : .5;
+      return { x: 22 + step * 276 + (scatter(index + 41) - .5) * 12, y: 150 / (rows + 1) * (row + 1) + (scatter(index) - .5) * 26 };
+    });
+    const trail = finale.querySelector('.nw-finale-trail'), stars = finale.querySelector('.nw-finale-stars');
+    trail.setAttribute('points', points.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' '));
+    // Comprimento calculado na mão: getTotalLength() num nó oculto é instável
+    // entre navegadores, e o traço precisa do valor para o dasharray.
+    let length = 0;
+    for (let i = 1; i < points.length; i++) length += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    trail.style.setProperty('--trail', Math.ceil(length));
+    points.forEach((point, index) => {
+      const last = index === points.length - 1;
+      const star = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      star.setAttribute('cx', point.x.toFixed(1)); star.setAttribute('cy', point.y.toFixed(1));
+      star.setAttribute('r', last ? 5.5 : 3);
+      star.setAttribute('class', 'nw-star' + (last ? ' last' : ''));
+      star.style.setProperty('--i', index); stars.appendChild(star);
+    });
+  }
+
   function save() {
     campaign.levels[campaign.current] = session.snapshot();
     storageAvailable = store.set('campaign-v1', campaign);
@@ -163,14 +212,56 @@ function create({ hud, input, theme, audio, haptics, store }) {
     if (wheel.hasPointerCapture(id)) wheel.releasePointerCapture(id);
     if (cancel) clearSelection();
   }
+  function campaignTotals() {
+    // A tela final resume a jornada inteira, e não só a última fase: os totais
+    // saem dos snapshots salvos de cada fase.
+    return LEVELS.reduce((totals, level, index) => {
+      const run = createSession(level, campaign.levels[index]);
+      totals.score += run.score; totals.words += run.found.size; totals.total += level.words.length;
+      totals.hints += run.hintsLeft; if (run.complete) totals.done++;
+      return totals;
+    }, { score: 0, words: 0, total: 0, hints: 0, done: 0 });
+  }
+  let celebration = [];
+  function stopCelebration() { celebration.forEach(clearTimeout); celebration = []; }
+  function showFinale(sound) {
+    const totals = campaignTotals();
+    finale.querySelector('.nw-finale-text').textContent = `De ${LEVELS[0].name} a ${LEVELS[LAST].name}, as ${LEVELS.length} constelações estão completas. Suas fases favoritas continuam aqui quando você quiser voltar.`;
+    finale.querySelector('.nw-finale-stats').innerHTML = [
+      ['Fases', `${totals.done}<small> / ${LEVELS.length}</small>`],
+      ['Palavras', `${totals.words}<small> / ${totals.total}</small>`],
+      ['Pontos', String(totals.score)],
+      ['Dicas guardadas', `${totals.hints}<small> / ${LEVELS.length * 3}</small>`]
+    ].map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('');
+    finale.querySelector('.nw-finale-note').textContent = `Última fase: ${session.level.name} · ${session.score} pontos · ${session.hintsLeft} dicas restantes`;
+    hud.hideOverlay(); finale.hidden = false; app.dataset.finale = 'on';
+    // Reinicia as animações quando a tela reaparece numa segunda conclusão.
+    finale.classList.remove('play');
+    if (effects !== 'low') { void finale.offsetWidth; finale.classList.add('play'); }
+    hud.announce(`Parabéns. Você concluiu as ${LEVELS.length} fases de Neon Words com ${totals.score} pontos.`);
+    finale.focus({ preventScroll: true });
+    if (!sound) return;
+    stopCelebration();
+    // Arpégio em quatro tempos: o barramento de áudio corta vozes simultâneas,
+    // então as notas são espaçadas em vez de tocadas juntas.
+    [523, 659, 784, 1047].forEach((freq, index) => celebration.push(setTimeout(() => audio.tone({ freq, dur: index === 3 ? .5 : .16, vol: .05, slide: 1 }), index * 130)));
+    haptics.buzz([14, 50, 14, 50, 26]);
+  }
+  function hideFinale() {
+    stopCelebration();
+    if (finale.hidden) return;
+    finale.hidden = true; finale.classList.remove('play'); delete app.dataset.finale;
+  }
   function finishPhase(sound = true) {
-    state = campaign.current === LEVELS.length - 1 ? 'win' : 'between';
+    state = campaign.current === LAST ? 'win' : 'between';
     campaign.unlocked = Math.max(campaign.unlocked, Math.min(LAST, campaign.current + 1)); save(); stopPointer();
-    if (sound) { audio.tone({ freq: 880, dur: .22, vol: .05 }); haptics.buzz([12, 40, 18]); }
-    const last = state === 'win';
-    hud.showOverlay({ tag: last ? '10 constelações completas' : 'Cruzadinha completa', title: last ? 'Você ligou todas as estrelas.' : 'Mais uma constelação!',
-      text: last ? `Todas as ${LEVELS.length} fases foram resolvidas. Você pode voltar às suas favoritas.` : `Você encontrou as ${session.level.words.length} palavras de ${session.level.name}.`,
-      action: last ? 'Escolher uma fase' : 'Próxima fase', note: `${session.score} pontos nesta fase · ${session.hintsLeft} dicas restantes` });
+    if (state === 'win') showFinale(sound);
+    else {
+      if (sound) { audio.tone({ freq: 880, dur: .22, vol: .05 }); haptics.buzz([12, 40, 18]); }
+      hud.showOverlay({ tag: 'Cruzadinha completa', title: 'Mais uma constelação!',
+        text: `Você encontrou as ${session.level.words.length} palavras de ${session.level.name}.`,
+        action: 'Próxima fase', note: `${session.score} pontos nesta fase · ${session.hintsLeft} dicas restantes` });
+    }
     syncHud(); showSelection();
   }
   function applyResult(result, before) {
@@ -199,6 +290,8 @@ function create({ hud, input, theme, audio, haptics, store }) {
   submitButton.addEventListener('click', submit, { signal });
   clearButton.addEventListener('click', () => { if (canInteract()) { selection.pop(); showSelection(); } }, { signal });
   hintButton.addEventListener('click', useHint, { signal });
+  finale.querySelector('.nw-finale-primary').addEventListener('click', () => { if (!hud.dialogOpen) openSettings(); }, { signal });
+  finale.querySelector('.nw-finale-secondary').addEventListener('click', () => { if (!hud.dialogOpen) loadLevel(campaign.current, true); }, { signal });
   shuffleButton.addEventListener('click', () => { if (!canInteract()) return; stopPointer(true); clearSelection(); order = shuffled(order); renderWheel(); tell('Um novo olhar para as mesmas letras.'); }, { signal });
 
   wheel.addEventListener('pointerdown', event => {
@@ -230,7 +323,7 @@ function create({ hud, input, theme, audio, haptics, store }) {
     stopPointer(); campaign.current = index; session = createSession(LEVELS[index], fresh ? {} : campaign.levels[index]);
     state = 'playing'; selection = []; order = shuffled([...session.availableLetters()].map((_, i) => i));
     app.dataset.scene = ['grid', 'orbit', 'rays'][index % 3]; theme.setAuto(session.level.palette);
-    hud.hideOverlay(); renderBoard(); renderWheel(); defaultMessage(); syncHud(); save();
+    hideFinale(); hud.hideOverlay(); renderBoard(); renderWheel(); defaultMessage(); syncHud(); save();
     if (session.complete) finishPhase(false);
   }
   function pause() {
@@ -293,7 +386,7 @@ function create({ hud, input, theme, audio, haptics, store }) {
     pauseToggle() { state === 'paused' ? resume() : pause(); }, openSettings, onHidden: pause,
     onThemeChange() {},
     getState: () => ({ state, game: meta.id, level: campaign.current + 1, title: session.level.name, wordsFound: session.found.size, wordsTotal: session.level.words.length, letters: session.availableLetters(), score: session.score, hintsLeft: session.hintsLeft, unlockedLevels: campaign.unlocked + 1 }),
-    destroy() { stopPointer(); observer?.disconnect(); lifecycle.abort(); view.remove(); app.classList.remove('nw-app'); input.destroy(); }
+    destroy() { stopPointer(); stopCelebration(); observer?.disconnect(); lifecycle.abort(); finale.remove(); view.remove(); app.classList.remove('nw-app'); delete app.dataset.finale; input.destroy(); }
   };
 }
 
