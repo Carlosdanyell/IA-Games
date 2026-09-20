@@ -6,7 +6,7 @@ import {
   CAPTURE, CASTLE, PROMOTION_CHOICES, SAN_LETTERS
 } from './model.js';
 import { chooseMove, LEVELS, DEFAULT_LEVEL, levelOf, VALUES } from './ai.js';
-import { pieceSvg, describePiece } from './pieces.js';
+import { pieceSvg, describePiece, ensurePieceDefs } from './pieces.js';
 import { LanTransport } from './lan-transport.js';
 import { createLanLobby } from './lan-ui.js';
 import { createMatch, HOST, GUEST } from './lan-match.js';
@@ -53,6 +53,9 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     style.addEventListener('load', () => resize(), { signal });
     document.head.append(style);
   }
+  // Os degradês das peças vivem num SVG oculto, compartilhado pelas 32 peças
+  // do tabuleiro. Sem ele, `fill:url(#...)` não resolve e a peça sai vazada.
+  ensurePieceDefs();
   const app = hud.arena.closest('.app');
   app.classList.add('nx-app');
   document.body.classList.add('nx-body');
@@ -151,16 +154,82 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   }
 
   // --------------------------------------------------------------- som e tato
+  // Peça de madeira batendo na casa, e não bipe de sintetizador. Cada impacto
+  // tem duas camadas: o estalo (ruído filtrado, ataque quase instantâneo, que
+  // dá o material) e o corpo (tom grave curto em queda, que dá o peso). Sem a
+  // primeira o som vira bumbo; sem a segunda, chiado.
+  //
+  // O orçamento de vozes do core é de quatro por quadro, então nenhum efeito
+  // usa mais que três.
+  const timers = new Set();
+  function later(fn, ms) {
+    const timer = setTimeout(() => { timers.delete(timer); if (!destroyed) fn(); }, ms);
+    timers.add(timer);
+    return timer;
+  }
+  const clack = ({ vol = .05, cutoff = 2600, cutoffEnd = 700, dur = .05, body = 190, bodyVol = .035 } = {}) => {
+    audio.noise({ dur, vol, filter: 'lowpass', cutoff, cutoffEnd, attack: .12, curve: 'fall' });
+    if (body) audio.tone({ freq: body, dur: dur + .03, type: 'triangle', vol: bodyVol, slide: .55 });
+  };
+
   function sound(kind) {
     audio.resume();
-    if (kind === 'move') audio.tone({ freq: 430, dur: .07, type: 'triangle', vol: .04, slide: 1 });
-    else if (kind === 'capture') audio.tone({ freq: 250, dur: .12, type: 'square', vol: .035, slide: .85 });
-    else if (kind === 'castle') audio.tone({ freq: 520, dur: .12, type: 'triangle', vol: .04, slide: 1.15 });
-    else if (kind === 'check') audio.tone({ freq: 880, dur: .16, type: 'sine', vol: .05, slide: 1.1 });
-    else if (kind === 'win') audio.tone({ freq: 660, dur: .3, type: 'sine', vol: .055, slide: 1.5 });
-    else if (kind === 'lose') audio.tone({ freq: 300, dur: .34, type: 'triangle', vol: .045, slide: .6 });
-    else if (kind === 'draw') audio.tone({ freq: 330, dur: .26, type: 'triangle', vol: .035, slide: 1 });
+    switch (kind) {
+      case 'move':
+        clack();
+        break;
+      case 'capture':
+        // Duas peças se encontrando: estalo mais aberto, corpo mais grave e um
+        // segundo toque logo atrás, da peça assentando na casa.
+        audio.noise({ dur: .09, vol: .06, filter: 'bandpass', q: 1.3, cutoff: 2000, cutoffEnd: 520, attack: .05, curve: 'fall' });
+        audio.tone({ freq: 140, dur: .12, type: 'triangle', vol: .045, slide: .45 });
+        later(() => clack({ vol: .03, cutoff: 1800, dur: .04, body: 160, bodyVol: .02 }), 55);
+        break;
+      case 'castle':
+        // Rei e torre: dois toques, o segundo um pouco mais seco.
+        clack();
+        later(() => clack({ vol: .045, cutoff: 2200, body: 210 }), 115);
+        break;
+      case 'check':
+        clack({ vol: .045 });
+        later(() => audio.tone({ freq: 1180, dur: .2, type: 'sine', vol: .04, slide: 1 }), 40);
+        break;
+      case 'promote':
+        clack({ vol: .045, body: 220 });
+        later(() => audio.tone({ freq: 700, dur: .12, type: 'sine', vol: .04, slide: 1 }), 70);
+        later(() => audio.tone({ freq: 1050, dur: .2, type: 'sine', vol: .04, slide: 1 }), 170);
+        break;
+      case 'win':
+        audio.tone({ freq: 620, dur: .22, type: 'sine', vol: .05, slide: 1 });
+        later(() => audio.tone({ freq: 830, dur: .2, type: 'sine', vol: .045, slide: 1 }), 130);
+        later(() => audio.tone({ freq: 1240, dur: .32, type: 'sine', vol: .045, slide: 1 }), 260);
+        break;
+      case 'lose':
+        audio.tone({ freq: 330, dur: .3, type: 'triangle', vol: .045, slide: .62 });
+        later(() => audio.tone({ freq: 220, dur: .38, type: 'triangle', vol: .04, slide: .6 }), 170);
+        break;
+      case 'draw':
+        audio.tone({ freq: 420, dur: .2, type: 'triangle', vol: .035, slide: 1 });
+        later(() => audio.tone({ freq: 420, dur: .26, type: 'triangle', vol: .03, slide: 1 }), 190);
+        break;
+      case 'select':
+        // Encostar na peça: um toque bem curto e agudo, quase um clique.
+        audio.noise({ dur: .022, vol: .022, filter: 'highpass', cutoff: 2600, attack: .1, curve: 'fall' });
+        break;
+      case 'deny':
+        audio.tone({ freq: 190, dur: .09, type: 'square', vol: .025, slide: .8 });
+        break;
+      default:
+        break;
+    }
   }
+
+  // O tipo de som de um lance sai do próprio lance: é a mesma conta nos modos
+  // local e em rede.
+  const soundOfMove = (move, check) => check ? 'check'
+    : movePromotion(move) ? 'promote'
+    : (move & CASTLE) ? 'castle'
+    : (move & CAPTURE) ? 'capture' : 'move';
 
   // ------------------------------------------------------------------- lances
   function tell(text, tone = '') { message = text; messageTone = tone; }
@@ -174,16 +243,14 @@ export function create({ hud, input, theme, audio, haptics, store }) {
 
   function applyMove(move) {
     const capture = !!(move & CAPTURE);
-    const castle = !!(move & CASTLE);
     const san = sanOf(pos, move, current.moves);
     makeMove(pos, move);
     moveLog.push(move); sanLog.push(san); keyLog.push(positionKey(pos));
     lastMove = move; selected = -1; targets = [];
     current = status(pos, keyLog);
     haptics.buzz(capture ? 14 : 8);
+    sound(soundOfMove(move, current.check));
     if (current.over) finish();
-    else if (current.check) sound('check');
-    else sound(castle ? 'castle' : capture ? 'capture' : 'move');
     if (!current.over) tell(current.check ? 'Xeque!' : '', current.check ? 'alert' : '');
     thinkLeft = levelOf(level).delay;
     save(); sync();
@@ -256,10 +323,13 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     if (piece && colorOf(piece) === pos.turn) {
       selected = sq;
       targets = current.moves.filter(candidate => moveFrom(candidate) === sq);
+      sound(targets.length ? 'select' : 'deny');
       tell(targets.length ? '' : 'Essa peça não tem lance legal agora.', targets.length ? '' : 'alert');
     } else if (selected >= 0) {
+      sound('deny');
       tell('Lance ilegal. O rei não pode ficar em xeque.', 'alert');
     } else if (piece) {
+      sound('deny');
       tell(`Vez das ${COLOR_NAMES[pos.turn]}.`, 'alert');
     }
     sync();
@@ -374,7 +444,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     // jogador confirmar"), que senão fica na tela depois de resolvido.
     if (pausadoAntes !== paused) tell('', '');
     if (novoLance) {
-      sound(current.check ? 'check' : (lastMove & CAPTURE) ? 'capture' : (lastMove & CASTLE) ? 'castle' : 'move');
+      sound(soundOfMove(lastMove, current.check));
       haptics.buzz((lastMove & CAPTURE) ? 14 : 8);
       tell(current.check && !over() ? 'Xeque!' : '', current.check && !over() ? 'alert' : '');
     }
@@ -800,6 +870,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
       'Empate por afogamento, tripla repetição, regra dos 50 lances e material insuficiente são reconhecidos automaticamente.',
       'Voltar lance desfaz o par (seu lance e o da máquina). Girar troca o lado que fica embaixo.',
       'Na mesma rede: dois aparelhos no mesmo Wi-Fi, um cria a sala e envia o convite. Quem cria joga de brancas; a revanche troca as cores.',
+      'O som das peças liga no alto-falante da barra superior — ele vem desligado por padrão em todos os jogos.',
       'Atalhos: Z volta o lance, G gira o tabuleiro, P pausa, Esc cancela a seleção.',
       'O placar é contado por nível e só nas partidas contra a máquina.'
     ]) how.append(el('li', '', text));
@@ -823,7 +894,9 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     hud.setHint('Toque na peça · <strong>depois no destino</strong>');
     hud.flush();
     const rect = zone.getBoundingClientRect();
-    const size = Math.max(180, Math.min(420, rect.width - 4, rect.height - 4));
+    // O teto antigo (420px) sobrava numa tela grande: em tablet e no desktop o
+    // tabuleiro ficava menor que o espaço disponível.
+    const size = Math.max(180, Math.min(620, rect.width - 2, rect.height - 2));
     board.style.setProperty('--nx-board-size', size + 'px');
   }
 
@@ -878,6 +951,8 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     }),
     destroy() {
       destroyed = true;
+      for (const timer of timers) clearTimeout(timer);
+      timers.clear();
       netClose(true);
       lifecycle.abort();
       view.remove();

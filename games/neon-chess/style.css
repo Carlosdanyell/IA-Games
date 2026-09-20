@@ -18,7 +18,7 @@ body.nx-body>*{justify-self:stretch}
 
 .nx-surface{position:absolute;inset:0;display:grid;
   grid-template-rows:auto auto minmax(180px,1fr) auto auto auto auto;
-  gap:9px;padding:15px 16px 14px;overflow:auto;scrollbar-width:thin}
+  gap:8px;padding:12px 12px 11px;overflow:auto;scrollbar-width:thin}
 .nx-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;
   color:var(--muted);font:500 .6rem ui-monospace,monospace;letter-spacing:.12em}
 .nx-mode{display:flex;align-items:center;gap:7px}
@@ -26,7 +26,7 @@ body.nx-body>*{justify-self:stretch}
 .nx-ply{white-space:nowrap}
 
 /* ------------------------------------------------------------- jogadores */
-.nx-player{display:flex;align-items:center;gap:8px;min-height:32px;padding:5px 10px;
+.nx-player{display:flex;align-items:center;gap:8px;min-height:28px;padding:4px 9px;
   border:1px solid var(--line);border-radius:11px;background:var(--surface);
   transition:border-color .2s,background .2s}
 .nx-player[data-active="true"]{border-color:var(--accent);background:var(--wash)}
@@ -58,13 +58,24 @@ body.nx-body>*{justify-self:stretch}
 .nx-check{background:radial-gradient(circle,#ff5f6d 10%,transparent 72%),var(--nx-light)}
 .nx-check[data-shade="dark"]{background:radial-gradient(circle,#ff5f6d 10%,transparent 72%),var(--nx-dark)}
 
-.nx-piece path,.nx-piece circle{fill:currentColor;stroke:var(--nx-outline);stroke-width:1.5;
-  stroke-linejoin:round;paint-order:stroke fill}
+/* Corpo da peça: contorno desenhado por fora do preenchimento (paint-order),
+   o que mantém a silhueta nítida mesmo com a casa de 40px do celular. */
+.nx-piece path,.nx-piece circle,.nx-piece ellipse{fill:currentColor;stroke:var(--nx-outline);
+  stroke-width:1.5;stroke-linejoin:round;paint-order:stroke fill}
 .nx-piece[data-color="white"]{color:var(--nx-white)}
 .nx-piece[data-color="black"]{color:var(--nx-black)}
-.nx-piece[data-color="black"] path,.nx-piece[data-color="black"] circle{stroke:#e8eefc;stroke-width:1.1}
+/* Só as formas sem classe recebem o degradê; corte, olho, brilho e sombra
+   têm tratamento próprio. */
+.nx-piece[data-color="white"] :not([class]){fill:url(#nxWhitePiece) var(--nx-white)}
+.nx-piece[data-color="black"] :not([class]){fill:url(#nxBlackPiece) var(--nx-black)}
+.nx-piece[data-color="black"] path,.nx-piece[data-color="black"] circle{stroke:#dfe7f8;stroke-width:1.2}
 .nx-piece .nx-cut,.nx-piece .nx-eye{fill:var(--nx-outline);stroke:none}
-.nx-piece[data-color="black"] .nx-cut,.nx-piece[data-color="black"] .nx-eye{fill:#e8eefc}
+.nx-piece[data-color="black"] .nx-cut,.nx-piece[data-color="black"] .nx-eye{fill:#dfe7f8}
+.nx-piece .nx-shade{fill:#000;opacity:.22;stroke:none}
+.nx-piece[data-color="black"] .nx-shade{fill:#000;opacity:.4}
+.nx-piece .nx-shine{fill:#fff;opacity:.5;stroke:none}
+.nx-piece[data-color="black"] .nx-shine{opacity:.22}
+.nx-piece .nx-drop{fill:#000;opacity:.2;stroke:none}
 
 /* -------------------------------------------------------------- promoção */
 .nx-promotion{position:absolute;inset:0;display:grid;place-content:center;gap:10px;
@@ -80,7 +91,7 @@ body.nx-body>*{justify-self:stretch}
 .nx-promotion-option span{font:700 .7rem ui-monospace,monospace}
 
 /* ------------------------------------------------------- texto e histórico */
-.nx-feedback{display:grid;gap:2px;min-height:34px}
+.nx-feedback{display:grid;gap:1px;min-height:32px}
 .nx-message{color:var(--text);font:700 .78rem/1.3 ui-monospace,monospace;letter-spacing:.04em}
 .nx-message[data-tone="alert"]{color:#ff9c78}
 .nx-detail{color:var(--muted);font-size:.7rem;line-height:1.35}
@@ -103,13 +114,13 @@ body.nx-body>*{justify-self:stretch}
 /* `display:flex` do botão vence o [hidden] da folha do navegador: sem esta
    regra, "Voltar lance" e "Entregar" apareceriam nos dois modos ao mesmo tempo. */
 .nx-controls button[hidden]{display:none}
-.nx-controls button{display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 6px;
+.nx-controls button{display:flex;align-items:center;justify-content:center;gap:5px;padding:9px 4px;
   border:1px solid var(--line);border-radius:11px;background:var(--surface);color:var(--text);
-  font:600 .68rem ui-monospace,monospace;letter-spacing:.03em}
+  font:600 .63rem ui-monospace,monospace;letter-spacing:.01em}
 .nx-controls button:hover:not(:disabled),.nx-controls button:focus-visible:not(:disabled){
   border-color:var(--accent);background:var(--wash)}
 .nx-controls button:disabled{opacity:.42}
-.nx-controls svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;
+.nx-controls svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;
   stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
 .nx-controls span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
@@ -118,10 +129,60 @@ body.nx-body>*{justify-self:stretch}
 .nx-hint-setting{display:flex;align-items:center;gap:8px;margin-top:10px}
 .nx-storage-warning{color:#ff9c78}
 
+/* Tela curta: o que é moldura encolhe para o tabuleiro crescer. Num celular
+   de 640px de altura isso é a diferença entre casa de 28px e de 40px. */
+@media (max-height:700px){
+  .nx-surface{padding:8px 9px;gap:5px}
+  .nx-player{min-height:24px;padding:3px 8px}
+  .nx-feedback{min-height:26px}
+  .nx-detail{font-size:.66rem}
+  .nx-history{max-height:52px}
+  .nx-controls button{padding:7px 5px}
+}
+/* Em celular a largura é o que limita o tabuleiro: a margem lateral da
+   superfície encolhe, já que a própria arena do shell tem borda e cantos. */
+@media (max-width:430px){
+  .nx-surface{padding-left:8px;padding-right:8px}
+}
 @media (max-width:360px){
-  .nx-surface{padding:12px 11px;gap:7px}
   .nx-controls span{display:none}
   .nx-player-name{font-size:.58rem}
+}
+
+/* Tela deitada e telas largas: o tabuleiro ocupa a altura inteira de uma
+   coluna e todo o resto vai para a coluna ao lado. Em paisagem de celular era
+   onde mais se perdia espaço — a pilha vertical espremia o tabuleiro à metade
+   da altura disponível. */
+/* Em paisagem o shell estreita a arena para caber jogos em retrato (razão
+   5/6). O xadrez quer a largura inteira, como a mesa do Neon Pool. */
+@media (orientation:landscape){
+  .nx-app{width:100%;max-width:1040px;min-height:0}
+  .nx-app .arena{aspect-ratio:auto;width:100%}
+}
+@media (min-width:700px) and (min-aspect-ratio:1/1){
+  .nx-app{width:min(100%,1040px);min-height:0}
+  /* A coluna do painel tem largura própria e o tabuleiro fica com todo o
+     resto: com frações, o tabuleiro perdia espaço para um painel que não
+     precisava dele. */
+  .nx-surface{grid-template-columns:minmax(0,1fr) minmax(238px,34%);
+    grid-template-rows:auto auto auto minmax(0,1fr) auto auto;
+    grid-template-areas:
+      "tabuleiro cabecalho"
+      "tabuleiro adversario"
+      "tabuleiro texto"
+      "tabuleiro historico"
+      "tabuleiro voce"
+      "tabuleiro controles";
+    gap:9px 14px;padding:14px}
+  .nx-heading{grid-area:cabecalho}
+  .nx-player[data-seat="top"]{grid-area:adversario}
+  .nx-player[data-seat="bottom"]{grid-area:voce}
+  .nx-board-zone{grid-area:tabuleiro}
+  .nx-feedback{grid-area:texto}
+  .nx-history{grid-area:historico;max-height:none}
+  .nx-controls{grid-area:controles;grid-template-columns:repeat(auto-fit,minmax(84px,1fr))}
+  .nx-app[data-lobby="true"] .nx-board-zone{min-height:0}
+  .nx-app[data-lobby="true"] .nx-surface{grid-template-columns:minmax(0,1fr)}
 }
 @media (prefers-reduced-motion:reduce){
   .nx-square,.nx-player{transition:none}
