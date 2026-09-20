@@ -2,6 +2,7 @@ import { ARENA, skinFor } from './config.js';
 import { radiusOf } from './model.js';
 
 const COLORS = ['#78efd0', '#c4a0ff', '#ff99bf', '#ffd887', '#7dcfff', '#b8ef81'];
+const BLOCK = 6; // pontos do corpo por faixa de cor da skin
 export function createRenderer(viewport, theme) {
   const v = viewport.view, c = v.ctx;
   const camera = { x: 0, y: 0, zoom: 1 };
@@ -15,7 +16,8 @@ export function createRenderer(viewport, theme) {
     const p = world.player;
     const factor = 1 - Math.exp(-Math.min(dt, .1) * 9);
     camera.x += (p.x - camera.x) * factor; camera.y += (p.y - camera.y) * factor;
-    const targetZoom = Math.max(.5, 1.1 - Math.sqrt(p.mass) * .009);
+    // Campo de visão largo o bastante para a velocidade dar tempo de reagir.
+    const targetZoom = Math.max(.55, 1 - Math.sqrt(p.mass) * .0085);
     camera.zoom += (targetZoom - camera.zoom) * factor;
     viewport.begin();
     c.fillStyle = theme.dark ? '#0b111b' : '#e8eef4'; c.fillRect(0, 0, v.w, v.h);
@@ -35,20 +37,33 @@ export function createRenderer(viewport, theme) {
       c.drawImage(sprites[f.color % COLORS.length], f.x - size / 2, f.y - size / 2, size, size);
     }
     const ordered = [...world.snakes.filter(s => !s.player), p];
+    c.lineCap = 'round'; c.lineJoin = 'round';
     for (const s of ordered) {
       if (!s.alive) continue;
       const colors = skinFor(s.skin).colors, r = radiusOf(s), path = s.path;
-      c.lineCap = 'round'; c.lineJoin = 'round'; c.globalAlpha = s.invulnerable > 0 ? .55 : 1;
-      // Corpos fora da câmera não geram chamadas de desenho.
-      for (let i = path.length - 1; i > 0; i--) {
-        const a = path[i], b = path[i - 1];
-        if (Math.max(a.x, b.x) < left - r || Math.min(a.x, b.x) > right + r || Math.max(a.y, b.y) < top - r || Math.min(a.y, b.y) > bottom + r) continue;
-        c.strokeStyle = s.boost ? '#ffffff33' : '#00000024'; c.lineWidth = r * 2 + (s.boost ? 8 : 3);
-        c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
-        c.strokeStyle = colors[Math.floor(i / 5) % colors.length]; c.lineWidth = r * 2;
+      // A cabeça é interpolada; o corpo começa nela para os dois não descolarem.
+      const hx = s.px + (s.x - s.px) * alpha, hy = s.py + (s.y - s.py) * alpha;
+      c.globalAlpha = s.invulnerable > 0 ? .55 : 1;
+      // Um traço por faixa de cor, não um por ponto do corpo: uma cobra longa
+      // custava centenas de chamadas de desenho por quadro e derrubava o FPS.
+      // `band` de -1 desenha o contorno, que sai em um traço só.
+      for (let band = -1; band < colors.length; band++) {
+        if (band < 0) { c.strokeStyle = s.boost ? '#ffffff33' : '#00000024'; c.lineWidth = r * 2 + (s.boost ? 8 : 3); }
+        else { c.strokeStyle = colors[band]; c.lineWidth = r * 2; }
+        c.beginPath();
+        let ax = hx, ay = hy, pen = false;
+        for (let i = 1; i < path.length; i++) {
+          const b = path[i];
+          const mine = band < 0 || Math.floor((i - 1) / BLOCK) % colors.length === band;
+          // Trechos fora da câmera não entram no traço.
+          const seen = Math.max(ax, b.x) >= left - r && Math.min(ax, b.x) <= right + r
+            && Math.max(ay, b.y) >= top - r && Math.min(ay, b.y) <= bottom + r;
+          if (mine && seen) { if (!pen) { c.moveTo(ax, ay); pen = true; } c.lineTo(b.x, b.y); }
+          else pen = false;
+          ax = b.x; ay = b.y;
+        }
         c.stroke();
       }
-      const hx = s.px + (s.x - s.px) * alpha, hy = s.py + (s.y - s.py) * alpha;
       c.save(); c.translate(hx, hy); c.rotate(s.angle);
       c.fillStyle = colors[0]; c.beginPath(); c.ellipse(0, 0, r * 1.2, r, 0, 0, Math.PI * 2); c.fill();
       for (const side of [-1, 1]) {
