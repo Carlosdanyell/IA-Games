@@ -21,6 +21,7 @@ Sem framework, sem build, sem dependências: HTML, CSS e JavaScript com módulos
 | **Neon Drop** | Lig 4 com nove tabuleiros diferentes — tamanhos, conecta 4 ou 5 e obstáculos —, quatro níveis de máquina e modo dois jogadores no mesmo aparelho. |
 | **Neon Pool** | Sinuca 8-ball com regras completas, máquina de três níveis, dois jogadores no mesmo aparelho ou multiplayer em aparelhos no mesmo Wi-Fi. Mesa na horizontal. |
 | **Neon Slither** | Arena aberta com rivais controlados por IA: colete luz, cresça e cerque os outros. Minimapa, ranking ao vivo, oito skins que abrem pelo recorde e três níveis de rival, tudo offline. |
+| **Neon Memo** | Jogo da memória com 65 figuras reais (bichos, frutas, transporte, música, natureza, casa, esportes e mar) em 25 fases. Sete regras diferentes — trinca, par por tema, camaleão coringa, troca-troca e relâmpago —, espiada inicial, combos, dicas, estrelas por fase e desafio do dia. |
 | **Neon Shooter** | Tiro espacial vertical feito para o dedo: oito tipos de inimigo, chefe com três fases a cada cinco ondas, nove power-ups, melhorias a cada nível, combos, conquistas e trilha synthwave gerada no aparelho. |
 
 ---

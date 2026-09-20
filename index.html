@@ -311,6 +311,34 @@
         fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
       <circle cx="166" cy="100" r="9.5" fill="currentColor"/>
       <circle cx="169" cy="96" r="2.4" fill="#0d1b18"/>
+    </svg>`,
+    memo: `<svg viewBox="0 0 320 200" aria-hidden="true">
+      <!-- carta de costas -->
+      <g transform="rotate(-8 66 100)">
+        <rect x="24" y="42" width="84" height="116" rx="15" fill="#171022" stroke="currentColor" stroke-width="3"/>
+        <rect x="50" y="82" width="32" height="32" rx="6" transform="rotate(45 66 98)" fill="none"
+          stroke="currentColor" stroke-width="2.5" opacity=".55"/>
+      </g>
+      <!-- par de gatos encontrado -->
+      ${[[116, 34, 0], [210, 42, 7]].map(([x, y, r]) => `
+        <g transform="rotate(${r} ${x + 42} ${y + 58})">
+          <rect x="${x}" y="${y}" width="84" height="116" rx="15" fill="#f6f2fb" stroke="currentColor" stroke-width="3"/>
+          <g transform="translate(${x + 11} ${y + 22}) scale(.97)">
+            <path d="m15 11 6 16 10-7z" fill="#f0a05e"/><path d="m49 11-6 16-10-7z" fill="#f0a05e"/>
+            <path d="m18 16 3 8 5-3z" fill="#f9c3ae"/><path d="m46 16-3 8-5-3z" fill="#f9c3ae"/>
+            <ellipse cx="32" cy="34" rx="18" ry="16" fill="#f5ae6c"/>
+            <path d="M24 22v4M32 20v5M40 22v4" fill="none" stroke="#dd8b41" stroke-width="3" stroke-linecap="round"/>
+            <ellipse cx="32" cy="42" rx="12" ry="8" fill="#fde8d4"/>
+            <circle cx="25" cy="32" r="2.8" fill="#34293f"/><circle cx="39" cy="32" r="2.8" fill="#34293f"/>
+            <path d="m32 41-3.5-3h7z" fill="#e87d94"/>
+            <path d="M32 41v3M27.5 46.5c2.5 2 6.5 2 9 0M10 36h9M11 43l8-3M54 36h-9M53 43l-8-3"
+              fill="none" stroke="#a4693f" stroke-width="1.8" stroke-linecap="round"/>
+          </g>
+          <rect x="${x + 22}" y="${y + 94}" width="40" height="6" rx="3" fill="#cfc4dd"/>
+        </g>`).join('')}
+      <g fill="currentColor" opacity=".7">
+        <circle cx="160" cy="22" r="3"/><circle cx="212" cy="176" r="3"/><circle cx="112" cy="180" r="2.4"/>
+      </g>
     </svg>`
   };
 
