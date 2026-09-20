@@ -32,12 +32,48 @@ test('toda palavra sai das letras da roda', () => {
 
 test('nenhuma fase repete palavra nem junta singular e plural', () => {
   for (const level of LEVELS) {
-    const texts = level.words.map(word => word.text);
+    // Bônus e grade dividem a mesma roda de letras, então a regra vale para os dois.
+    const texts = [...level.words.map(word => word.text), ...level.bonus];
     assert.equal(new Set(texts).size, texts.length, tagOf(level) + ': palavra repetida');
     for (const [index, word] of texts.entries()) for (const other of texts.slice(index + 1))
       assert.ok(!pluralsOf(word).includes(other) && !pluralsOf(other).includes(word),
         `${tagOf(level)}: "${word}" e "${other}" são a mesma palavra no singular e no plural`);
   }
+});
+
+test('as palavras bônus saem das letras da fase e ficam fora da grade', () => {
+  for (const level of LEVELS) {
+    assert.ok(Array.isArray(level.bonus), tagOf(level) + ': falta a lista de bônus');
+    const grade = level.words.map(word => word.text);
+    for (const word of level.bonus) {
+      assert.equal(word, normalizeWord(word), `${tagOf(level)}: bônus "${word}" precisa estar em maiúsculas e sem acento`);
+      assert.ok(word.length >= 3, `${tagOf(level)}: bônus "${word}" tem menos de 3 letras`);
+      assert.ok(canSpell(word, lettersOf(level)), `${tagOf(level)}: bônus "${word}" não sai de ${lettersOf(level)}`);
+      assert.ok(!grade.includes(word), `${tagOf(level)}: "${word}" está na grade e na lista de bônus`);
+    }
+  }
+});
+
+test('bônus pontua, não repete e não conta para completar a fase', () => {
+  const level = LEVELS.find(candidate => candidate.bonus.length && !candidate.unlocks.length);
+  const session = createSession(level);
+  const [word] = level.bonus;
+  const first = session.submit(word);
+  assert.equal(first.status, 'bonus', 'a primeira tentativa devia ser aceita como bônus');
+  assert.equal(first.points, word.length * 5, 'bônus vale 5 pontos por letra');
+  assert.equal(session.score, first.points, 'o placar da fase soma o bônus');
+  assert.equal(session.submit(word.toLowerCase()).status, 'bonus-duplicate', 'bônus repetido devia ser recusado');
+  assert.equal(session.found.size, 0, 'bônus não entra na contagem de palavras da grade');
+  assert.equal(session.complete, false, 'bônus não completa a fase');
+  const listadas = new Set([...level.words.map(word => word.text), ...level.bonus]);
+  const letras = [...level.letters];
+  const intrusa = letras.flatMap(a => letras.flatMap(b => letras.map(c => a + b + c)))
+    .find(tentativa => new Set(tentativa).size === 3 && !listadas.has(tentativa));
+  assert.equal(session.submit(intrusa).status, 'not-in-board', `"${intrusa}" sai das letras mas não é palavra da fase`);
+  // O bônus tem de sobreviver ao salvamento, como as palavras da grade.
+  const revivida = createSession(level, session.snapshot());
+  assert.deepEqual([...revivida.bonusFound], [word], 'o bônus encontrado devia voltar do save');
+  assert.equal(revivida.score, first.points, 'os pontos do bônus voltam com o save');
 });
 
 test('as letras liberadas chegam depois de palavras suficientes', () => {

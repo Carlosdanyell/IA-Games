@@ -3,6 +3,9 @@
 // Cada fase é um conjunto de letras e um punhado de palavras formadas só com
 // essas letras. `unlocks` acrescenta letras à roda depois de um número de
 // palavras encontradas, liberando palavras maiores.
+//
+// `bonus` são palavras que saem das mesmas letras mas não entram na grade:
+// valem pontos extras e não contam para completar a fase.
 const LEVELS = [
   {
     "id": 1,
@@ -42,7 +45,8 @@ const LEVELS = [
         "col": 1,
         "direction": "across"
       }
-    ]
+    ],
+    "bonus": []
   },
   {
     "id": 2,
@@ -94,6 +98,13 @@ const LEVELS = [
         "col": 2,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "MOLAR",
+      "RALO",
+      "ORLA",
+      "MORA",
+      "MAL"
     ]
   },
   {
@@ -146,6 +157,10 @@ const LEVELS = [
         "col": 0,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "ACASO",
+      "CAOS"
     ]
   },
   {
@@ -193,6 +208,11 @@ const LEVELS = [
         "col": 1,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "PADRE",
+      "PERA",
+      "ARDE"
     ]
   },
   {
@@ -240,6 +260,13 @@ const LEVELS = [
         "col": 3,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "CORAL",
+      "ARCO",
+      "RALO",
+      "CALO",
+      "COR"
     ]
   },
   {
@@ -292,6 +319,13 @@ const LEVELS = [
         "col": 1,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "PASTO",
+      "ASTRO",
+      "SOPRA",
+      "SAPO",
+      "ROTA"
     ]
   },
   {
@@ -348,6 +382,12 @@ const LEVELS = [
         "col": 0,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "ESTELAR",
+      "LESTE",
+      "LASER",
+      "SELA"
     ]
   },
   {
@@ -406,6 +446,11 @@ const LEVELS = [
         "col": 7,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "CASTO",
+      "TOCA",
+      "CASO"
     ]
   },
   {
@@ -464,6 +509,10 @@ const LEVELS = [
         "col": 2,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "SIGO",
+      "AMO"
     ]
   },
   {
@@ -528,6 +577,14 @@ const LEVELS = [
         "col": 4,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "PALETA",
+      "NATAL",
+      "LENTA",
+      "PENAL",
+      "PLANA",
+      "APTA"
     ]
   },
   {
@@ -592,6 +649,14 @@ const LEVELS = [
         "col": 0,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "TROPA",
+      "PARTO",
+      "TEOR",
+      "APTO",
+      "RATO",
+      "PATO"
     ]
   },
   {
@@ -656,6 +721,12 @@ const LEVELS = [
         "col": 2,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "OPTA",
+      "TOPA",
+      "APTO",
+      "MATO"
     ]
   },
   {
@@ -715,6 +786,11 @@ const LEVELS = [
         "col": 6,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "HONRA",
+      "NORA",
+      "SOAR"
     ]
   },
   {
@@ -789,6 +865,14 @@ const LEVELS = [
         "col": 0,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "MARTELO",
+      "MORTAL",
+      "METAL",
+      "MOTEL",
+      "MALTE",
+      "REMO"
     ]
   },
   {
@@ -848,6 +932,12 @@ const LEVELS = [
         "col": 2,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "RABO",
+      "ROCA",
+      "COR",
+      "BAR"
     ]
   },
   {
@@ -912,6 +1002,12 @@ const LEVELS = [
         "col": 4,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "LOTES",
+      "LESTO",
+      "SOLA",
+      "SETA"
     ]
   },
   {
@@ -976,6 +1072,10 @@ const LEVELS = [
         "col": 0,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "CASO",
+      "SAPO"
     ]
   },
   {
@@ -1040,6 +1140,11 @@ const LEVELS = [
         "col": 2,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "SOLA",
+      "ALVO",
+      "VIAS"
     ]
   },
   {
@@ -1099,6 +1204,9 @@ const LEVELS = [
         "col": 6,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "GRADUA"
     ]
   },
   {
@@ -1158,6 +1266,9 @@ const LEVELS = [
         "col": 1,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "POTES"
     ]
   },
   {
@@ -1217,6 +1328,11 @@ const LEVELS = [
         "col": 0,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "CONTER",
+      "CETRO",
+      "NOTE"
     ]
   },
   {
@@ -1276,6 +1392,13 @@ const LEVELS = [
         "col": 0,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "LIMAR",
+      "LIMA",
+      "MIRA",
+      "RIM",
+      "MAL"
     ]
   },
   {
@@ -1340,6 +1463,12 @@ const LEVELS = [
         "col": 0,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "ADIAR",
+      "MEIA",
+      "RAMA",
+      "DAR"
     ]
   },
   {
@@ -1399,6 +1528,10 @@ const LEVELS = [
         "col": 0,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "LAVRA",
+      "VALA"
     ]
   },
   {
@@ -1458,6 +1591,13 @@ const LEVELS = [
         "col": 2,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "MINHOCA",
+      "NICHO",
+      "MACIO",
+      "MANCO",
+      "MAIO"
     ]
   },
   {
@@ -1534,6 +1674,13 @@ const LEVELS = [
         "col": 6,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "COLA",
+      "LAVO",
+      "CAVO",
+      "ALA",
+      "CAL"
     ]
   },
   {
@@ -1605,6 +1752,11 @@ const LEVELS = [
         "col": 6,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "CASA",
+      "SACI",
+      "AMA"
     ]
   },
   {
@@ -1681,6 +1833,10 @@ const LEVELS = [
         "col": 4,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "TROMBA",
+      "TOMBAR"
     ]
   },
   {
@@ -1752,6 +1908,12 @@ const LEVELS = [
         "col": 4,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "ROUCA",
+      "CRUA",
+      "ACRE",
+      "CANO"
     ]
   },
   {
@@ -1828,6 +1990,14 @@ const LEVELS = [
         "col": 0,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "MORTAL",
+      "MORTE",
+      "MOLA",
+      "TEMA",
+      "RAMO",
+      "LEMA"
     ]
   },
   {
@@ -1899,6 +2069,14 @@ const LEVELS = [
         "col": 0,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "SOLTAR",
+      "ESTOLA",
+      "FAROL",
+      "FATOR",
+      "ROSA",
+      "ATOR"
     ]
   },
   {
@@ -1970,6 +2148,11 @@ const LEVELS = [
         "col": 7,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "DESATAR",
+      "SETA",
+      "ARDE"
     ]
   },
   {
@@ -2046,6 +2229,13 @@ const LEVELS = [
         "col": 1,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "ORDENA",
+      "RONDA",
+      "CONDE",
+      "CEDRO",
+      "DONA"
     ]
   },
   {
@@ -2117,6 +2307,13 @@ const LEVELS = [
         "col": 5,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "ALTERNA",
+      "LATA",
+      "ANTA",
+      "TELA",
+      "NATA"
     ]
   },
   {
@@ -2193,6 +2390,14 @@ const LEVELS = [
         "col": 0,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "NOITE",
+      "RETINA",
+      "TERRA",
+      "TORNAR",
+      "TRIO",
+      "RAIO"
     ]
   },
   {
@@ -2264,6 +2469,13 @@ const LEVELS = [
         "col": 5,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "MANTA",
+      "ANIMA",
+      "TANGA",
+      "META",
+      "NATA"
     ]
   },
   {
@@ -2340,6 +2552,12 @@ const LEVELS = [
         "col": 8,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "FUGA",
+      "FIGO",
+      "RUGA",
+      "FURA"
     ]
   },
   {
@@ -2411,6 +2629,12 @@ const LEVELS = [
         "col": 3,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "BEIRADA",
+      "AREIA",
+      "ADIAR",
+      "NADAR"
     ]
   },
   {
@@ -2482,6 +2706,12 @@ const LEVELS = [
         "col": 2,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "AUSTERO",
+      "SETOR",
+      "RESTO",
+      "ROSA"
     ]
   },
   {
@@ -2558,6 +2788,11 @@ const LEVELS = [
         "col": 8,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "CRATERA",
+      "TIARA",
+      "CERTA"
     ]
   },
   {
@@ -2629,6 +2864,12 @@ const LEVELS = [
         "col": 5,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "OITAVA",
+      "ATIVA",
+      "GATA",
+      "VOGA"
     ]
   },
   {
@@ -2700,6 +2941,12 @@ const LEVELS = [
         "col": 5,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "MATE",
+      "PANE",
+      "TIA",
+      "PAI"
     ]
   },
   {
@@ -2770,6 +3017,11 @@ const LEVELS = [
         "col": 1,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "ACRE",
+      "CARA",
+      "RASA"
     ]
   },
   {
@@ -2841,6 +3093,11 @@ const LEVELS = [
         "col": 5,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "RENA",
+      "CARA",
+      "ANCA"
     ]
   },
   {
@@ -2912,6 +3169,11 @@ const LEVELS = [
         "col": 5,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "ARTE",
+      "PARA",
+      "ANTA"
     ]
   },
   {
@@ -2988,6 +3250,13 @@ const LEVELS = [
         "col": 6,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "LADO",
+      "RODA",
+      "DURO",
+      "MULA",
+      "ROLA"
     ]
   },
   {
@@ -3059,6 +3328,13 @@ const LEVELS = [
         "col": 1,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "GRITA",
+      "GUIAR",
+      "GIRA",
+      "RUGA",
+      "RARA"
     ]
   },
   {
@@ -3130,6 +3406,11 @@ const LEVELS = [
         "col": 4,
         "direction": "across"
       }
+    ],
+    "bonus": [
+      "TERMO",
+      "TREMO",
+      "MERO"
     ]
   },
   {
@@ -3201,6 +3482,11 @@ const LEVELS = [
         "col": 5,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "GEMA",
+      "TOMA",
+      "MAGNO"
     ]
   },
   {
@@ -3272,6 +3558,11 @@ const LEVELS = [
         "col": 0,
         "direction": "down"
       }
+    ],
+    "bonus": [
+      "LETRAS",
+      "SETA",
+      "TEAR"
     ]
   }
 ];
