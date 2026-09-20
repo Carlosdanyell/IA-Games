@@ -90,6 +90,16 @@ export const GAMES = [
     status: 'ready',
     entry: './games/neon-slither/index.js',
     art: 'slither'
+  },
+  {
+    id: 'neon-memo',
+    title: 'Neon Memo',
+    tagline: 'Jogo da memória com 65 figuras de verdade e 25 fases.',
+    tags: ['Memória', '25 fases', 'Figuras reais'],
+    accent: '#ffb35c',
+    status: 'ready',
+    entry: './games/neon-memo/index.js',
+    art: 'memo'
   }
 ];
 

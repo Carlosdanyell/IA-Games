@@ -1,0 +1,170 @@
+/* Neon Memo: estilos próprios do jogo, prefixo nm-.
+   Herda tokens de core/theme.js e o chrome de core/shell.css. */
+/* A face da carta acompanha o tema: papel claro no claro, carta escura no
+   escuro. --fig-line clareia os detalhes escuros do desenho (rodas, caixa do
+   piano) para eles não sumirem no fundo. */
+.nm-app{min-height:560px;--nm-paper:#1b1426;--nm-paper-ink:#cec3dd;--fig-line:#d2c8e0}
+:root[data-theme="light"] .nm-app{--nm-paper:#fff;--nm-paper-ink:#4a3f5c;--fig-line:#34293f}
+.nm-app .arena{touch-action:pan-y;background:radial-gradient(ellipse at 50% 0,var(--glow),transparent 70%),var(--arena)}
+.nm-app canvas{position:absolute;inset:0;opacity:0;pointer-events:none}
+.nm-app .overlay{background:var(--overlay)}
+.nm-app .overlay:not([hidden])~.nm-surface{visibility:hidden}
+.nm-app .footer{font-size:.73rem}
+.nm-app .stat .value{font-variant-numeric:tabular-nums}
+
+.nm-surface{position:absolute;inset:0;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto auto;
+  gap:6px;padding:9px 9px 8px}
+.nm-topline{display:flex;justify-content:space-between;align-items:center;gap:8px;
+  font:600 .64rem ui-monospace,monospace;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
+.nm-stage{color:var(--accent);white-space:nowrap}
+.nm-rule{flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nm-timer{white-space:nowrap;font-variant-numeric:tabular-nums}
+.nm-timer[data-low="true"]{color:var(--warn)}
+.nm-progress{height:3px;border-radius:4px;background:var(--line);overflow:hidden}
+.nm-progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+
+.nm-board-wrap{position:relative;min-height:0;min-width:0;display:grid;place-items:center}
+.nm-board{display:grid;gap:var(--nm-gap,7px);
+  grid-template-columns:repeat(var(--cols),var(--nm-card,52px));
+  grid-template-rows:repeat(var(--rows),var(--nm-card,52px))}
+
+/* A carta é um botão com duas faces; o giro é do miolo, não do botão, para o
+   alvo de toque não se mexer durante a animação. */
+.nm-card{position:relative;padding:0;border:0;background:none;perspective:620px;
+  width:var(--nm-card,52px);height:var(--nm-card,52px);touch-action:manipulation;
+  animation:nm-deal .34s cubic-bezier(.2,.8,.3,1) both;animation-delay:calc(var(--i,0)*18ms)}
+.nm-card:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:13px;z-index:3}
+.nm-inner{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .38s cubic-bezier(.3,.7,.3,1)}
+.nm-card[data-state="up"] .nm-inner,.nm-card[data-state="matched"] .nm-inner,
+.nm-card[data-state="hint"] .nm-inner,.nm-card[data-state="miss"] .nm-inner{transform:rotateY(180deg)}
+.nm-face{position:absolute;inset:0;display:grid;place-items:center;border-radius:13px;
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden}
+.nm-back{border:1px solid var(--line);background:linear-gradient(145deg,var(--wash),transparent 70%),var(--surface);
+  box-shadow:inset 0 1px 0 #ffffff0d}
+.nm-back:before{content:"";position:absolute;inset:0;
+  background:radial-gradient(circle at 1px 1px,var(--accent) .7px,transparent .9px) 0 0/9px 9px;opacity:.22}
+.nm-back:after{content:"";width:38%;height:38%;border:1.6px solid var(--accent);border-radius:5px;
+  transform:rotate(45deg);opacity:.5}
+/* A figura é colorida: a face precisa de papel claro para as cores lerem,
+   nos dois temas. A cor da família fica na borda, separando os assuntos. */
+.nm-front{transform:rotateY(180deg);border:2px solid var(--nm-ink,var(--accent));
+  background:color-mix(in srgb,var(--nm-ink,var(--accent)) 9%,var(--nm-paper));
+  display:grid;grid-template-rows:1fr auto;padding:6% 5% 4%}
+.nm-art{width:100%;height:100%;min-height:0}
+.nm-name{font:600 clamp(6px,calc(var(--nm-card)*.15),11px) system-ui;font-style:normal;color:var(--nm-paper-ink);
+  text-align:center;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:none}
+.nm-app[data-names="sempre"] .nm-name,
+.nm-app[data-names="achadas"] .nm-card[data-state="matched"] .nm-name{display:block}
+.nm-app[data-names="sempre"] .nm-front,.nm-app[data-names="achadas"] .nm-card[data-state="matched"] .nm-front{padding-bottom:2%}
+
+/* Transform só no botão: aplicar transform na face trocaria o rotateY(180deg)
+   que a mantém virada para a frente e a carta sumiria no meio da animação. */
+.nm-card[data-state="matched"]{animation:none}
+.nm-card[data-state="matched"] .nm-front{border-color:var(--accent);
+  box-shadow:inset 0 0 0 2px var(--accent),0 0 18px var(--glow)}
+.nm-card[data-state="miss"] .nm-front{border-color:var(--warn)}
+.nm-card[data-state="hint"] .nm-front{border-color:var(--accent)}
+.nm-card[data-state="miss"]{animation:nm-shake .34s ease-in-out}
+.nm-card[data-state="hint"],.nm-card[data-fresh="true"]{animation:nm-hit .5s ease-out}
+.nm-card[data-swap="true"]{animation:nm-swap .45s ease-in-out}
+.nm-card[aria-disabled="true"]{cursor:default}
+.nm-card[aria-disabled="false"]:active{transform:scale(.94)}
+.nm-card[data-wild="true"] .nm-front{
+  background:repeating-linear-gradient(135deg,transparent 0 7px,color-mix(in srgb,var(--nm-ink) 14%,transparent) 7px 14px),
+    color-mix(in srgb,var(--nm-ink) 9%,var(--nm-paper))}
+
+.nm-sparks{position:absolute;inset:0;pointer-events:none;overflow:visible;z-index:4}
+.nm-spark{position:absolute;width:5px;height:5px;border-radius:2px;background:var(--accent);
+  box-shadow:0 0 9px var(--accent);animation:nm-spark .75s cubic-bezier(.1,.6,.3,1) both}
+
+.nm-message{margin:0;text-align:center;min-height:17px;font-size:.8rem;line-height:1.25;color:var(--muted)}
+.nm-message[data-tone="ok"]{color:var(--accent)}
+.nm-message[data-tone="warn"]{color:var(--warn)}
+.nm-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.nm-actions button{display:flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:7px;
+  border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--text);font-size:.8rem}
+.nm-actions button:disabled{opacity:.45}
+.nm-actions svg{width:17px;height:17px;fill:none;stroke:var(--accent);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.nm-hint b{display:grid;place-items:center;min-width:18px;height:18px;border-radius:50%;
+  background:var(--button);color:var(--button-text);font:650 .68rem ui-monospace,monospace}
+
+/* Cada família de figuras tem sua cor: ajuda a separar "gato" de "guitarra"
+   antes mesmo de ler o nome. */
+.nm-card[data-family="animais"]{--nm-ink:#ffb35c}
+.nm-card[data-family="frutas"]{--nm-ink:#ff7f9a}
+.nm-card[data-family="transporte"]{--nm-ink:#7fb2ff}
+.nm-card[data-family="musica"]{--nm-ink:#c79bff}
+.nm-card[data-family="natureza"]{--nm-ink:#6fe0a6}
+.nm-card[data-family="casa"]{--nm-ink:#ffd36e}
+.nm-card[data-family="esportes"]{--nm-ink:#7fe3ff}
+.nm-card[data-family="mar"]{--nm-ink:#5fd6d0}
+.nm-card[data-family="coringa"]{--nm-ink:#ff8ae0}
+:root[data-theme="light"] .nm-card[data-family="animais"]{--nm-ink:#a4590a}
+:root[data-theme="light"] .nm-card[data-family="frutas"]{--nm-ink:#b02341}
+:root[data-theme="light"] .nm-card[data-family="transporte"]{--nm-ink:#234c9e}
+:root[data-theme="light"] .nm-card[data-family="musica"]{--nm-ink:#6a32a8}
+:root[data-theme="light"] .nm-card[data-family="natureza"]{--nm-ink:#0d6b45}
+:root[data-theme="light"] .nm-card[data-family="casa"]{--nm-ink:#8a5f08}
+:root[data-theme="light"] .nm-card[data-family="esportes"]{--nm-ink:#0a6a86}
+:root[data-theme="light"] .nm-card[data-family="mar"]{--nm-ink:#0b6a66}
+:root[data-theme="light"] .nm-card[data-family="coringa"]{--nm-ink:#a3238a}
+
+/* Painel de ajustes */
+.nm-levels{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-bottom:16px}
+.nm-level{position:relative;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  border:1px solid var(--line);background:var(--arena);border-radius:11px;color:var(--text);
+  font:700 .92rem ui-monospace,monospace;padding:4px 2px}
+.nm-level:disabled{opacity:.4}
+.nm-level[aria-current="step"]{border-color:var(--accent);background:var(--wash);color:var(--accent)}
+.nm-level i{font-style:normal;font-size:.66rem;letter-spacing:.04em;color:var(--accent);min-height:10px;line-height:1}
+.nm-daily{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:52px;
+  border:1px solid var(--accent);border-radius:13px;background:var(--wash);color:var(--text);padding:9px 13px;
+  text-align:left;font-size:.85rem;margin-bottom:16px}
+.nm-daily small{display:block;color:var(--muted);font-size:.72rem;margin-top:3px}
+.nm-settings p,.nm-settings li{color:var(--muted);font-size:.83rem;line-height:1.55}
+.nm-settings ul{padding-left:19px}.nm-settings li+li{margin-top:6px}
+.nm-settings .guide-title{margin-top:18px}
+.nm-settings .choices span{font-size:.82rem;min-height:42px;display:grid;place-items:center}
+.nm-rules-list{display:grid;gap:7px;margin:0 0 4px;padding:0;list-style:none}
+.nm-rules-list li{display:grid;grid-template-columns:auto 1fr;gap:9px;align-items:baseline;
+  border:1px solid var(--line);border-radius:11px;padding:8px 10px}
+.nm-rules-list b{color:var(--accent);font:650 .74rem ui-monospace,monospace;letter-spacing:.06em;white-space:nowrap}
+.nm-storage-note{color:var(--warn)!important}
+
+@keyframes nm-deal{from{opacity:0;transform:translateY(12px) scale(.86)}to{opacity:1;transform:none}}
+@keyframes nm-hit{0%{transform:scale(1)}45%{transform:scale(1.09)}100%{transform:scale(1)}}
+@keyframes nm-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+@keyframes nm-swap{0%{transform:scale(1) rotate(0)}50%{transform:scale(.78) rotate(8deg)}100%{transform:scale(1) rotate(0)}}
+@keyframes nm-spark{from{transform:translate(-50%,-50%) scale(1);opacity:.95}
+  to{transform:translate(var(--dx),var(--dy)) scale(.2);opacity:0}}
+
+.nm-app[data-effects="low"] .nm-surface *,.nm-app[data-effects="low"] .nm-surface :before,
+.nm-app[data-effects="low"] .nm-surface :after{animation:none!important;transition:none!important}
+.nm-app[data-paused="true"] .nm-surface *{animation-play-state:paused!important}
+
+@media(max-height:740px){
+  .nm-surface{padding:8px 10px;gap:6px}.nm-topline{font-size:.58rem}
+  .nm-actions button{min-height:38px;font-size:.75rem}.nm-message{font-size:.74rem;min-height:16px}
+  .nm-app .edition{display:none}
+}
+@media(max-width:360px){
+  .nm-app .brand h1{font-size:.86rem}.nm-app .icon-button{width:37px;height:38px}
+  .nm-surface{padding-left:8px;padding-right:8px}.nm-levels{grid-template-columns:repeat(4,1fr)}
+}
+/* Deitado, a tela é larga e baixa: a barra de progresso sai (o placar já diz
+   quantos faltam) e recado e botões dividem a última linha, sobrando altura
+   para as cartas. */
+@media(orientation:landscape) and (max-height:560px){
+  .nm-app{min-height:320px;grid-template-columns:min(190px,25vw) 1fr}
+  .nm-app .arena{aspect-ratio:auto;width:100%;justify-self:stretch}
+  .nm-surface{grid-template-rows:auto minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr) auto;gap:5px;padding:7px 9px}
+  .nm-topline{grid-column:1/3}
+  .nm-progress{display:none}
+  .nm-board-wrap{grid-column:1/3}
+  .nm-message{grid-column:1;text-align:left;min-height:0;font-size:.72rem;align-self:center}
+  .nm-actions{grid-column:2;grid-template-columns:auto auto;gap:6px}
+  .nm-actions button{min-height:34px;font-size:.72rem;padding:5px 11px}
+}
+@media(prefers-reduced-motion:reduce){
+  .nm-surface *,.nm-surface :before,.nm-surface :after{animation:none!important;transition:none!important}
+}
