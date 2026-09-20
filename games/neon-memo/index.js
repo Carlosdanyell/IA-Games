@@ -121,6 +121,8 @@ export function create({ hud, input, theme, audio, haptics, store }) {
       node.dataset.index = index;
       node.style.setProperty('--i', index);
       node.setAttribute('role', 'gridcell');
+      node.setAttribute('aria-rowindex', Math.floor(index / level.cols) + 1);
+      node.setAttribute('aria-colindex', index % level.cols + 1);
       paint(node, card);
       node.addEventListener('click', () => flip(index), { signal });
       board.append(node);
