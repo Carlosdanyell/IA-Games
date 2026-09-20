@@ -40,13 +40,20 @@ export const PLAYER = {
   maxBullets: 90
 };
 
+// `bossHp` anda separado de `hp` de propósito: subir a vida do chefe alonga a
+// luta em vez de apertá-la, e luta longa contra 5 pontos de vida é desgaste,
+// não desafio. A diferença entre os níveis está na pressão — quantidade de
+// inimigos, cadência de tiro e a carência depois de levar dano.
 export const DIFFICULTIES = {
   facil:   { label: 'Fácil',   note: 'Inimigos lentos, menos tiros e mais power-ups.',
-             speed: 0.78, count: 0.8, fire: 0.6, hp: 0.75, drops: 1.4, score: 0.75 },
+             speed: 0.78, count: 0.88, fire: 0.72, hp: 0.8, bossHp: 0.82, invuln: 1.3,
+             drops: 1.35, score: 0.75 },
   normal:  { label: 'Normal',  note: 'O equilíbrio clássico do arcade.',
-             speed: 1, count: 1, fire: 1, hp: 1, drops: 1, score: 1 },
-  dificil: { label: 'Difícil', note: 'Mais inimigos, mais tiros e mais resistência.',
-             speed: 1.18, count: 1.3, fire: 1.5, hp: 1.35, drops: 0.72, score: 1.6 }
+             speed: 1, count: 1, fire: 1, hp: 1, bossHp: 1, invuln: 1,
+             drops: 1, score: 1 },
+  dificil: { label: 'Difícil', note: 'Muito mais inimigos, tiros mais cerrados e menos folga depois do dano.',
+             speed: 1.18, count: 1.35, fire: 1.55, hp: 1.3, bossHp: 1.08, invuln: 0.85,
+             drops: 0.85, score: 1.8 }
 };
 export const DIFFICULTY_KEYS = Object.keys(DIFFICULTIES);
 
@@ -57,9 +64,11 @@ export const ENEMIES = {
   dart:     { name: 'Dardo', role: 'Rápido', hp: 1, speed: 215, radius: 10, score: 150, xp: 1,
               drop: 0.04, color: '#ffe45e', minWave: 2, contact: 1 },
   weaver:   { name: 'Ziguezague', role: 'Lateral', hp: 3, speed: 58, radius: 13, score: 200, xp: 2,
-              drop: 0.06, color: '#7dff6a', minWave: 3, contact: 1, amp: 0.3, freq: 1.5 },
+              drop: 0.06, color: '#7dff6a', minWave: 4, contact: 1, amp: 0.3, freq: 1.5 },
+  // O Atirador entra antes do Ziguezague: é ele quem ensina a desviar, e até a
+  // onda em que estreia nada no campo consegue acertar quem se mexe.
   gunner:   { name: 'Atirador', role: 'Dispara', hp: 4, speed: 95, radius: 15, score: 300, xp: 2,
-              drop: 0.09, color: '#ff5a5a', minWave: 4, contact: 1, fireEvery: 1.9, bulletSpeed: 175, stay: 8 },
+              drop: 0.09, color: '#ff5a5a', minWave: 3, contact: 1, fireEvery: 1.9, bulletSpeed: 175, stay: 8 },
   tank:     { name: 'Blindado', role: 'Resistente', hp: 10, speed: 36, radius: 21, score: 450, xp: 4,
               drop: 0.22, color: '#ff9b3d', minWave: 5, contact: 2 },
   splitter: { name: 'Divisor', role: 'Especial', hp: 5, speed: 55, radius: 16, score: 350, xp: 3,
@@ -120,12 +129,12 @@ export const WAVES = {
   intro: 1.6,
   rest: 1.5,
   bossWarning: 2,
-  baseCount: 7,
-  perWave: 2.1,
+  baseCount: 9,
+  perWave: 2.3,
   maxCount: 64,
-  gapStart: 1.9,
+  gapStart: 1.62,
   gapMin: 0.55,
-  gapStep: 0.06,
+  gapStep: 0.055,
   speedPerWave: 0.022,
   speedMax: 1.55,
   hpPerWave: 0.06,
@@ -155,27 +164,31 @@ export const PATTERNS = {
   hunters:       { telegraph: 0.5, kind: 'summon', type: 'hunter', count: 2 }
 };
 
+// A vida do chefe é o relógio da luta: cada 10 pontos valem cerca de um segundo
+// de mira certeira no meio da partida, e na prática o jogador passa a maior
+// parte do tempo desviando. Vida alta demais não deixa a luta difícil, deixa
+// longa — e o desgaste cobra a vida do jogador antes da perícia.
 export const BOSSES = [
-  { id: 'prisma', name: 'Guardião Prisma', color: '#5ff4ff', radius: 42, hp: 140,
+  { id: 'prisma', name: 'Guardião Prisma', color: '#5ff4ff', radius: 42, hp: 92,
     phases: [
       { speed: 40, rest: 1, patterns: ['aimed3', 'ring12', 'aimed3'] },
       { speed: 55, rest: 0.8, patterns: ['spiral', 'aimed5', 'ring16'] },
       { speed: 72, rest: 0.55, patterns: ['curtain', 'spiral2', 'aimed5', 'drones'] }
     ] },
-  { id: 'vespa', name: 'Vespa Ômega', color: '#ffb13d', radius: 44, hp: 230,
+  { id: 'vespa', name: 'Vespa Ômega', color: '#ffb13d', radius: 44, hp: 186,
     phases: [
       { speed: 60, rest: 1, patterns: ['fan7', 'aimed3', 'fan7'] },
       { speed: 75, rest: 0.8, patterns: ['charge', 'fan9', 'darts'] },
       { speed: 95, rest: 0.55, patterns: ['charge', 'burst', 'ring16', 'fan9'] }
     ] },
-  { id: 'eclipse', name: 'Núcleo Eclipse', color: '#c07bff', radius: 40, hp: 320,
+  { id: 'eclipse', name: 'Núcleo Eclipse', color: '#c07bff', radius: 40, hp: 268,
     phases: [
       { speed: 30, rest: 1, patterns: ['ring12', 'aimed3', 'ring12twist'] },
       { speed: 40, rest: 0.8, patterns: ['spiral3', 'hunters', 'ring16'] },
       { speed: 55, rest: 0.55, patterns: ['curtain', 'spiral3', 'burst', 'ring20'] }
     ] }
 ];
-export const BOSS = { hpPerCycle: 0.55, hpPerBoss: 0.35, phaseAt: [0.66, 0.33], enterY: 0.2, contact: 2 };
+export const BOSS = { hpPerCycle: 0.55, phaseAt: [0.66, 0.33], enterY: 0.2, contact: 2 };
 
 export const SCORE = {
   comboStep: 10, comboBonus: 0.25, comboMaxMult: 3,

@@ -163,12 +163,13 @@ export function buildDialog({ settings, stats, unlocked, playing, masterOn, hapt
 
   root.append(el('h3', 'guide-title', 'Inimigos'));
   const foes = el('div', 'guide-grid');
-  for (const [key, def] of Object.entries(ENEMIES)) {
+  // Na ordem em que aparecem na partida, não na ordem em que estão no config.
+  for (const [key, def] of Object.entries(ENEMIES).sort((a, b) => a[1].minWave - b[1].minWave)) {
     foes.append(el('div', 'guide-item sh-guide', `<span class="sh-dot" style="--c:${def.color}"></span>
       <div><strong>${def.name} · ${def.role}</strong><p>${ENEMY_DESCRIPTIONS[key]}</p></div>`));
   }
   root.append(foes);
-  root.append(el('p', 'guide-tip', `A cada ${WAVES.bossEvery} ondas surge um chefe com três fases, e todo ataque dele é anunciado: anel branco antes dos tiros, faixa vermelha antes da investida e faixa verde marcando a passagem na cortina. A barra verde no topo enche com os abates; a melhoria é escolhida no intervalo entre ondas. Abates sem levar dano sobem o combo, e a cada 10 os pontos valem mais.`));
+  root.append(el('p', 'guide-tip', `A cada ${WAVES.bossEvery} ondas surge um chefe com três fases, e todo ataque dele é anunciado: anel branco antes dos tiros, faixa vermelha antes da investida e faixa verde marcando a passagem na cortina. A barra verde no topo enche com os abates; a melhoria é escolhida no intervalo entre ondas, uma por onda — menos no intervalo antes do chefe, em que saem todas as guardadas. Cada fase do chefe que cai solta um power-up. Abates sem levar dano sobem o combo, e a cada 10 os pontos valem mais.`));
 
   root.append(el('h3', 'guide-title', 'Recordes'));
   const records = el('div', 'records');

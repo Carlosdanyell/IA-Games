@@ -1,4 +1,4 @@
-import { logicalSize, DIFFICULTIES, PLAYER, comboMultiplier } from './config.js';
+import { logicalSize, DIFFICULTIES, PLAYER, WAVES, comboMultiplier } from './config.js';
 import { createWorld } from './world.js';
 import { createRenderer } from './render.js';
 import { createSoundEngine } from './audio.js';
@@ -399,8 +399,12 @@ export function create(services) {
       handleEvents();
       if (progressDirty) { progressDirty = false; checkRun(); }
       if (bonus.time > 0) bonus.time -= dt;
-      // Melhoria só no intervalo entre ondas, nunca no meio do combate.
-      if (state === 'playing' && world.stage === 'rest' && world.pendingLevels > 0 && upgradeWave !== world.wave) {
+      // Melhoria só no intervalo entre ondas, nunca no meio do combate. Uma por
+      // onda, menos no intervalo que antecede um chefe: aí sai tudo o que estava
+      // guardado, para a nave entrar na luta longa com a força que já conquistou.
+      const beforeBoss = (world.wave + 1) % WAVES.bossEvery === 0;
+      if (state === 'playing' && world.stage === 'rest' && world.pendingLevels > 0
+          && (beforeBoss || upgradeWave !== world.wave)) {
         levelDelay += dt;
         if (levelDelay >= 0.35) { levelDelay = 0; upgradeWave = world.wave; openUpgrade(); }
       }

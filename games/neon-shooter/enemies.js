@@ -200,7 +200,9 @@ function formation(W, wave, available) {
     const phase = r.next() * TAU;
     return group([spawn('weaver', 0.5, 0, { phase }), spawn('weaver', 0.5, 50, { phase: phase + Math.PI })]);
   } });
-  if (has('gunner')) list.push({ w: 2.2 + wave * 0.08, make: () => (wave >= 9
+  // Os pesos dos que atiram sobem mais rápido que os dos que só descem: é o
+  // tiro que faz a onda tardia pesar, senão a partida inteira se decide no chefe.
+  if (has('gunner')) list.push({ w: 2.4 + wave * 0.17, make: () => (wave >= 9
     ? group([spawn('gunner', 0.28), spawn('gunner', 0.72)])
     : group([spawn('gunner', 0.25 + r.next() * 0.5)])) });
   if (has('tank')) list.push({ w: 1.6 + wave * 0.06, make: () => {
@@ -208,10 +210,10 @@ function formation(W, wave, available) {
     return group([spawn('tank', fx), spawn('drone', fx - 0.18, 30), spawn('drone', fx + 0.18, 30)]);
   } });
   if (has('splitter')) list.push({ w: 1.5, make: () => group([spawn('splitter', 0.25 + r.next() * 0.5)]) });
-  if (has('hunter')) list.push({ w: 1.4 + wave * 0.04, make: () => (wave >= 12
+  if (has('hunter')) list.push({ w: 1.4 + wave * 0.07, make: () => (wave >= 12
     ? group([spawn('hunter', 0.2), spawn('hunter', 0.8, 20)])
     : group([spawn('hunter', 0.2 + r.next() * 0.6)])) });
-  if (has('spinner')) list.push({ w: 1.1 + wave * 0.03, make: () => group([spawn('spinner', 0.3 + r.next() * 0.4)]) });
+  if (has('spinner')) list.push({ w: 1.1 + wave * 0.09, make: () => group([spawn('spinner', 0.3 + r.next() * 0.4)]) });
   return weightedPick(r, list).make();
 }
 
@@ -250,7 +252,7 @@ export function spawnGroup(W, g) {
 export function makeBoss(W, index) {
   const def = BOSSES[index % BOSSES.length];
   const cycle = Math.floor(index / BOSSES.length);
-  const hp = Math.round(def.hp * (1 + cycle * BOSS.hpPerCycle) * W.diff.hp);
+  const hp = Math.round(def.hp * (1 + cycle * BOSS.hpPerCycle) * W.diff.bossHp);
   return {
     def, index, cycle, name: def.name + (NUMERALS[cycle] ?? ` ${cycle + 1}`),
     x: W.w / 2, y: -def.radius * 1.8, r: def.radius, homeY: W.h * BOSS.enterY,
@@ -323,7 +325,10 @@ function runPattern(W, b, def, dt) {
   const p = b.pattern, player = W.player;
   const ox = b.x, oy = b.y + b.r * 0.55;
   const color = b.def.color;
-  const done = () => { b.pattern = null; b.rest = def.rest / Math.sqrt(W.diff.fire); };
+  // A pausa entre padrões é a janela em que o jogador devolve dano. A cadência
+  // da dificuldade encurta essa janela, mas só em parte: no Difícil a diferença
+  // tem de estar nas ondas, senão o primeiro chefe vira um muro em vez de prova.
+  const done = () => { b.pattern = null; b.rest = def.rest / (1 + (W.diff.fire - 1) * 0.3); };
 
   switch (p.kind) {
     case 'aimed':
