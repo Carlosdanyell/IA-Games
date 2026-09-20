@@ -61,12 +61,52 @@
 @keyframes nw-reveal{0%{transform:scale(.84)}65%{transform:scale(1.07)}100%{transform:scale(1)}}
 @keyframes nw-unlock{0%{box-shadow:0 0 0 16px var(--glow);opacity:.1}100%{box-shadow:0 0 0 0 transparent;opacity:1}}
 .nw-app[data-effects="low"] *, .nw-app[data-effects="low"] *:after{animation:none!important;transition:none!important}
-@media(max-height:740px){.nw-surface{--wheel-size:174px;gap:5px;padding-top:9px;padding-bottom:5px}.nw-letter{width:44px;height:44px;font-size:1.3rem}.nw-app{gap:7px}.nw-app .scorebar{padding:7px 3px}.nw-app .edition{display:none}.nw-app .link-button{min-height:30px}.nw-app .nw-grid{gap:2px}}
+/* Tela de conquista da última fase: substitui o overlay do shell para caber a
+   constelação, o resumo da campanha e as duas saídas. */
+.nw-app[data-finale="on"] .nw-surface{visibility:hidden}
+.nw-finale{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:9px;padding:15px 16px;text-align:center;overflow:auto;scrollbar-width:thin;background:radial-gradient(ellipse at 50% 16%,var(--glow),transparent 62%),var(--overlay)}
+.nw-finale[hidden]{display:none}
+.nw-finale:focus{outline:none}
+.nw-finale-sky{width:min(100%,340px);flex-shrink:0}
+.nw-finale-sky svg{display:block;width:100%;height:auto;max-height:20vh;overflow:visible}
+.nw-finale-trail{fill:none;stroke:var(--accent);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;opacity:.45}
+.nw-star{fill:var(--accent);transform-box:fill-box;transform-origin:center}
+.nw-star.last{fill:var(--button);stroke:var(--accent);stroke-width:1.5;filter:drop-shadow(0 0 6px var(--glow))}
+.nw-finale-tag{margin:0;font:600 .72rem ui-monospace,monospace;text-transform:uppercase;letter-spacing:.12em;color:var(--accent)}
+.nw-finale-title{margin:0;font-size:clamp(1.4rem,5.6vw,1.95rem);font-weight:800;line-height:1.1;letter-spacing:-.04em;text-wrap:balance}
+.nw-finale-text{margin:0;max-width:330px;font-size:.92rem;line-height:1.45;color:var(--muted);text-wrap:balance}
+.nw-finale-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;width:min(100%,340px);margin:2px 0 0}
+.nw-finale-stats>div{border:1px solid var(--line);border-radius:11px;background:var(--wash);padding:8px 6px}
+.nw-finale-stats dt{font:600 .68rem ui-monospace,monospace;text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
+.nw-finale-stats dd{margin:3px 0 0;font:750 1.15rem ui-monospace,monospace;color:var(--accent)}
+.nw-finale-stats small{font-size:.7rem;font-weight:600;color:var(--muted)}
+.nw-finale-actions{display:flex;flex-direction:column;align-items:stretch;gap:4px;width:min(100%,320px)}
+.nw-finale-primary{min-height:50px;border:1px solid transparent;border-radius:14px;background:var(--button);color:var(--button-text);font-size:1rem;font-weight:750;box-shadow:0 5px 27px var(--glow)}
+.nw-finale-primary:active{transform:scale(.98);filter:brightness(1.08)}
+.nw-finale-secondary{min-height:42px;border:0;background:transparent;color:var(--muted);font-size:.86rem;padding:8px 18px}
+.nw-finale-note{margin:0;font-size:.73rem;line-height:1.4;color:var(--muted)}
+/* As animações só entram com efeitos suaves: sem elas o estado final já é o
+   visível, e nada fica preso em opacity:0. */
+@media(prefers-reduced-motion:no-preference){
+  .nw-app[data-effects="full"] .nw-finale.play .nw-finale-trail{stroke-dasharray:var(--trail,1200);stroke-dashoffset:var(--trail,1200);animation:nw-trail 1.6s ease-out forwards}
+  .nw-app[data-effects="full"] .nw-finale.play .nw-star{opacity:0;animation:nw-star-in .45s ease-out forwards;animation-delay:calc(var(--i,0) * .045s + .2s)}
+  .nw-app[data-effects="full"] .nw-finale.play>:not(.nw-finale-sky){opacity:0;animation:nw-finale-rise .45s ease-out forwards}
+  .nw-app[data-effects="full"] .nw-finale.play>:nth-child(2){animation-delay:.1s}
+  .nw-app[data-effects="full"] .nw-finale.play>:nth-child(3){animation-delay:.2s}
+  .nw-app[data-effects="full"] .nw-finale.play>:nth-child(4){animation-delay:.3s}
+  .nw-app[data-effects="full"] .nw-finale.play>:nth-child(5){animation-delay:.4s}
+  .nw-app[data-effects="full"] .nw-finale.play>:nth-child(6){animation-delay:.5s}
+  .nw-app[data-effects="full"] .nw-finale.play>:nth-child(7){animation-delay:.6s}
+}
+@keyframes nw-trail{to{stroke-dashoffset:0}}
+@keyframes nw-star-in{0%{opacity:0;transform:scale(.2)}70%{opacity:1;transform:scale(1.35)}100%{opacity:1;transform:scale(1)}}
+@keyframes nw-finale-rise{0%{opacity:0;transform:translateY(9px)}100%{opacity:1;transform:none}}
+@media(max-height:740px){.nw-finale{gap:5px;padding:10px}.nw-finale-sky{width:min(100%,300px)}.nw-finale-sky svg{max-height:12vh}.nw-finale-title{font-size:clamp(1.1rem,4.6vw,1.4rem)}.nw-finale-text{font-size:.78rem;line-height:1.3}.nw-finale-stats{gap:5px}.nw-finale-stats>div{padding:5px 4px}.nw-finale-stats dt{font-size:.64rem}.nw-finale-stats dd{font-size:.95rem;margin-top:2px}.nw-finale-primary{min-height:44px;font-size:.92rem}.nw-finale-secondary{min-height:36px;padding:4px 18px;font-size:.8rem}.nw-finale-note{font-size:.68rem}.nw-surface{--wheel-size:174px;gap:5px;padding-top:9px;padding-bottom:5px}.nw-letter{width:44px;height:44px;font-size:1.3rem}.nw-app{gap:7px}.nw-app .scorebar{padding:7px 3px}.nw-app .edition{display:none}.nw-app .link-button{min-height:30px}.nw-app .nw-grid{gap:2px}}
 @media(max-width:350px){.nw-app .brand h1{font-size:.84rem}.nw-app .nw-surface{padding-left:8px;padding-right:8px}.nw-composer{grid-template-columns:44px 1fr 70px}.nw-candidate{font-size:1rem;letter-spacing:.05em}.nw-app .stat{padding:0 7px}}
 @media(orientation:landscape) and (max-height:560px){
   .nw-app{min-height:340px;grid-template-columns:min(186px,26vw) 1fr}.nw-app .arena{aspect-ratio:auto;width:100%;justify-self:stretch}
   .nw-surface{--wheel-size:164px;display:grid;grid-template-columns:minmax(100px,1fr) 184px;grid-template-rows:30px 1fr 44px;gap:6px;padding:10px}
-  .nw-board-area{grid-column:1;grid-row:1/4}.nw-message{grid-column:2;grid-row:1;font-size:.75rem}.nw-controls{grid-column:2;grid-row:2}.nw-composer{grid-column:2;grid-row:3;grid-template-columns:34px 1fr 55px;gap:4px}.nw-candidate{font-size:.875rem;letter-spacing:.03em}.nw-submit{font-size:.75rem;padding:5px}.nw-side{top:auto;bottom:-4px;transform:none;min-height:40px;width:36px;font-size:.65rem}.nw-side svg{width:20px;height:20px}.nw-side span{display:none}.nw-side b{right:-3px}
+  .nw-board-area{grid-column:1;grid-row:1/4}.nw-message{grid-column:2;grid-row:1;font-size:.75rem}.nw-controls{grid-column:2;grid-row:2}.nw-composer{grid-column:2;grid-row:3;grid-template-columns:34px 1fr 55px;gap:4px}.nw-candidate{font-size:.875rem;letter-spacing:.03em}.nw-submit{font-size:.75rem;padding:5px}.nw-finale{gap:6px;padding:10px 14px}.nw-finale-sky{width:min(100%,380px);max-height:68px}.nw-finale-sky svg{height:68px}.nw-finale-title{font-size:1.15rem}.nw-finale-text{font-size:.78rem;max-width:none}.nw-finale-stats{grid-template-columns:repeat(4,minmax(0,1fr));width:min(100%,460px)}.nw-finale-stats dd{font-size:.95rem}.nw-finale-actions{flex-direction:row;width:min(100%,420px)}.nw-finale-primary{flex:1;min-height:42px;font-size:.88rem}.nw-finale-secondary{min-height:42px;font-size:.78rem}.nw-finale-note{font-size:.68rem}.nw-side{top:auto;bottom:-4px;transform:none;min-height:40px;width:36px;font-size:.65rem}.nw-side svg{width:20px;height:20px}.nw-side span{display:none}.nw-side b{right:-3px}
 }
-@media(prefers-reduced-motion:reduce){.nw-surface *{animation:none!important;transition:none!important}}
+@media(prefers-reduced-motion:reduce){.nw-surface *,.nw-finale *{animation:none!important;transition:none!important}}
 
