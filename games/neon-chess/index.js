@@ -7,6 +7,10 @@ import {
 } from './model.js';
 import { chooseMove, LEVELS, DEFAULT_LEVEL, levelOf, VALUES } from './ai.js';
 import { pieceSvg, describePiece } from './pieces.js';
+import { LanTransport } from './lan-transport.js';
+import { createLanLobby } from './lan-ui.js';
+import { createMatch, HOST, GUEST } from './lan-match.js';
+import { cleanName } from './lan-protocol.js';
 import { PALETTE_OPTIONS } from '../../core/theme.js';
 
 export const meta = {
@@ -18,14 +22,15 @@ export const meta = {
 
 const MODES = {
   maquina: { label: 'Contra a máquina', hint: 'Escolha o nível nos ajustes.' },
-  local: { label: 'Dois jogadores', hint: 'Os dois jogam neste aparelho.' }
+  local: { label: 'Dois jogadores', hint: 'Os dois jogam neste aparelho.' },
+  rede: { label: 'Na mesma rede', hint: 'Dois aparelhos no mesmo Wi-Fi.' }
 };
 const COLOR_NAMES = { [WHITE]: 'brancas', [BLACK]: 'pretas' };
 const INITIAL_COUNT = { [PAWN]: 8, [KNIGHT]: 2, [BISHOP]: 2, [ROOK]: 2, [QUEEN]: 1 };
 const REASONS = {
   mate: 'Xeque-mate', stalemate: 'Afogamento (rei sem lance legal, mas sem xeque)',
   fifty: 'Empate pela regra dos 50 lances', repetition: 'Empate por tripla repetição',
-  material: 'Empate por material insuficiente'
+  material: 'Empate por material insuficiente', resign: 'Partida entregue'
 };
 
 const el = (tag, className, text) => {
@@ -62,6 +67,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   let humanColor = saved?.humanColor === 'black' ? BLACK : WHITE;
   let flip = typeof saved?.flip === 'boolean' ? saved.flip : null;   // null = segue o lado do jogador
   let showHints = saved?.showHints !== false;
+  let playerName = cleanName(saved?.playerName, 0);
   const records = Object.fromEntries(Object.keys(LEVELS).map(key => [key, cleanRecord(saved?.records?.[key])]));
   let storageAvailable = true;
 
@@ -72,6 +78,8 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   let selected = -1, targets = [], lastMove = 0, pendingPromotion = null;
   let thinkLeft = 0, paused = false, destroyed = false, scored = false;
   let focused = -1, message = '', messageTone = '';
+  let net = null;              // sala na mesma rede; null fora do modo 'rede'
+  let confirmingResign = false;
 
   // --------------------------------------------------------------------- DOM
   const view = el('div', 'nx-surface');
@@ -81,6 +89,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     <div class="nx-board-zone">
       <div class="nx-board" role="group" aria-label="Tabuleiro de xadrez, oito linhas por oito colunas"></div>
       <div class="nx-promotion" hidden><p>Promover o peão para:</p><div class="nx-promotion-list"></div></div>
+      <div class="nx-lan-panel" hidden></div>
     </div>
     <div class="nx-player" data-seat="bottom"><span class="nx-player-name"></span><span class="nx-taken"></span><span class="nx-edge"></span></div>
     <div class="nx-feedback" role="status" aria-live="polite" aria-atomic="true"><strong class="nx-message"></strong><span class="nx-detail"></span></div>
@@ -89,6 +98,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
       <button class="nx-new" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 1 8M3 4v6h6"/></svg><span>Nova partida</span></button>
       <button class="nx-undo" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14l-5-5 5-5M4 9h10a6 6 0 0 1 0 12h-3"/></svg><span>Voltar lance</span></button>
       <button class="nx-flip" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M7 8l5-5 5 5M7 16l5 5 5-5"/></svg><span>Girar</span></button>
+      <button class="nx-resign" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4h9l-1 3h6l-2 4 2 4h-8l-1-3H5"/></svg><span>Entregar</span></button>
     </div>`;
   hud.arena.append(view);
   const $ = selector => view.querySelector(selector);
@@ -96,6 +106,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   const promotionBox = $('.nx-promotion'), promotionList = $('.nx-promotion-list');
   const movesList = $('.nx-moves'), historyBox = $('.nx-history');
   const seats = { top: $('[data-seat="top"]'), bottom: $('[data-seat="bottom"]') };
+  const lanPanel = $('.nx-lan-panel');
 
   const squares = [];
   for (let i = 0; i < 64; i++) {
@@ -110,21 +121,32 @@ export function create({ hud, input, theme, audio, haptics, store }) {
 
   // Ordem de desenho: da linha 8 para a 1 com as brancas embaixo; invertida
   // quando o jogador está do lado das pretas ou pediu para girar.
-  const flipped = () => flip === null ? humanColor === BLACK : flip;
+  // Quem está embaixo: minhas peças. Na rede quem manda é a cor do assento.
+  const myColor = () => net?.match ? net.match.myColor() : humanColor;
+  const flipped = () => flip === null ? (mode !== 'local' && myColor() === BLACK) : flip;
   const squareAt = index => {
     const row = Math.floor(index / 8), column = index % 8;
     return flipped() ? square(7 - column, row) : square(column, 7 - row);
   };
 
-  const over = () => current.over;
+  const netOn = () => mode === 'rede' && !!net?.match;
+  const netReady = () => netOn() && net.status === 'connected';
+  const over = () => netOn() ? net.match.state.flow === 'over' : current.over;
   const machineColor = () => other(humanColor);
   const machineTurn = () => mode === 'maquina' && !over() && pos.turn === machineColor();
-  const canPlay = () => !destroyed && !paused && !hud.dialogOpen && !over() && !machineTurn() && !pendingPromotion;
+  const canPlay = () => !destroyed && !paused && !hud.dialogOpen && !over() && !machineTurn() &&
+    !pendingPromotion && (!netOn() || (netReady() && net.match.myTurn()));
+  // Resultado e motivo: na rede a desistência não está no tabuleiro, só no
+  // estado da sala.
+  const resultInfo = () => netOn()
+    ? { result: net.match.state.result, reason: net.match.state.reason || 'mate' }
+    : { result: current.result, reason: current.reason };
 
   function save() {
     storageAvailable = store.set('session-v1', {
-      mode, level, humanColor: humanColor === BLACK ? 'black' : 'white', flip, showHints,
-      records, moves: moveLog
+      mode: mode === 'rede' ? 'maquina' : mode,   // sala não sobrevive ao reload
+      level, humanColor: humanColor === BLACK ? 'black' : 'white', flip, showHints,
+      records, playerName, moves: mode === 'rede' ? [] : moveLog
     });
   }
 
@@ -142,6 +164,13 @@ export function create({ hud, input, theme, audio, haptics, store }) {
 
   // ------------------------------------------------------------------- lances
   function tell(text, tone = '') { message = text; messageTone = tone; }
+
+  // Todo lance do jogador passa por aqui: local aplica na hora, rede vai pela
+  // autoridade da sala.
+  function commit(move) {
+    if (netOn()) netCommit(move);
+    else applyMove(move);
+  }
 
   function applyMove(move) {
     const capture = !!(move & CAPTURE);
@@ -176,14 +205,28 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   }
 
   function showResultOverlay() {
-    const result = current.result;
+    const { result, reason } = resultInfo();
     const winner = result === 'draw' ? null : result === 'white' ? WHITE : BLACK;
+    if (netOn()) {
+      const { names, wins, ready } = net.match.state;
+      const eu = net.match.state.seat;
+      const title = result === 'draw' ? 'Empate'
+        : winner === net.match.myColor() ? 'Você venceu!' : `${names[eu === HOST ? GUEST : HOST]} venceu`;
+      hud.showOverlay({
+        tag: 'Fim de partida', title,
+        text: (REASONS[reason] || 'Fim de partida') + '.',
+        action: ready[eu] ? 'Aguardando o outro jogador' : 'Revanche',
+        secondary: 'Rever o tabuleiro',
+        note: `Sala: ${names[0]} ${wins[0]} × ${wins[1]} ${names[1]} · ${wins[2]} empate(s)`
+      });
+      return;
+    }
     const title = result === 'draw' ? 'Empate'
       : mode === 'local' ? `Vitória das ${COLOR_NAMES[winner]}`
       : winner === humanColor ? 'Você venceu!' : 'A máquina venceu';
     hud.showOverlay({
       tag: 'Fim de partida', title,
-      text: REASONS[current.reason] + '.',
+      text: (REASONS[reason] || 'Fim de partida') + '.',
       action: 'Nova partida', secondary: 'Rever o tabuleiro',
       note: mode === 'maquina' ? `${levelOf(level).label} · você joga de ${COLOR_NAMES[humanColor]}` : MODES.local.label
     });
@@ -205,7 +248,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
       if (move) {
         const promotions = targets.filter(candidate => moveTo(candidate) === sq && movePromotion(candidate));
         if (promotions.length) { openPromotion(moveFrom(move), sq, promotions); return; }
-        applyMove(move);
+        commit(move);
         return;
       }
       if (sq === selected) { selected = -1; targets = []; sync(); return; }
@@ -236,7 +279,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
         const move = findMove(pos, from, to, type);
         pendingPromotion = null;
         promotionBox.hidden = true;
-        if (move) applyMove(move); else sync();
+        if (move) commit(move); else sync();
       }, { signal });
       promotionList.append(button);
     }
@@ -302,6 +345,162 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     return true;
   }
 
+
+  // ------------------------------------------------------------- sala na rede
+  // O anfitrião é a autoridade: aplica os lances (os dele e os pedidos do
+  // convidado) e transmite a lista da partida. O convidado só manda intenções
+  // e reconstrói o tabuleiro com o que recebe — por isso não existe estado
+  // local para reconciliar depois.
+  function netAdopt() {
+    if (!net?.match) return;
+    pos = net.match.position;
+    moveLog = net.match.state.moves;
+    sanLog = net.match.sans;
+    keyLog = net.match.keys;
+    current = net.match.outcome;
+    lastMove = moveLog.length ? moveLog[moveLog.length - 1] : 0;
+    paused = net.match.state.paused;
+    selected = -1; targets = [];
+    pendingPromotion = null;
+    promotionBox.hidden = true;
+  }
+  const netBroadcast = () => { if (net?.role === 'host') net.transport?.send(net.match.snapshot()); };
+
+  function netAfterChange(antes) {
+    const novoLance = net.match.state.moves.length > antes;
+    const pausadoAntes = paused;
+    netAdopt();
+    // Entrar ou sair da pausa apaga o aviso pendente ("aguardando o outro
+    // jogador confirmar"), que senão fica na tela depois de resolvido.
+    if (pausadoAntes !== paused) tell('', '');
+    if (novoLance) {
+      sound(current.check ? 'check' : (lastMove & CAPTURE) ? 'capture' : (lastMove & CASTLE) ? 'castle' : 'move');
+      haptics.buzz((lastMove & CAPTURE) ? 14 : 8);
+      tell(current.check && !over() ? 'Xeque!' : '', current.check && !over() ? 'alert' : '');
+    }
+    if (over()) showResultOverlay();
+    else if (paused) pauseOverlay();
+    else hud.hideOverlay();
+    sync();
+  }
+
+  function netCommit(move) {
+    const antes = net.match.state.moves.length;
+    if (net.role === 'host') {
+      if (net.match.play(move, HOST)) { netAfterChange(antes); netBroadcast(); }
+      return;
+    }
+    if (net.transport?.send(net.match.command('move', move))) {
+      selected = -1; targets = [];
+      tell('Lance enviado…', '');
+      sync();
+    } else {
+      tell('Sem conexão com o outro aparelho.', 'alert');
+      sync();
+    }
+  }
+
+  function netSend(action) {
+    if (!netReady()) return;
+    const seat = net.match.state.seat;
+    const antes = net.match.state.moves.length;
+    if (net.role === 'host') {
+      const mudou = action === 'pause' ? net.match.setPaused(true, HOST)
+        : action === 'resume' ? net.match.confirmResume(HOST)
+        : action === 'rematch' ? net.match.confirmRematch(HOST)
+        : action === 'resign' ? net.match.resign(HOST) : false;
+      if (mudou) { netAfterChange(antes); netBroadcast(); }
+      return;
+    }
+    net.transport.send(net.match.command(action));
+    if (action === 'resume' || action === 'rematch') tell('Aguardando o outro jogador confirmar…', '');
+    sync();
+  }
+
+  function netMessage(payload) {
+    if (!net?.match || !payload || typeof payload !== 'object') return;
+    const antes = net.match.state.moves.length;
+    if (payload.type === 'hello') {
+      net.match.setName(net.match.state.seat === HOST ? GUEST : HOST, payload.name);
+      if (net.role === 'host') netBroadcast();
+      sync();
+      return;
+    }
+    if (net.role === 'host') {
+      if (payload.type !== 'command') return;
+      if (net.match.applyCommand(payload, GUEST)) { netAfterChange(antes); netBroadcast(); }
+      return;
+    }
+    if (payload.type !== 'state') return;
+    const resultado = net.match.applySnapshot(payload);
+    if (resultado.ok) { netAfterChange(antes); return; }
+    // Pacote velho ou repetido é normal e se ignora. Já uma lista que não passa
+    // pelas regras locais significa versões diferentes: aí a sala não pode
+    // continuar fingindo que os dois veem o mesmo tabuleiro.
+    if (resultado.reason === 'lance ilegal no pacote' || resultado.reason === 'estado incompatível') {
+      net.transport.fail('Os aparelhos ficaram com partidas diferentes. Atualizem o jogo e criem outra sala.');
+    }
+  }
+
+  function netRoom(role) {
+    net.transport?.close();
+    net.role = role;
+    const seat = role === 'host' ? HOST : GUEST;
+    net.match = createMatch({
+      seat,
+      names: seat === HOST ? [playerName, ''] : ['', playerName]
+    });
+    net.transport = new LanTransport({
+      onStatus: (estado, texto) => {
+        net.status = estado;
+        net.lobby.update(estado, texto);
+        if (estado === 'closed') { net.showBoard = false; selected = -1; targets = []; }
+        if (estado === 'interrupted') { selected = -1; targets = []; }
+        sync();
+      },
+      onOpen: () => {
+        net.transport.send({ type: 'hello', name: playerName });
+        net.showBoard = true;
+        netAdopt();
+        if (net.role === 'host') netBroadcast();
+        hud.hideOverlay();
+        tell('Conectados. Boa partida.', '');
+        sync();
+      },
+      onMessage: netMessage
+    });
+    return net.transport;
+  }
+
+  function netStart(token = null) {
+    if (net) return;
+    net = { transport: null, match: null, lobby: null, role: null, status: 'idle' };
+    net.lobby = createLanLobby({
+      name: playerName,
+      onName: value => { playerName = cleanName(value, 0); save(); return playerName; },
+      onCreate: () => netRoom('host').createOffer(),
+      onJoin: token => netRoom('guest').acceptOffer(token),
+      onAnswer: token => net.transport.acceptAnswer(token),
+      onLeave: () => { netClose(false); sync(); },
+      onBack: () => { net.showBoard = true; sync(); }
+    });
+    lanPanel.replaceChildren(net.lobby.root);
+    net.showBoard = false;
+    if (token) net.lobby.showJoin(token);
+    sync();
+  }
+
+  function netClose(full = true) {
+    if (!net) return;
+    net.transport?.close();
+    net.transport = null;
+    net.match = null;
+    net.role = null;
+    net.status = 'idle';
+    net.showBoard = false;
+    if (full) { net.lobby = null; lanPanel.replaceChildren(); net = null; }
+  }
+
   // ------------------------------------------------------------------ desenho
   function capturedList(color) {
     // Conta o que sumiu do adversário. Promoção pode gerar mais dama do que a
@@ -331,7 +530,10 @@ export function create({ hud, input, theme, audio, haptics, store }) {
       const taken = capturedList(color);
       const edge = materialOf(taken) - materialOf(capturedList(other(color)));
       const machine = mode === 'maquina' && color === machineColor();
-      const name = mode === 'local' ? `Jogador das ${COLOR_NAMES[color]}`
+      const name = netOn()
+        ? `${net.match.state.names[net.match.seatOf(color)]}` +
+          `${net.match.seatOf(color) === net.match.state.seat ? ' (você)' : ''} · ${COLOR_NAMES[color]}`
+        : mode === 'local' ? `Jogador das ${COLOR_NAMES[color]}`
         : machine ? `Máquina · ${levelOf(level).label} (${COLOR_NAMES[color]})`
         : `Você (${COLOR_NAMES[color]})`;
       seat.dataset.color = color === WHITE ? 'white' : 'black';
@@ -357,8 +559,13 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     historyBox.scrollTop = historyBox.scrollHeight;
   }
 
+  const lobbyOpen = () => mode === 'rede' && !!net && !(netReady() && net.showBoard);
+
   function sync() {
     const thinking = machineTurn() && !paused;
+    const lobby = lobbyOpen();
+    lanPanel.hidden = !lobby;
+    app.dataset.lobby = String(lobby);
     app.dataset.paused = String(paused);
     view.inert = paused;
     board.dataset.turn = pos.turn === WHITE ? 'white' : 'black';
@@ -392,14 +599,20 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     syncMoves();
     $('.nx-mode b').textContent = MODES[mode].label.toUpperCase();
     $('.nx-ply').textContent = `LANCE ${String(pos.fullmove).padStart(2, '0')}`;
-    const headline = paused ? 'Partida em pausa'
-      : over() ? REASONS[current.reason]
+    const outroNome = netOn() ? net.match.state.names[net.match.state.seat === HOST ? GUEST : HOST] : '';
+    const headline = lobby ? 'Sala na mesma rede'
+      : netOn() && !netReady() ? 'Sem conexão com o outro aparelho'
+      : paused ? 'Partida em pausa'
+      : over() ? (REASONS[resultInfo().reason] || 'Fim de partida')
       : thinking ? 'A máquina está pensando'
       : current.check ? 'Xeque!'
+      : netOn() ? (net.match.myTurn() ? 'Sua vez' : `Vez de ${outroNome}`)
       : mode === 'local' ? `Vez das ${COLOR_NAMES[pos.turn]}`
       : pos.turn === humanColor ? 'Sua vez' : 'Vez da máquina';
-    const detail = over()
-      ? (current.result === 'draw' ? 'Ninguém venceu.' : `Vitória das ${COLOR_NAMES[current.result === 'white' ? WHITE : BLACK]}.`)
+    const { result: resultadoFinal } = resultInfo();
+    const detail = lobby ? 'Criem a sala num aparelho e abram o convite no outro.'
+      : over()
+      ? (resultadoFinal === 'draw' ? 'Ninguém venceu.' : `Vitória das ${COLOR_NAMES[resultadoFinal === 'white' ? WHITE : BLACK]}.`)
       : selected >= 0 ? `Peça em ${algebraic(selected)} selecionada. Toque no destino.`
       : thinking ? 'Calculando a resposta…'
       : 'Toque na peça e depois na casa de destino.';
@@ -407,18 +620,37 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     $('.nx-message').dataset.tone = messageTone;
     $('.nx-detail').textContent = detail;
     $('.nx-feedback').dataset.thinking = String(thinking);
+    $('.nx-undo').hidden = netOn();
     $('.nx-undo').disabled = !moveLog.length || !!pendingPromotion || thinking;
-    $('.nx-new span').textContent = over() ? 'Jogar de novo' : 'Nova partida';
+    $('.nx-resign').hidden = !netOn();
+    $('.nx-resign').disabled = !netReady() || over();
+    $('.nx-new').disabled = netOn() && !over();
+    $('.nx-new span').textContent = netOn() ? 'Revanche' : over() ? 'Jogar de novo' : 'Nova partida';
 
-    const record = records[level];
-    hud.setStat('wins', String(record.wins));
-    hud.setStat('draws', String(record.draws));
-    hud.setStat('losses', String(record.losses));
-    hud.setChips([
-      { text: mode === 'maquina' ? levelOf(level).label : 'Dois jogadores', tone: 'accent' },
-      { text: mode === 'maquina' ? `Você de ${COLOR_NAMES[humanColor]}` : `Vez das ${COLOR_NAMES[pos.turn]}` },
-      { text: `${moveLog.length} lance${moveLog.length === 1 ? '' : 's'}`, tone: 'flow' }
-    ]);
+    if (mode === 'rede') {
+      // O placar da sala vale enquanto a conexão existir e não mexe nos
+      // retrospectos dos modos locais. Sem sala criada ainda, tudo é zero.
+      const sala = net?.match?.state;
+      const assento = sala ? sala.seat : HOST;
+      hud.setStat('wins', String(sala ? sala.wins[assento] : 0));
+      hud.setStat('draws', String(sala ? sala.wins[2] : 0));
+      hud.setStat('losses', String(sala ? sala.wins[assento === HOST ? GUEST : HOST] : 0));
+      hud.setChips([
+        { text: 'Na mesma rede', tone: 'accent' },
+        { text: netReady() ? `Você de ${COLOR_NAMES[myColor()]}` : 'Sala não conectada' },
+        { text: netReady() ? `${moveLog.length} lance${moveLog.length === 1 ? '' : 's'}` : 'Aguardando pareamento', tone: 'flow' }
+      ]);
+    } else {
+      const record = records[level];
+      hud.setStat('wins', String(record.wins));
+      hud.setStat('draws', String(record.draws));
+      hud.setStat('losses', String(record.losses));
+      hud.setChips([
+        { text: mode === 'maquina' ? levelOf(level).label : 'Dois jogadores', tone: 'accent' },
+        { text: mode === 'maquina' ? `Você de ${COLOR_NAMES[humanColor]}` : `Vez das ${COLOR_NAMES[pos.turn]}` },
+        { text: `${moveLog.length} lance${moveLog.length === 1 ? '' : 's'}`, tone: 'flow' }
+      ]);
+    }
     hud.setPause(paused, !over());
     hud.setHint('Toque na peça · <strong>depois no destino</strong>');
     hud.flush();
@@ -434,8 +666,11 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   }
   function changeMode(value) {
     if (!Object.hasOwn(MODES, value) || value === mode) return;
+    if (mode === 'rede') netClose(true);
     mode = value;
-    newGame(paused || hud.dialogOpen);
+    newGame(false);
+    if (mode === 'rede') netStart();
+    sync();
   }
   function changeSide(value) {
     const color = value === 'black' ? BLACK : WHITE;
@@ -450,6 +685,17 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   }
 
   function pauseOverlay() {
+    if (netOn()) {
+      const eu = net.match.state.seat;
+      hud.showOverlay({
+        tag: 'Sala pausada', title: 'Partida em pausa',
+        text: 'A pausa vale para os dois aparelhos. Para retomar, os dois precisam confirmar.',
+        action: net.match.state.ready[eu] ? 'Aguardando o outro jogador' : 'Continuar',
+        secondary: 'Entregar a partida',
+        note: net.match.state.names.join(' × ')
+      });
+      return;
+    }
     hud.showOverlay({
       tag: 'No seu tempo', title: 'Partida em pausa',
       text: 'O tabuleiro fica guardado neste aparelho. Continue quando quiser.',
@@ -459,14 +705,26 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   }
   function pause() {
     if (destroyed || over() || paused) return;
+    if (netOn()) { if (netReady()) netSend('pause'); return; }
     paused = true; pauseOverlay(); save(); sync();
   }
   function resume() {
     if (destroyed || !paused || hud.dialogOpen) return;
+    if (netOn()) { audio.resume(); netSend('resume'); return; }
     paused = false; hud.hideOverlay(); audio.resume(); sync();
   }
 
-  $('.nx-new').addEventListener('click', () => newGame(), { signal });
+  $('.nx-new').addEventListener('click', () => { if (netOn()) netSend('rematch'); else newGame(); }, { signal });
+  $('.nx-resign').addEventListener('click', () => {
+    if (!netReady() || over()) return;
+    confirmingResign = true;
+    hud.showOverlay({
+      tag: 'Confirmar', title: 'Entregar a partida?',
+      text: 'A vitória vai para o outro jogador. A revanche continua disponível.',
+      action: 'Continuar jogando', secondary: 'Entregar',
+      note: net.match.state.names.join(' × ')
+    });
+  }, { signal });
   $('.nx-undo').addEventListener('click', undo, { signal });
   $('.nx-flip').addEventListener('click', toggleFlip, { signal });
 
@@ -541,6 +799,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
       'Roque, en passant e promoção estão implementados. Ao promover, escolha a peça na janela que abre sobre o tabuleiro.',
       'Empate por afogamento, tripla repetição, regra dos 50 lances e material insuficiente são reconhecidos automaticamente.',
       'Voltar lance desfaz o par (seu lance e o da máquina). Girar troca o lado que fica embaixo.',
+      'Na mesma rede: dois aparelhos no mesmo Wi-Fi, um cria a sala e envia o convite. Quem cria joga de brancas; a revanche troca as cores.',
       'Atalhos: Z volta o lance, G gira o tabuleiro, P pausa, Esc cancela a seleção.',
       'O placar é contado por nível e só nas partidas contra a máquina.'
     ]) how.append(el('li', '', text));
@@ -569,6 +828,14 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   }
 
   if (!restore(saved?.moves)) newGame();
+  // Convite aberto pelo link: o fragmento #chess=... nunca chega ao servidor,
+  // e some da barra de endereço assim que é lido.
+  const convite = new URLSearchParams(location.hash.slice(1)).get('chess');
+  if (convite) {
+    history.replaceState(null, '', location.pathname + location.search);
+    mode = 'rede';
+    netStart(convite);
+  }
   hud.hideOverlay();
   sync();
   resize();
@@ -586,8 +853,16 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     },
     render(dt) { hud.tickToast(dt); hud.flush(); },
     resize,
-    primaryAction: () => paused ? resume() : over() ? newGame() : undefined,
-    secondaryAction: () => { if (paused) newGame(); else if (over()) hud.hideOverlay(); },
+    primaryAction: () => {
+      if (confirmingResign) { confirmingResign = false; hud.hideOverlay(); sync(); return; }
+      if (netOn()) { if (paused) resume(); else if (over()) netSend('rematch'); return; }
+      if (paused) resume(); else if (over()) newGame();
+    },
+    secondaryAction: () => {
+      if (confirmingResign) { confirmingResign = false; netSend('resign'); return; }
+      if (netOn()) { if (paused) netSend('resign'); else if (over()) hud.hideOverlay(); return; }
+      if (paused) newGame(); else if (over()) hud.hideOverlay();
+    },
     pause, resume,
     pauseToggle: () => paused ? resume() : pause(),
     onHidden: pause,
@@ -595,12 +870,15 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     onThemeChange: () => {},
     getState: () => ({
       state: paused ? 'paused' : over() ? 'over' : machineTurn() ? 'thinking' : 'playing',
-      mode, difficulty: level, human: COLOR_NAMES[humanColor], turn: COLOR_NAMES[pos.turn],
+      mode, difficulty: level, human: COLOR_NAMES[myColor()], turn: COLOR_NAMES[pos.turn],
+      room: netOn() ? { role: net.role, status: net.status, names: [...net.match.state.names],
+                        wins: [...net.match.state.wins], match: net.match.state.match } : null,
       fen: positionKey(pos), moves: sanLog.length, check: current.check,
-      result: current.result, reason: current.reason, record: { ...records[level] }
+      result: resultInfo().result, reason: resultInfo().reason, record: { ...records[level] }
     }),
     destroy() {
       destroyed = true;
+      netClose(true);
       lifecycle.abort();
       view.remove();
       input.destroy();

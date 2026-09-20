@@ -5,6 +5,7 @@ build e sem dependências: os módulos ES são publicados como estão pelo GitHu
 
 - Contrato entre shell e jogo: `docs/ARCHITECTURE.md`
 - Multiplayer do Neon Pool: `docs/NEON-POOL-MULTIPLAYER.md`
+- Multiplayer do Neon Chess: `docs/NEON-CHESS-MULTIPLAYER.md`
 
 ## Convenções
 
