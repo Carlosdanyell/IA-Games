@@ -308,9 +308,10 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     }
     session = createSession(level, { seed, saved: restore?.snapshot || null });
     theme.setAuto(level.palette);
-    status = session.complete ? 'between' : 'peek';
-    peekLeft = session.complete ? 0 : (level.peek || 2);
-    if (session.moves > 0 && !session.complete) peekLeft = Math.min(peekLeft, 1.2);
+    // A espiada é o começo da fase, não um atalho: quem retoma um tabuleiro já
+    // jogado não ganha uma olhada nova em todas as cartas.
+    peekLeft = session.complete || session.moves > 0 ? 0 : (level.peek || 2);
+    status = session.complete ? 'between' : peekLeft > 0 ? 'peek' : 'playing';
     hud.hideOverlay();
     renderBoard(); syncCards(); defaultMessage(); syncHud(); save();
     if (session.complete) finish();
