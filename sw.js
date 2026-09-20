@@ -9,7 +9,7 @@
 // HTTP cache do navegador.
 //
 // Ao adicionar um jogo, inclua os arquivos dele em ASSETS e suba VERSION.
-const VERSION = 'ia-games-v40';
+const VERSION = 'ia-games-v43';
 const DOC_TIMEOUT = 3500;   // HTML: vale esperar um pouco mais
 const ASSET_TIMEOUT = 1200; // módulos e CSS: rédea curta, cache logo atrás
 const ASSETS = [
@@ -104,6 +104,15 @@ const ASSETS = [
   './games/neon-memo/levels.js',
   './games/neon-memo/model.js',
   './games/neon-memo/style.css'
+  './games/neon-chess/index.js',
+  './games/neon-chess/model.js',
+  './games/neon-chess/ai.js',
+  './games/neon-chess/pieces.js',
+  './games/neon-chess/lan-protocol.js',
+  './games/neon-chess/lan-match.js',
+  './games/neon-chess/lan-transport.js',
+  './games/neon-chess/lan-ui.js',
+  './games/neon-chess/style.css',
 ];
 
 self.addEventListener('install', event => {

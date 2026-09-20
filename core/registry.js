@@ -100,6 +100,16 @@ export const GAMES = [
     status: 'ready',
     entry: './games/neon-memo/index.js',
     art: 'memo'
+  },
+  {
+    id: 'neon-chess',
+    title: 'Neon Chess',
+    tagline: 'Xadrez completo: cinco níveis de máquina e dois jogadores no aparelho.',
+    tags: ['Xadrez', '5 níveis', 'Offline'],
+    accent: '#9aa8ff',
+    status: 'ready',
+    entry: './games/neon-chess/index.js',
+    art: 'chess'
   }
 ];
 
