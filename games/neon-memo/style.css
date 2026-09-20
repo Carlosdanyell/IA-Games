@@ -1,7 +1,10 @@
 /* Neon Memo: estilos próprios do jogo, prefixo nm-.
    Herda tokens de core/theme.js e o chrome de core/shell.css. */
-.nm-app{min-height:560px;--nm-paper:#f6f2fb;--nm-paper-ink:#4a3f5c}
-:root[data-theme="light"] .nm-app{--nm-paper:#fff}
+/* A face da carta acompanha o tema: papel claro no claro, carta escura no
+   escuro. --fig-line clareia os detalhes escuros do desenho (rodas, caixa do
+   piano) para eles não sumirem no fundo. */
+.nm-app{min-height:560px;--nm-paper:#1b1426;--nm-paper-ink:#cec3dd;--fig-line:#d2c8e0}
+:root[data-theme="light"] .nm-app{--nm-paper:#fff;--nm-paper-ink:#4a3f5c;--fig-line:#34293f}
 .nm-app .arena{touch-action:pan-y;background:radial-gradient(ellipse at 50% 0,var(--glow),transparent 70%),var(--arena)}
 .nm-app canvas{position:absolute;inset:0;opacity:0;pointer-events:none}
 .nm-app .overlay{background:var(--overlay)}
@@ -10,7 +13,7 @@
 .nm-app .stat .value{font-variant-numeric:tabular-nums}
 
 .nm-surface{position:absolute;inset:0;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto auto;
-  gap:8px;padding:11px 12px 9px}
+  gap:6px;padding:9px 9px 8px}
 .nm-topline{display:flex;justify-content:space-between;align-items:center;gap:8px;
   font:600 .64rem ui-monospace,monospace;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
 .nm-stage{color:var(--accent);white-space:nowrap}
@@ -45,7 +48,8 @@
 /* A figura é colorida: a face precisa de papel claro para as cores lerem,
    nos dois temas. A cor da família fica na borda, separando os assuntos. */
 .nm-front{transform:rotateY(180deg);border:2px solid var(--nm-ink,var(--accent));
-  background:var(--nm-paper);display:grid;grid-template-rows:1fr auto;padding:6% 5% 4%}
+  background:color-mix(in srgb,var(--nm-ink,var(--accent)) 9%,var(--nm-paper));
+  display:grid;grid-template-rows:1fr auto;padding:6% 5% 4%}
 .nm-art{width:100%;height:100%;min-height:0}
 .nm-name{font:600 clamp(6px,calc(var(--nm-card)*.15),11px) system-ui;font-style:normal;color:var(--nm-paper-ink);
   text-align:center;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:none}
@@ -65,13 +69,15 @@
 .nm-card[data-swap="true"]{animation:nm-swap .45s ease-in-out}
 .nm-card[aria-disabled="true"]{cursor:default}
 .nm-card[aria-disabled="false"]:active{transform:scale(.94)}
-.nm-card[data-wild="true"] .nm-front{background:repeating-linear-gradient(135deg,transparent 0 7px,#00000010 7px 14px),var(--nm-paper)}
+.nm-card[data-wild="true"] .nm-front{
+  background:repeating-linear-gradient(135deg,transparent 0 7px,color-mix(in srgb,var(--nm-ink) 14%,transparent) 7px 14px),
+    color-mix(in srgb,var(--nm-ink) 9%,var(--nm-paper))}
 
 .nm-sparks{position:absolute;inset:0;pointer-events:none;overflow:visible;z-index:4}
 .nm-spark{position:absolute;width:5px;height:5px;border-radius:2px;background:var(--accent);
   box-shadow:0 0 9px var(--accent);animation:nm-spark .75s cubic-bezier(.1,.6,.3,1) both}
 
-.nm-message{margin:0;text-align:center;min-height:19px;font-size:.8rem;line-height:1.25;color:var(--muted)}
+.nm-message{margin:0;text-align:center;min-height:17px;font-size:.8rem;line-height:1.25;color:var(--muted)}
 .nm-message[data-tone="ok"]{color:var(--accent)}
 .nm-message[data-tone="warn"]{color:var(--warn)}
 .nm-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -145,12 +151,19 @@
   .nm-app .brand h1{font-size:.86rem}.nm-app .icon-button{width:37px;height:38px}
   .nm-surface{padding-left:8px;padding-right:8px}.nm-levels{grid-template-columns:repeat(4,1fr)}
 }
+/* Deitado, a tela é larga e baixa: a barra de progresso sai (o placar já diz
+   quantos faltam) e recado e botões dividem a última linha, sobrando altura
+   para as cartas. */
 @media(orientation:landscape) and (max-height:560px){
   .nm-app{min-height:320px;grid-template-columns:min(190px,25vw) 1fr}
   .nm-app .arena{aspect-ratio:auto;width:100%;justify-self:stretch}
-  .nm-surface{grid-template-rows:auto auto minmax(0,1fr) auto;gap:6px;padding:8px 10px}
-  .nm-actions{grid-template-columns:1fr 1fr;gap:6px}.nm-actions button{min-height:34px;font-size:.72rem}
-  .nm-message{min-height:14px;font-size:.7rem}
+  .nm-surface{grid-template-rows:auto minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr) auto;gap:5px;padding:7px 9px}
+  .nm-topline{grid-column:1/3}
+  .nm-progress{display:none}
+  .nm-board-wrap{grid-column:1/3}
+  .nm-message{grid-column:1;text-align:left;min-height:0;font-size:.72rem;align-self:center}
+  .nm-actions{grid-column:2;grid-template-columns:auto auto;gap:6px}
+  .nm-actions button{min-height:34px;font-size:.72rem;padding:5px 11px}
 }
 @media(prefers-reduced-motion:reduce){
   .nm-surface *,.nm-surface :before,.nm-surface :after{animation:none!important;transition:none!important}

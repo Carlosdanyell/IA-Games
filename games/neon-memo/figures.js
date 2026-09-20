@@ -18,6 +18,12 @@ export const FAMILIES = [
 
 export const WILD = 'camaleao';
 
+// Detalhe escuro que encosta no fundo da carta (roda, caixa do piano, pé do
+// microfone). No tema escuro ele clareia; sem isso a roda da bicicleta some.
+// Os escuros que ficam *dentro* de uma área clara da própria figura — olho,
+// tecla preta, gomo da bola — continuam fixos.
+const LINE = 'var(--fig-line,#34293f)';
+
 // Olho com brilho e traço solto: as duas coisas que mais repetem nos desenhos.
 const eye = (x, y, r = 2.8) =>
   `<circle cx="${x}" cy="${y}" r="${r}" fill="#34293f"/><circle cx="${x + r * .34}" cy="${y - r * .36}" r="${r * .33}" fill="#fff"/>`;
@@ -80,7 +86,7 @@ export const FIGURES = [
   { id: 'abelha', name: 'Abelha', family: 'animais', art:
     `<ellipse cx="22" cy="21" rx="9" ry="6" transform="rotate(-28 22 21)" fill="#d3e9fb"/>
      <ellipse cx="42" cy="21" rx="9" ry="6" transform="rotate(28 42 21)" fill="#d3e9fb"/>
-     <path d="m47 33 9 5-9 5z" fill="#3b3348"/>
+     <path d="m47 33 9 5-9 5z" fill="${LINE}"/>
      <ellipse cx="31" cy="38" rx="16" ry="12" fill="#f7c93f"/>
      <rect x="24" y="30" width="5" height="17" rx="2.4" fill="#3b3348"/>
      <rect x="34" y="30" width="5" height="17" rx="2.4" fill="#3b3348"/>
@@ -147,16 +153,16 @@ export const FIGURES = [
     `<path d="M6 45v-10l7-2 6-11h26l6 11 7 2v10z" fill="#e0483f"/>
      <path d="M21 25h9v8H16zM34 25h7l5 8H34z" fill="#a8dbf5"/>
      <path d="M6 36h52v4H6z" fill="#c3372f"/>
-     <circle cx="19" cy="46" r="6.5" fill="#3b3348"/><circle cx="19" cy="46" r="2.8" fill="#cdc6d8"/>
-     <circle cx="45" cy="46" r="6.5" fill="#3b3348"/><circle cx="45" cy="46" r="2.8" fill="#cdc6d8"/>
+     <circle cx="19" cy="46" r="6.5" fill="${LINE}"/><circle cx="19" cy="46" r="2.8" fill="#cdc6d8"/>
+     <circle cx="45" cy="46" r="6.5" fill="${LINE}"/><circle cx="45" cy="46" r="2.8" fill="#cdc6d8"/>
      <circle cx="55" cy="35" r="2.4" fill="#ffe08a"/>` },
   { id: 'bicicleta', name: 'Bicicleta', family: 'transporte', art:
-    `<circle cx="15" cy="42" r="11.5" fill="none" stroke="#3b3348" stroke-width="4"/>
-     <circle cx="49" cy="42" r="11.5" fill="none" stroke="#3b3348" stroke-width="4"/>
+    `<circle cx="15" cy="42" r="11.5" fill="none" stroke="${LINE}" stroke-width="4"/>
+     <circle cx="49" cy="42" r="11.5" fill="none" stroke="${LINE}" stroke-width="4"/>
      ${ln('m15 42 13-20h10l11 20M24 42h13l3-16', '#2f9fd6', 3.6)}
      ${ln('M28 22h-6', '#2f9fd6', 3.6)}
-     <path d="M19 24h10v4H19z" transform="rotate(-8 24 26)" fill="#5a4a6a"/>
-     ${ln('M38 22h9', '#5a4a6a', 3)}` },
+     <path d="M19 24h10v4H19z" transform="rotate(-8 24 26)" fill="${LINE}"/>
+     ${ln('M38 22h9', LINE, 3)}` },
   { id: 'aviao', name: 'Avião', family: 'transporte', art:
     `<path d="M32 6c3 0 5 5 5 12v9l20 12v6l-20-6v10l6 5v4l-11-4-11 4v-4l6-5V39L7 45v-6l20-12v-9c0-7 2-12 5-12Z" fill="#c9d7ee"/>
      <path d="m37 27 20 12v6l-20-6zM37 39v10l6 5v4l-11-4z" fill="#8fa8d0"/>
@@ -173,9 +179,9 @@ export const FIGURES = [
      <rect x="13" y="23" width="10" height="10" rx="2" fill="#f7d94a"/>
      <rect x="27" y="23" width="10" height="10" rx="2" fill="#f7d94a"/>
      <rect x="44" y="32" width="9" height="8" rx="2" fill="#f7d94a"/>
-     <path d="M12 17v-6h7v6z" fill="#3b3348"/>
-     <circle cx="16" cy="49" r="5" fill="#3b3348"/><circle cx="32" cy="49" r="5" fill="#3b3348"/>
-     <circle cx="49" cy="49" r="5" fill="#3b3348"/>
+     <path d="M12 17v-6h7v6z" fill="${LINE}"/>
+     <circle cx="16" cy="49" r="5" fill="${LINE}"/><circle cx="32" cy="49" r="5" fill="${LINE}"/>
+     <circle cx="49" cy="49" r="5" fill="${LINE}"/>
      <circle cx="15" cy="8" r="4" fill="#d5d0de"/><circle cx="23" cy="5" r="3" fill="#e4e0ea"/>` },
   { id: 'foguete', name: 'Foguete', family: 'transporte', art:
     `<path d="M32 5c8 7 12 17 12 28v9H20v-9c0-11 4-21 12-28Z" fill="#eef1f8"/>
@@ -191,24 +197,24 @@ export const FIGURES = [
      <rect x="27" y="20" width="12" height="11" rx="2" fill="#a8dbf5"/>
      <rect x="42" y="20" width="12" height="11" rx="2" fill="#a8dbf5"/>
      <path d="M5 35h54v5H5z" fill="#d99a25"/>
-     <circle cx="17" cy="47" r="6" fill="#3b3348"/><circle cx="17" cy="47" r="2.5" fill="#cdc6d8"/>
-     <circle cx="47" cy="47" r="6" fill="#3b3348"/><circle cx="47" cy="47" r="2.5" fill="#cdc6d8"/>` },
+     <circle cx="17" cy="47" r="6" fill="${LINE}"/><circle cx="17" cy="47" r="2.5" fill="#cdc6d8"/>
+     <circle cx="47" cy="47" r="6" fill="${LINE}"/><circle cx="47" cy="47" r="2.5" fill="#cdc6d8"/>` },
   { id: 'moto', name: 'Moto', family: 'transporte', art:
-    `<circle cx="14" cy="44" r="10.5" fill="none" stroke="#3b3348" stroke-width="5"/>
-     <circle cx="50" cy="44" r="10.5" fill="none" stroke="#3b3348" stroke-width="5"/>
+    `<circle cx="14" cy="44" r="10.5" fill="none" stroke="${LINE}" stroke-width="5"/>
+     <circle cx="50" cy="44" r="10.5" fill="none" stroke="${LINE}" stroke-width="5"/>
      ${ln('M14 44h10l8-12h8l6 12', '#cf3644', 5)}
      <path d="M24 26h14l3 8H22z" fill="#e5424f"/>
-     <path d="M20 26h9v6h-9z" fill="#3b3348"/>
-     ${ln('M25 26h-6M42 28l5-6h7', '#5a4a6a', 3.4)}
-     <rect x="46" y="18" width="11" height="4" rx="2" fill="#3b3348"/>` },
+     <path d="M20 26h9v6h-9z" fill="${LINE}"/>
+     ${ln('M25 26h-6M42 28l5-6h7', LINE, 3.4)}
+     <rect x="46" y="18" width="11" height="4" rx="2" fill="${LINE}"/>` },
 
   // ----------------------------------------------------------------- música
   { id: 'guitarra', name: 'Guitarra', family: 'musica', art:
-    `<rect x="27" y="7" width="10" height="16" rx="1" fill="#6b4324"/>
-     <rect x="24" y="2" width="16" height="7" rx="2" fill="#4d2f18"/>
+    `<rect x="27" y="7" width="10" height="16" rx="1" fill="#7d5028"/>
+     <rect x="24" y="2" width="16" height="7" rx="2" fill="#5d3a1d"/>
      <path d="M32 21c5 0 9 3 9 8 0 4-3 6-3 9 0 4 7 6 7 14s-6 12-13 12-13-4-13-12 7-10 7-14c0-3-3-5-3-9 0-5 4-8 9-8Z" fill="#c98a4a"/>
-     <circle cx="32" cy="45" r="5.5" fill="#4d2f18"/>
-     <rect x="26" y="52" width="12" height="3.4" rx="1.4" fill="#4d2f18"/>
+     <circle cx="32" cy="45" r="5.5" fill="#5d3a1d"/>
+     <rect x="26" y="52" width="12" height="3.4" rx="1.4" fill="#5d3a1d"/>
      ${ln('M29 9v40M35 9v40', '#f4ecdd', 1.4)}` },
   { id: 'tambor', name: 'Tambor', family: 'musica', art:
     `${ln('M5 12 21 25M59 12 43 25', '#8a5a2b', 3)}
@@ -218,7 +224,7 @@ export const FIGURES = [
      <ellipse cx="32" cy="27" rx="15" ry="5" fill="#ece0c8"/>
      ${ln('m12 31 8 8m32-8-8 8M22 41l10-8m10 8-10-8', '#f7d94a', 2.4)}` },
   { id: 'piano', name: 'Piano', family: 'musica', art:
-    `<rect x="4" y="17" width="56" height="30" rx="4" fill="#3b3348"/>
+    `<rect x="4" y="17" width="56" height="30" rx="4" fill="${LINE}"/>
      <rect x="7" y="22" width="50" height="22" rx="2" fill="#f7f4fa"/>
      ${ln('M16 22v22M24 22v22M32 22v22M40 22v22M48 22v22', '#c5bed0', 1.6)}
      <rect x="12" y="22" width="7" height="13" rx="1" fill="#3b3348"/>
@@ -226,11 +232,11 @@ export const FIGURES = [
      <rect x="37" y="22" width="7" height="13" rx="1" fill="#3b3348"/>
      <rect x="45" y="22" width="7" height="13" rx="1" fill="#3b3348"/>` },
   { id: 'microfone', name: 'Microfone', family: 'musica', art:
-    `<rect x="24" y="6" width="16" height="27" rx="8" fill="#5a4a6a"/>
-     ${ln('M25 14h14M25 20h14M25 26h14', '#8d81a0', 1.6)}
+    `<rect x="24" y="6" width="16" height="27" rx="8" fill="#7a6d94"/>
+     ${ln('M25 14h14M25 20h14M25 26h14', '#e2dcee', 1.6)}
      ${ln('M16 28c0 9 7 16 16 16s16-7 16-16', '#cdc6d8', 3.4)}
      <rect x="30" y="43" width="4" height="10" fill="#8d81a0"/>
-     <path d="M20 58c0-3 5-5 12-5s12 2 12 5z" fill="#3b3348"/>` },
+     <path d="M20 58c0-3 5-5 12-5s12 2 12 5z" fill="${LINE}"/>` },
   { id: 'fone', name: 'Fone', family: 'musica', art:
     `${ln('M11 39V31a21 21 0 0 1 42 0v8', '#8b64c4', 6)}
      <rect x="4" y="34" width="14" height="21" rx="6" fill="#6f49ad"/>
@@ -250,10 +256,10 @@ export const FIGURES = [
      <rect x="29" y="11" width="10" height="5" rx="2.5" fill="#f2c94c"/>` },
   { id: 'violino', name: 'Violino', family: 'musica', art:
     `<g transform="rotate(-20 32 32)">
-       <rect x="29" y="6" width="6" height="16" fill="#4d2f18"/>
-       <path d="M27 2h10v6H27z" fill="#3a2211"/>
+       <rect x="29" y="6" width="6" height="16" fill="#5d3a1d"/>
+       <path d="M27 2h10v6H27z" fill="#4a2d16"/>
        <path d="M32 20c5 0 8 3 8 7 0 3-2 5-2 7 0 4 6 5 6 12s-5 11-12 11-12-4-12-11 6-8 6-12c0-2-2-4-2-7 0-4 3-7 8-7Z" fill="#b5702f"/>
-       ${ln('M28 40c-1-4-1-8 0-11M36 40c1-4 1-8 0-11', '#3a2211', 1.8)}
+       ${ln('M28 40c-1-4-1-8 0-11M36 40c1-4 1-8 0-11', '#4a2d16', 1.8)}
        ${ln('M30 22v26M34 22v26', '#f4ecdd', 1.2)}
      </g>
      ${ln('M6 48 56 16', '#d9c39a', 3)}${ln('M8 52 58 20', '#8a5a2b', 1.6)}` },
@@ -335,7 +341,7 @@ export const FIGURES = [
      <path d="M13 27h30v4c0 2-7 4-15 4s-15-2-15-4z" fill="#7a4a24"/>
      <path d="M7 55h42v4H7z" fill="#cfd8ea"/>` },
   { id: 'relogio', name: 'Relógio', family: 'casa', art:
-    `<circle cx="32" cy="33" r="22" fill="#5a4a6a"/><circle cx="32" cy="33" r="18" fill="#f7f4fa"/>
+    `<circle cx="32" cy="33" r="22" fill="${LINE}"/><circle cx="32" cy="33" r="18" fill="#f7f4fa"/>
      ${ln('M32 19v14l9 6', '#3b3348', 3)}
      ${ln('M32 33 22 25', '#cf3644', 2.4)}
      <circle cx="32" cy="33" r="2.4" fill="#3b3348"/>
@@ -380,12 +386,12 @@ export const FIGURES = [
     `<ellipse cx="29" cy="23" rx="17" ry="19" fill="#2f9fd6"/>
      <ellipse cx="29" cy="23" rx="13" ry="15" fill="#f7f4fa"/>
      ${ln('M22 10v26M29 8v30M36 10v26M17 16h24M16 23h26M18 30h22', '#c5bed0', 1.4)}
-     <path d="M25 41h8l3 17h-14z" fill="#5a4a6a"/>
+     <path d="M25 41h8l3 17h-14z" fill="${LINE}"/>
      <circle cx="50" cy="46" r="7" fill="#c8e05a"/>${ln('M45 42c3 3 4 6 4 9', '#f7f4fa', 1.6)}` },
   { id: 'skate', name: 'Skate', family: 'esportes', art:
     `<path d="M4 32c0-5 8-7 28-7s28 2 28 7-8 7-28 7S4 37 4 32Z" fill="#ef8b34"/>
      <path d="M14 27c10-2 26-2 36 0-10 2-26 2-36 0Z" fill="#f2b535"/>
-     <rect x="15" y="38" width="5" height="5" fill="#5a4a6a"/><rect x="44" y="38" width="5" height="5" fill="#5a4a6a"/>
+     <rect x="15" y="38" width="5" height="5" fill="${LINE}"/><rect x="44" y="38" width="5" height="5" fill="${LINE}"/>
      <circle cx="17" cy="47" r="5.5" fill="#c5bed0"/><circle cx="47" cy="47" r="5.5" fill="#c5bed0"/>
      <circle cx="17" cy="47" r="2" fill="#8d81a0"/><circle cx="47" cy="47" r="2" fill="#8d81a0"/>` },
   { id: 'trofeu', name: 'Troféu', family: 'esportes', art:
@@ -456,7 +462,7 @@ export const FIGURES = [
     `${ln('M23 16 6 9M23 24 6 28M41 16l17-7M41 24l17 4', '#f7d94a', 3.4)}
      <path d="M25 27h14l5 29H20z" fill="#f4f6fb"/>
      <path d="M22 37h20l1.2 7H20.8zM20.4 48h23.2l1 7H19.4z" fill="#e5424f"/>
-     <rect x="23" y="16" width="18" height="11" rx="2" fill="#5a4a6a"/>
+     <rect x="23" y="16" width="18" height="11" rx="2" fill="${LINE}"/>
      <circle cx="32" cy="21" r="4.4" fill="#f7d94a"/>
      <path d="M26 6h12l5 9H21z" fill="#cf3644"/>
      <rect x="21" y="26" width="22" height="3" rx="1.5" fill="#8d81a0"/>
