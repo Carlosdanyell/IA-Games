@@ -118,13 +118,19 @@ automático enquanto houver inimigos. No computador, use **WASD** ou as **setas*
 para mover, **Espaço** ou clique para atirar com o tiro automático desligado e
 **Esc** para pausar.
 
-- **Ondas:** drones, dardos, ziguezagues, atiradores, blindados, divisores,
-  caçadores e sentinelas entram aos poucos. A cada cinco ondas surge um chefe com
-  três fases, e todo ataque dele é anunciado antes.
+- **Ondas:** drones, dardos, atiradores, ziguezagues, blindados, divisores,
+  caçadores e sentinelas entram aos poucos, um tipo novo por onda. Quanto mais
+  tarde a onda, mais inimigos que atiram ela traz. A cada cinco ondas surge um
+  chefe com três fases, e todo ataque dele é anunciado antes; cada fase que cai
+  solta um power-up.
 - **Power-ups:** reparo, escudo, cadência, tiro duplo, tiro triplo, perfurante,
   dano, câmera lenta e bomba.
 - **Melhorias:** a barra verde no topo enche com os abates. No intervalo entre
-  ondas a ação pausa e você escolhe um entre três cartões.
+  ondas a ação pausa e você escolhe um entre três cartões, um por onda — menos
+  no intervalo que antecede o chefe, em que saem todas as guardadas.
+- **Dificuldade:** Fácil, Normal e Difícil mudam a pressão da onda (quantidade
+  de inimigos, cadência de tiro e a carência depois do dano), não o tamanho da
+  vida do chefe: chefe com muita vida deixa a luta longa, não difícil.
 - **Pontos:** abates sem levar dano sobem o combo, e a cada 10 o multiplicador
   aumenta. Onda terminada sem dano vale o dobro de bônus.
 

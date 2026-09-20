@@ -139,7 +139,7 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
       return true;
     }
     p.hp = Math.max(0, p.hp - amount);
-    p.invuln = PLAYER.invuln;
+    p.invuln = PLAYER.invuln * diff.invuln;
     p.hitFlash = 0.35;
     W.combo = 0;
     W.waveDamaged = true;
@@ -326,7 +326,14 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
     }
 
     if (W.boss) {
+      const before = W.events.length;
       updateBoss(W, W.boss, edt);
+      // Cada virada de fase solta um power-up: a luta longa vira troca de golpes
+      // em vez de desgaste, e quem tira vida do chefe ganha fôlego de volta.
+      for (let i = before; i < W.events.length; i++) {
+        if (W.events[i].type !== 'bossPhase') continue;
+        spawnDrop(W.boss.x, W.boss.y + W.boss.r * 0.8, p.hp < p.maxHp ? 'heal' : null);
+      }
       const b = W.boss;
       if (p.alive && b.state === 'fight' && hit(b.x, b.y, p.x, p.y, b.r * 0.8 + PLAYER.radius)) hurtPlayer(BOSS.contact);
     }
