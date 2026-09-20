@@ -58,6 +58,9 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   let session = null, status = 'peek', seed = 1;
   let peekLeft = 0, missLeft = 0, hintLeft = 0, hintCards = [], messageLeft = 0;
   let nodes = [], focused = 0, destroyed = false;
+  // Grade em uso: pode ser a da fase ou ela deitada, o que couber melhor na
+  // tela. Só muda o arranjo — o baralho e as regras não sabem disso.
+  let grid = { cols: 1, rows: 1 };
   const sparks = [];
 
   // --------------------------------------------------------------------- DOM
@@ -110,10 +113,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
       </span></span>`;
   }
   function renderBoard() {
-    board.style.setProperty('--cols', level.cols);
-    board.style.setProperty('--rows', level.rows);
-    board.setAttribute('aria-rowcount', level.rows);
-    board.setAttribute('aria-colcount', level.cols);
+    grid = { cols: level.cols, rows: level.rows };
     board.replaceChildren();
     nodes = session.cards.map((card, index) => {
       const node = el('button', 'nm-card');
@@ -121,15 +121,24 @@ export function create({ hud, input, theme, audio, haptics, store }) {
       node.dataset.index = index;
       node.style.setProperty('--i', index);
       node.setAttribute('role', 'gridcell');
-      node.setAttribute('aria-rowindex', Math.floor(index / level.cols) + 1);
-      node.setAttribute('aria-colindex', index % level.cols + 1);
       paint(node, card);
       node.addEventListener('click', () => flip(index), { signal });
       board.append(node);
       return node;
     });
     focused = 0;
+    applyGrid();
     sizeBoard();
+  }
+  function applyGrid() {
+    board.style.setProperty('--cols', grid.cols);
+    board.style.setProperty('--rows', grid.rows);
+    board.setAttribute('aria-rowcount', grid.rows);
+    board.setAttribute('aria-colcount', grid.cols);
+    nodes.forEach((node, index) => {
+      node.setAttribute('aria-rowindex', Math.floor(index / grid.cols) + 1);
+      node.setAttribute('aria-colindex', index % grid.cols + 1);
+    });
   }
   function paint(node, card) {
     node.dataset.family = card.family;
@@ -158,15 +167,28 @@ export function create({ hud, input, theme, audio, haptics, store }) {
         : `Carta ${i + 1}: ${item.name}${matched ? ', encontrada' : ''}`);
     }
   }
+  // Escolhe entre a grade da fase e ela deitada: em paisagem, 5x6 vira 6x5 e a
+  // carta cresce em vez de sobrar tela dos lados.
   function sizeBoard() {
     const box = boardWrap.getBoundingClientRect();
     if (!box.width || !box.height) return;
-    const gap = level.cols > 4 || level.rows > 5 ? 5 : 7;
-    const size = Math.floor(Math.min(
-      (box.width - gap * (level.cols - 1)) / level.cols,
-      (box.height - gap * (level.rows - 1)) / level.rows));
-    board.style.setProperty('--nm-gap', gap + 'px');
-    board.style.setProperty('--nm-card', Math.max(28, Math.min(120, size)) + 'px');
+    const shapes = level.cols === level.rows
+      ? [[level.cols, level.rows]]
+      : [[level.cols, level.rows], [level.rows, level.cols]];
+    let best = null;
+    for (const [cols, rows] of shapes) {
+      const gap = cols > 4 || rows > 4 ? 5 : 7;
+      const size = Math.floor(Math.min(
+        (box.width - gap * (cols - 1)) / cols,
+        (box.height - gap * (rows - 1)) / rows));
+      if (!best || size > best.size) best = { cols, rows, gap, size };
+    }
+    if (best.cols !== grid.cols || best.rows !== grid.rows) {
+      grid = { cols: best.cols, rows: best.rows };
+      applyGrid();
+    }
+    board.style.setProperty('--nm-gap', best.gap + 'px');
+    board.style.setProperty('--nm-card', Math.max(28, Math.min(156, best.size)) + 'px');
   }
   function burst(index, count = 7) {
     if (!animated()) return;
@@ -384,13 +406,13 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   board.addEventListener('keydown', event => {
     const cell = event.target.closest('[data-index]');
     if (!cell) return;
-    const index = Number(cell.dataset.index), row = Math.floor(index / level.cols), col = index % level.cols;
+    const index = Number(cell.dataset.index), row = Math.floor(index / grid.cols), col = index % grid.cols;
     const last = nodes.length - 1;
     const targets = {
-      ArrowLeft: row * level.cols + (col + level.cols - 1) % level.cols,
-      ArrowRight: row * level.cols + (col + 1) % level.cols,
-      ArrowUp: Math.max(0, index - level.cols),
-      ArrowDown: Math.min(last, index + level.cols),
+      ArrowLeft: row * grid.cols + (col + grid.cols - 1) % grid.cols,
+      ArrowRight: row * grid.cols + (col + 1) % grid.cols,
+      ArrowUp: Math.max(0, index - grid.cols),
+      ArrowDown: Math.min(last, index + grid.cols),
       Home: 0, End: last
     };
     if (!Object.hasOwn(targets, event.key)) return;
