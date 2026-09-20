@@ -1,8 +1,25 @@
-export const ARENA = { radius: 1800, food: 900, maxFood: 2200, speed: 105, boost: 185, startMass: 32, minMass: 20, maxMass: 6000, spacing: 5 };
+export const ARENA = {
+  radius: 1800, food: 900, maxFood: 2200, speed: 175, boost: 300,
+  startMass: 32, minMass: 26, maxMass: 6000, spacing: 6,
+  // Luz comum vale mais de um ponto: o crescimento inicial precisa ser sentido
+  // nos primeiros segundos, como no slither.io.
+  foodValue: 1.8,
+  // Acelerar custa uma fração da massa por segundo, com piso para as pequenas.
+  boostDrain: .022, boostFloor: 3.4,
+  // Alcance em que a luz é puxada para a cabeça. Comer vira um movimento
+  // contínuo em vez de exigir passar por cima do ponto exato.
+  magnet: 34
+};
+// bots: quantos rivais; reaction: intervalo entre decisões; foresight: alcance
+// da leitura de perigo; aggression: chance de caçar quem já está em desvantagem;
+// skill: precisão do rumo escolhido; mass: faixa de massa no nascimento.
 export const DIFFICULTIES = {
-  easy: { name: 'Fácil', bots: 16, reaction: .34, foresight: 95, aggression: .08, note: 'Rivais tranquilos, focados em alimento.' },
-  normal: { name: 'Normal', bots: 22, reaction: .20, foresight: 145, aggression: .35, note: 'Rivais disputam alimento e tentam cortar caminho.' },
-  hard: { name: 'Difícil', bots: 28, reaction: .12, foresight: 200, aggression: .65, note: 'Rivais antecipam curvas e aceleram para interceptar.' }
+  easy: { name: 'Fácil', bots: 12, reaction: .30, foresight: 120, aggression: .05, skill: .55, mass: [24, 70],
+    note: 'Rivais pequenos e distraídos, quase sempre atrás de alimento.' },
+  normal: { name: 'Normal', bots: 16, reaction: .22, foresight: 155, aggression: .20, skill: .78, mass: [26, 120],
+    note: 'Rivais disputam alimento e cortam caminho de quem está menor que eles.' },
+  hard: { name: 'Difícil', bots: 18, reaction: .14, foresight: 195, aggression: .36, skill: 1, mass: [28, 170],
+    note: 'Rivais antecipam curvas e aceleram para interceptar presas menores.' }
 };
 export const SKINS = [
   { id: 'aurora', name: 'Aurora', colors: ['#65f3cb', '#2cbaa0'], goal: 0 },
