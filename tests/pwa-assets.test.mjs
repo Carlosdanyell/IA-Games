@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Script } from 'node:vm';
 import { GAMES } from '../core/registry.js';
 
 // O sw.js decide o que abre sem internet: arquivo fora de ASSETS quebra o jogo
@@ -19,6 +20,9 @@ const assets = [...(sw.match(/const ASSETS = \[([\s\S]*?)\];/)?.[1] ?? '').match
 const cached = new Set(assets.filter(asset => asset !== './').map(asset => asset.replace(/^\.\//, '')));
 
 test('sw.js tem VERSION e ASSETS sem repetição', () => {
+  // Extrair ASSETS por regex não detecta uma vírgula ausente entre arquivos.
+  // O navegador rejeita o worker inteiro antes de instalar o cache nesse caso.
+  assert.doesNotThrow(() => new Script(sw), 'sw.js precisa ser JavaScript válido');
   assert.ok(versionOf(sw), 'VERSION não encontrada no sw.js');
   assert.ok(cached.has('index.html') && cached.has('play.html'), 'ASSETS não encontrado no sw.js');
   assert.deepEqual(repeated(assets), [], 'ASSETS repetido no sw.js');

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="92" height="92" viewBox="0 0 92 92">
+  <!-- Caixa comum: centro X=46; base Y=84. Escala uniforme pela casa. -->
+  <defs>
+    <linearGradient id="body" gradientUnits="userSpaceOnUse" x1="25" y1="16" x2="67" y2="85"><stop offset="0" stop-color="#FFF9EA"/><stop offset=".32" stop-color="#F7EEDA"/><stop offset=".67" stop-color="#F1DFC0"/><stop offset="1" stop-color="#D4BA8C"/></linearGradient>
+    <radialGradient id="shadow"><stop stop-color="#000" stop-opacity=".28"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+  </defs>
+  <ellipse cx="46" cy="86" rx="29" ry="3" fill="url(#shadow)"/>
+  <g fill="url(#body)" stroke="#191714" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M40 47 H52 C51 57 55 65 61 71 H31 C37 65 41 57 40 47Z"/>
+      <rect x="36" y="44" width="20" height="5" rx="2.3"/><circle cx="46" cy="35" r="9"/>
+      <path d="M40 33 Q41 29 45 29" fill="none" stroke="#FFF9EA" opacity=".75"/>
+      <path d="M49 54 Q50 62 54 66" fill="none" stroke="#A98A5E" opacity=".65"/>
+      <path d="M32 73 Q31 70 35 68 H57 Q61 70 60 73 L66 79 Q68 84 63 84 H29 Q24 84 26 79Z"/>
+    <path d="M31 76 H61" fill="none" stroke="#A98A5E" stroke-width="1.5"/>
+    <path d="M32 79 H58" fill="none" stroke="#FFF9EA" stroke-width="1.5" opacity=".65"/>
+  </g>
+</svg>
