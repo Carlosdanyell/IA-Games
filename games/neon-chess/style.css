@@ -1,19 +1,78 @@
 
 /* Neon Chess usa o chrome, as cores, o som e a persistência da biblioteca.
    Todo seletor leva o prefixo nx- para nenhum outro jogo herdar estes estilos. */
+/* Dois acabamentos de tabuleiro, um conjunto único de variáveis. O padrão é o
+   da biblioteca: o jogo fica na mesma família visual dos outros títulos e
+   acompanha a cor neon escolhida nos ajustes. "Madeira clássica" continua
+   disponível para quem prefere a mesa tradicional.
+
+   Tudo o que muda entre os dois está aqui em cima. Nenhuma cor de acabamento
+   pode ficar solta no meio da folha — foi assim que sobraram bege e marrom no
+   acabamento neon. */
 .nx-app{width:min(100%,560px);min-height:600px;margin-inline:auto;
+  --nx-light:color-mix(in srgb,var(--accent) 16%,#dbe3f5);
+  --nx-dark:color-mix(in srgb,var(--accent) 30%,#4d5b80);
+  --nx-frame:color-mix(in srgb,var(--accent) 10%,#141a2b);
+  --nx-frame-light:color-mix(in srgb,var(--accent) 17%,#232b42);
+  --nx-edge:#0a0f1d;
+  --nx-inlay:color-mix(in srgb,var(--accent) 60%,var(--line));
+  --nx-coordinates:color-mix(in srgb,var(--accent) 45%,var(--muted));
+  --nx-selected:color-mix(in srgb,var(--accent) 28%,transparent);
+  --nx-last:color-mix(in srgb,var(--accent) 20%,transparent);
+  --nx-dot:color-mix(in srgb,var(--accent) 62%,transparent);
+  --nx-ring:color-mix(in srgb,var(--accent) 70%,transparent);
+  --nx-check:rgba(255,95,109,.30);--nx-check-line:#ff5f6d;
+  --nx-chip-light:#f4f7ff;--nx-chip-dark:#161d31;
+  --nx-chip-line:color-mix(in srgb,var(--accent) 45%,var(--line));
+  --nx-taken-bg:color-mix(in srgb,var(--accent) 22%,transparent);
+  /* Peças: o desenho é o mesmo nos dois acabamentos; só a paleta muda. As
+     claras continuam claras e as escuras escuras — o tom é que recebe a cor
+     neon, para a peça pertencer ao tema sem perder o contraste com a casa. */
+  --nx-pw-1:color-mix(in srgb,var(--accent) 5%,#ffffff);
+  --nx-pw-2:color-mix(in srgb,var(--accent) 12%,#f4f7ff);
+  --nx-pw-3:color-mix(in srgb,var(--accent) 20%,#e8edfa);
+  --nx-pw-4:color-mix(in srgb,var(--accent) 32%,#c6d0e8);
+  --nx-pw-lite:color-mix(in srgb,var(--accent) 5%,#ffffff);
+  --nx-pw-shade:color-mix(in srgb,var(--accent) 42%,#96a3c2);
+  --nx-pw-ink:color-mix(in srgb,var(--accent) 16%,#0a0f1d);
+  --nx-pb-1:color-mix(in srgb,var(--accent) 34%,#4b5573);
+  --nx-pb-2:color-mix(in srgb,var(--accent) 26%,#2f3752);
+  --nx-pb-3:color-mix(in srgb,var(--accent) 18%,#161c2f);
+  --nx-pb-4:color-mix(in srgb,var(--accent) 12%,#0b101d);
+  --nx-pb-lite:color-mix(in srgb,var(--accent) 45%,#808ba8);
+  --nx-pb-lite2:color-mix(in srgb,var(--accent) 55%,#98a3bf);
+  --nx-pb-shade:color-mix(in srgb,var(--accent) 10%,#070b14);
+  --nx-pb-ink:color-mix(in srgb,var(--accent) 8%,#03060c)}
+/* Tema claro: a moldura acompanha o chrome claro do shell em vez de virar um
+   bloco escuro no meio da tela. */
+:root[data-theme="light"] .nx-app{
+  --nx-light:color-mix(in srgb,var(--accent) 12%,#eef2fb);
+  --nx-dark:color-mix(in srgb,var(--accent) 34%,#7182ab);
+  --nx-frame:color-mix(in srgb,var(--accent) 13%,#e6ebf7);
+  --nx-frame-light:color-mix(in srgb,var(--accent) 7%,#fbfcff);
+  --nx-edge:color-mix(in srgb,var(--accent) 34%,#93a0bb);
+  --nx-coordinates:color-mix(in srgb,var(--accent) 45%,#3f4a60);
+  /* No tema claro o destaque é escuro e saturado: a peça clara recebe menos
+     tinta para não ficar colorida, e a escura recebe mais brilho. */
+  --nx-pw-3:color-mix(in srgb,var(--accent) 10%,#e9eefb);
+  --nx-pw-4:color-mix(in srgb,var(--accent) 18%,#c4cee6);
+  --nx-pw-shade:color-mix(in srgb,var(--accent) 26%,#96a3c2);
+  --nx-pb-1:color-mix(in srgb,var(--accent) 26%,#525d7c);
+  --nx-pb-lite:color-mix(in srgb,var(--accent) 30%,#8e99b5);
+  --nx-pb-lite2:color-mix(in srgb,var(--accent) 34%,#a6b1cc)}
+.nx-app[data-board-style="madeira"]{
   --nx-light:#e0b476;--nx-dark:#8f6034;--nx-frame:#251a13;--nx-frame-light:#3b291b;
-  --nx-coordinates:#ead7b0;--nx-inlay:#745334;
-  --nx-selected:rgba(221,174,87,.30);--nx-last:rgba(224,181,98,.18)}
-.nx-app[data-board-style="neon"]{
-  --nx-light:color-mix(in srgb,var(--accent) 19%,#eae2d2);
-  --nx-dark:color-mix(in srgb,var(--accent) 29%,#484049);
-  --nx-frame:color-mix(in srgb,var(--accent) 8%,#17131c);
-  --nx-frame-light:color-mix(in srgb,var(--accent) 14%,#29232f);
-  --nx-inlay:color-mix(in srgb,var(--accent) 50%,#745334);
-  --nx-coordinates:color-mix(in srgb,var(--accent) 16%,#ead7b0);
-  --nx-selected:color-mix(in srgb,var(--accent) 30%,transparent);
-  --nx-last:color-mix(in srgb,var(--accent) 18%,transparent)}
+  --nx-edge:#0e0d0c;--nx-coordinates:#ead7b0;--nx-inlay:#745334;
+  --nx-selected:rgba(221,174,87,.30);--nx-last:rgba(224,181,98,.18);
+  --nx-dot:rgba(35,35,31,.28);--nx-ring:rgba(35,35,31,.35);
+  --nx-check:rgba(175,65,55,.32);--nx-check-line:#af4137;
+  --nx-chip-light:#f7eeda;--nx-chip-dark:#25272a;--nx-chip-line:#a98a5e;
+  --nx-taken-bg:#d4ba8c;
+  /* Marfim e grafite do conjunto clássico, exatamente como estavam. */
+  --nx-pw-1:#fff9ea;--nx-pw-2:#f7eeda;--nx-pw-3:#f1dfc0;--nx-pw-4:#d4ba8c;
+  --nx-pw-lite:#fff9ea;--nx-pw-shade:#a98a5e;--nx-pw-ink:#191714;
+  --nx-pb-1:#56575a;--nx-pb-2:#3b3d40;--nx-pb-3:#151719;--nx-pb-4:#0d0e0f;
+  --nx-pb-lite:#77797b;--nx-pb-lite2:#999a9c;--nx-pb-shade:#0d0e0f;--nx-pb-ink:#050607}
 body.nx-body{place-items:stretch}
 body.nx-body>*{justify-self:stretch}
 .nx-app .brand>div{min-width:0}
@@ -43,14 +102,14 @@ body.nx-body>*{justify-self:stretch}
   transition:border-color .2s,background .2s}
 .nx-player[data-active="true"]{border-color:var(--accent);background:var(--wash)}
 .nx-player::before{content:"";width:9px;height:9px;flex-shrink:0;border-radius:50%;
-  background:#f7eeda;border:1px solid #a98a5e}
-.nx-player[data-color="black"]::before{background:#25272a;border-color:#77797b}
+  background:var(--nx-chip-light);border:1px solid var(--nx-chip-line)}
+.nx-player[data-color="black"]::before{background:var(--nx-chip-dark)}
 .nx-player-name{color:var(--text);font:700 .64rem ui-monospace,monospace;letter-spacing:.06em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
 .nx-taken{display:flex;flex-wrap:wrap;gap:1px;flex:1 1 auto;min-width:0;justify-content:flex-end}
 .nx-taken .nx-piece{width:18px;height:18px}
 .nx-taken .nx-piece[data-color="black"],.nx-promotion-option .nx-piece[data-color="black"]{
-  background:#d4ba8c;border-radius:4px}
+  background:var(--nx-taken-bg);border-radius:4px}
 .nx-edge{color:var(--accent);font:700 .68rem ui-monospace,monospace;flex-shrink:0}
 
 /* -------------------------------------------------------------- tabuleiro */
@@ -60,8 +119,8 @@ body.nx-body>*{justify-self:stretch}
   width:calc(var(--nx-board-size) + var(--nx-cell));aspect-ratio:1;
   border-radius:calc(var(--nx-unit)*10);
   background:linear-gradient(125deg,var(--nx-frame-light),var(--nx-frame) 55%,var(--nx-frame-light));
-  box-shadow:inset 0 0 0 calc(var(--nx-unit)*3) #0e0d0c,
-    inset 0 0 0 calc(var(--nx-unit)*5) color-mix(in srgb,var(--accent) 25%,var(--nx-inlay)),
+  box-shadow:inset 0 0 0 calc(var(--nx-unit)*3) var(--nx-edge),
+    inset 0 0 0 calc(var(--nx-unit)*5) var(--nx-inlay),
     0 calc(var(--nx-unit)*4) calc(var(--nx-unit)*10) #0007}
 .nx-coordinates{position:absolute;display:grid;color:var(--nx-coordinates);pointer-events:none;
   font:400 calc(var(--nx-unit)*26)/1 Georgia,"Times New Roman",serif;z-index:1}
@@ -77,7 +136,7 @@ body.nx-body>*{justify-self:stretch}
 .nx-board{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));
   grid-template-rows:repeat(8,minmax(0,1fr));gap:0;position:relative;isolation:isolate;z-index:2;
   width:var(--nx-board-size);height:var(--nx-board-size);aspect-ratio:1;touch-action:none;
-  box-shadow:0 0 0 calc(var(--nx-unit)*2) var(--nx-inlay),0 0 0 calc(var(--nx-unit)*4) #0e0d0c}
+  box-shadow:0 0 0 calc(var(--nx-unit)*2) var(--nx-inlay),0 0 0 calc(var(--nx-unit)*4) var(--nx-edge)}
 .nx-square{display:block;appearance:none;padding:0;margin:0;border:0;border-radius:0;position:relative;
   min-width:0;min-height:0;width:100%;height:100%;line-height:0;touch-action:none;
   background-color:var(--nx-light);
@@ -85,7 +144,23 @@ body.nx-body>*{justify-self:stretch}
     #ffffff04 calc(var(--nx-unit)*6) calc(var(--nx-unit)*7),#00000003 calc(var(--nx-unit)*8) calc(var(--nx-unit)*10))}
 .nx-square[data-shade="dark"]{background-color:var(--nx-dark)}
 .nx-square::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0}
-.nx-piece{display:block;object-fit:contain;pointer-events:none;user-select:none;-webkit-user-drag:none}
+.nx-piece{display:block;overflow:visible;pointer-events:none;user-select:none;-webkit-user-drag:none}
+/* Cada forma do desenho carrega o PAPEL que exerce, não uma cor. Trocar de
+   acabamento ou de cor neon é trocar estas sete variáveis. */
+.nx-piece[data-color="white"]{--p-body:url(#nxPieceLight);--p-lite:var(--nx-pw-lite);
+  --p-lite2:var(--nx-pw-lite);--p-shade:var(--nx-pw-shade);--p-ink:var(--nx-pw-ink)}
+.nx-piece[data-color="black"]{--p-body:url(#nxPieceDark);--p-lite:var(--nx-pb-lite);
+  --p-lite2:var(--nx-pb-lite2);--p-shade:var(--nx-pb-shade);--p-ink:var(--nx-pb-ink)}
+.nx-piece .f-body{fill:var(--p-body)}
+.nx-piece .f-drop{fill:url(#nxPieceDrop)}
+.nx-piece .f-lite{fill:var(--p-lite)}   .nx-piece .s-lite{stroke:var(--p-lite)}
+.nx-piece .f-lite2{fill:var(--p-lite2)} .nx-piece .s-lite2{stroke:var(--p-lite2)}
+.nx-piece .f-shade{fill:var(--p-shade)} .nx-piece .s-shade{stroke:var(--p-shade)}
+.nx-piece .f-ink{fill:var(--p-ink)}     .nx-piece .s-ink{stroke:var(--p-ink)}
+#nxPieceLight .s1{stop-color:var(--nx-pw-1)} #nxPieceLight .s2{stop-color:var(--nx-pw-2)}
+#nxPieceLight .s3{stop-color:var(--nx-pw-3)} #nxPieceLight .s4{stop-color:var(--nx-pw-4)}
+#nxPieceDark .s1{stop-color:var(--nx-pb-1)}  #nxPieceDark .s2{stop-color:var(--nx-pb-2)}
+#nxPieceDark .s3{stop-color:var(--nx-pb-3)}  #nxPieceDark .s4{stop-color:var(--nx-pb-4)}
 .nx-square .nx-piece{position:absolute;inset:0;width:100%;height:100%;z-index:2}
 .nx-square:focus-visible{outline:calc(var(--nx-unit)*3) solid var(--accent);
   outline-offset:calc(var(--nx-unit)*-3);z-index:4}
@@ -93,10 +168,11 @@ body.nx-body>*{justify-self:stretch}
 .nx-selected::before{background:var(--nx-selected);
   box-shadow:inset 0 0 0 calc(var(--nx-unit)*2) color-mix(in srgb,var(--accent) 60%,#ddae57)}
 .nx-target::after{content:"";position:absolute;left:41%;top:41%;width:18%;height:18%;
-  border-radius:50%;background:rgba(35,35,31,.28);pointer-events:none;z-index:1}
+  border-radius:50%;background:var(--nx-dot);pointer-events:none;z-index:1}
 .nx-capture::after{content:"";position:absolute;inset:5%;border-radius:50%;pointer-events:none;
-  border:calc(var(--nx-cell)*.06) solid rgba(35,35,31,.35);z-index:3}
-.nx-check::before{background:rgba(175,65,55,.32);box-shadow:inset 0 0 0 calc(var(--nx-unit)*3) #af4137}
+  border:calc(var(--nx-cell)*.06) solid var(--nx-ring);z-index:3}
+.nx-check::before{background:var(--nx-check);
+  box-shadow:inset 0 0 0 calc(var(--nx-unit)*3) var(--nx-check-line)}
 .nx-moving{z-index:5}
 .nx-captured,.nx-dragged{position:absolute;pointer-events:none}
 .nx-captured{z-index:2}

@@ -6,7 +6,7 @@ import {
   CAPTURE, CASTLE, PROMOTION_CHOICES, SAN_LETTERS
 } from './model.js';
 import { chooseMove, LEVELS, DEFAULT_LEVEL, levelOf, VALUES } from './ai.js';
-import { pieceSvg, describePiece } from './pieces.js';
+import { pieceSvg, describePiece, ensurePieceDefs } from './pieces.js';
 import { createBoardMotion } from './board-motion.js';
 import { LanTransport } from './lan-transport.js';
 import { createLanLobby } from './lan-ui.js';
@@ -54,6 +54,9 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     style.addEventListener('load', () => resize(), { signal });
     document.head.append(style);
   }
+  // Os degradês das peças ficam dentro da arena para herdarem as variáveis de
+  // cor do acabamento escolhido.
+  ensurePieceDefs(hud.arena);
   const app = hud.arena.closest('.app');
   app.classList.add('nx-app');
   document.body.classList.add('nx-body');
@@ -68,7 +71,14 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   let humanColor = saved?.humanColor === 'black' ? BLACK : WHITE;
   let flip = typeof saved?.flip === 'boolean' ? saved.flip : null;   // null = segue o lado do jogador
   let showHints = saved?.showHints !== false;
-  let boardStyle = saved?.boardStyle === 'neon' ? 'neon' : 'madeira';
+  // O padrão é o acabamento da biblioteca; a madeira clássica é opcional.
+  //
+  // A madeira já foi padrão por um período, e nesse tempo ficou GRAVADA em
+  // quem só abriu o jogo, sem escolher nada. Trocar o padrão não bastaria:
+  // esses aparelhos continuariam com a mesa marrom para sempre. Por isso a
+  // preferência só vale quando foi escolhida de fato nos ajustes.
+  let boardStylePicked = saved?.boardStylePicked === true;
+  let boardStyle = boardStylePicked && saved?.boardStyle === 'madeira' ? 'madeira' : 'neon';
   let playerName = cleanName(saved?.playerName, 0);
   const records = Object.fromEntries(Object.keys(LEVELS).map(key => [key, cleanRecord(saved?.records?.[key])]));
   let storageAvailable = true;
@@ -175,7 +185,8 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   function save() {
     storageAvailable = store.set('session-v1', {
       mode: mode === 'rede' ? 'maquina' : mode,   // sala não sobrevive ao reload
-      level, humanColor: humanColor === BLACK ? 'black' : 'white', flip, showHints, boardStyle,
+      level, humanColor: humanColor === BLACK ? 'black' : 'white', flip, showHints,
+      boardStyle, boardStylePicked,
       records, playerName, moves: mode === 'rede' ? [] : moveLog
     });
   }
@@ -914,8 +925,8 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     choices('Suas peças · inicia uma nova partida', 'nx-side', [['white', 'Brancas · você começa'], ['black', 'Pretas · a máquina começa']], humanColor === BLACK ? 'black' : 'white', changeSide);
     choices('Aparência', 'nx-theme', [['dark', 'Escuro'], ['light', 'Claro']], theme.mode, value => theme.setMode(value));
     choices('Cor neon', 'nx-palette', PALETTE_OPTIONS.filter(option => option.value !== 'auto').map(option => [option.value, option.label]), theme.choice === 'auto' ? 'azul' : theme.choice, value => theme.setChoice(value));
-    choices('Acabamento do tabuleiro', 'nx-board-style', [['madeira', 'Madeira clássica'], ['neon', 'Cor da biblioteca']], boardStyle, value => {
-      boardStyle = value; save(); sync();
+    choices('Acabamento do tabuleiro', 'nx-board-style', [['neon', 'Neon · cor da biblioteca'], ['madeira', 'Madeira clássica']], boardStyle, value => {
+      boardStyle = value; boardStylePicked = true; save(); sync();
     });
 
     const hintsLabel = el('label', 'nx-hint-setting');
