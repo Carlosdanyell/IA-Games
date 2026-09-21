@@ -6,7 +6,8 @@ import {
   CAPTURE, CASTLE, PROMOTION_CHOICES, SAN_LETTERS
 } from './model.js';
 import { chooseMove, LEVELS, DEFAULT_LEVEL, levelOf, VALUES } from './ai.js';
-import { pieceSvg, describePiece, ensurePieceDefs } from './pieces.js';
+import { pieceSvg, describePiece } from './pieces.js';
+import { createBoardMotion } from './board-motion.js';
 import { LanTransport } from './lan-transport.js';
 import { createLanLobby } from './lan-ui.js';
 import { createMatch, HOST, GUEST } from './lan-match.js';
@@ -53,9 +54,6 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     style.addEventListener('load', () => resize(), { signal });
     document.head.append(style);
   }
-  // Os degradês das peças vivem num SVG oculto, compartilhado pelas 32 peças
-  // do tabuleiro. Sem ele, `fill:url(#...)` não resolve e a peça sai vazada.
-  ensurePieceDefs();
   const app = hud.arena.closest('.app');
   app.classList.add('nx-app');
   document.body.classList.add('nx-body');
@@ -70,6 +68,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   let humanColor = saved?.humanColor === 'black' ? BLACK : WHITE;
   let flip = typeof saved?.flip === 'boolean' ? saved.flip : null;   // null = segue o lado do jogador
   let showHints = saved?.showHints !== false;
+  let boardStyle = saved?.boardStyle === 'neon' ? 'neon' : 'madeira';
   let playerName = cleanName(saved?.playerName, 0);
   const records = Object.fromEntries(Object.keys(LEVELS).map(key => [key, cleanRecord(saved?.records?.[key])]));
   let storageAvailable = true;
@@ -90,8 +89,14 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     <div class="nx-heading"><span class="nx-mode"><i></i><b></b></span><span class="nx-ply"></span></div>
     <div class="nx-player" data-seat="top"><span class="nx-player-name"></span><span class="nx-taken"></span><span class="nx-edge"></span></div>
     <div class="nx-board-zone">
-      <div class="nx-board" role="group" aria-label="Tabuleiro de xadrez, oito linhas por oito colunas"></div>
-      <div class="nx-promotion" hidden><p>Promover o peão para:</p><div class="nx-promotion-list"></div></div>
+      <div class="nx-board-frame">
+        <div class="nx-coordinates nx-files" data-edge="top" aria-hidden="true"></div>
+        <div class="nx-coordinates nx-ranks" data-edge="left" aria-hidden="true"></div>
+        <div class="nx-board" role="group" aria-label="Tabuleiro de xadrez, oito linhas por oito colunas"></div>
+        <div class="nx-coordinates nx-ranks" data-edge="right" aria-hidden="true"></div>
+        <div class="nx-coordinates nx-files" data-edge="bottom" aria-hidden="true"></div>
+      </div>
+      <div class="nx-promotion" role="dialog" aria-modal="true" aria-labelledby="nx-promotion-title" hidden><p id="nx-promotion-title">Promover o peão para:</p><div class="nx-promotion-list"></div></div>
       <div class="nx-lan-panel" hidden></div>
     </div>
     <div class="nx-player" data-seat="bottom"><span class="nx-player-name"></span><span class="nx-taken"></span><span class="nx-edge"></span></div>
@@ -106,6 +111,9 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   hud.arena.append(view);
   const $ = selector => view.querySelector(selector);
   const board = $('.nx-board'), zone = $('.nx-board-zone');
+  const frame = $('.nx-board-frame');
+  const coordinateStrips = [...view.querySelectorAll('.nx-coordinates')];
+  for (const strip of coordinateStrips) for (let i = 0; i < 8; i++) strip.append(el('span'));
   const promotionBox = $('.nx-promotion'), promotionList = $('.nx-promotion-list');
   const movesList = $('.nx-moves'), historyBox = $('.nx-history');
   const seats = { top: $('[data-seat="top"]'), bottom: $('[data-seat="bottom"]') };
@@ -137,8 +145,27 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   const over = () => netOn() ? net.match.state.flow === 'over' : current.over;
   const machineColor = () => other(humanColor);
   const machineTurn = () => mode === 'maquina' && !over() && pos.turn === machineColor();
-  const canPlay = () => !destroyed && !paused && !hud.dialogOpen && !over() && !machineTurn() &&
+  const canPlay = () => !destroyed && !paused && !hud.dialogOpen && !hud.overlayVisible && !over() && !machineTurn() &&
     !pendingPromotion && (!netOn() || (netReady() && net.match.myTurn()));
+  const motion = createBoardMotion(board, {
+    signal,
+    canDrag: index => canPlay() && !!pos.board[squareAt(index)] && colorOf(pos.board[squareAt(index)]) === pos.turn,
+    select: index => { if (selected !== squareAt(index)) touch(index); },
+    drop: touch
+  });
+
+  // Isola também o foco: pausa, resultado e confirmação cobrem toda a partida.
+  function syncOverlays() {
+    const blocked = paused || hud.overlayVisible;
+    view.inert = blocked;
+    board.inert = blocked || !!pendingPromotion || lobbyOpen();
+    if (blocked) {
+      motion.cancel();
+      if (!hud.dialogOpen && !hud.el.overlay.contains(document.activeElement)) hud.el.action.focus({ preventScroll: true });
+    }
+  }
+  const overlayObserver = new MutationObserver(syncOverlays);
+  overlayObserver.observe(hud.el.overlay, { attributes: true, attributeFilter: ['hidden'] });
   // Resultado e motivo: na rede a desistência não está no tabuleiro, só no
   // estado da sala.
   const resultInfo = () => netOn()
@@ -148,7 +175,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   function save() {
     storageAvailable = store.set('session-v1', {
       mode: mode === 'rede' ? 'maquina' : mode,   // sala não sobrevive ao reload
-      level, humanColor: humanColor === BLACK ? 'black' : 'white', flip, showHints,
+      level, humanColor: humanColor === BLACK ? 'black' : 'white', flip, showHints, boardStyle,
       records, playerName, moves: mode === 'rede' ? [] : moveLog
     });
   }
@@ -242,6 +269,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   }
 
   function applyMove(move) {
+    const before = motion.snapshot();
     const capture = !!(move & CAPTURE);
     const san = sanOf(pos, move, current.moves);
     makeMove(pos, move);
@@ -254,6 +282,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     if (!current.over) tell(current.check ? 'Xeque!' : '', current.check ? 'alert' : '');
     thinkLeft = levelOf(level).delay;
     save(); sync();
+    if (!hud.overlayVisible) motion.play(before, moveFrom(move), moveTo(move), !!(move & CASTLE));
   }
 
   function finish() {
@@ -350,6 +379,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
         pendingPromotion = null;
         promotionBox.hidden = true;
         if (move) commit(move); else sync();
+        squares[focused >= 0 ? focused : 0].focus({ preventScroll: true });
       }, { signal });
       promotionList.append(button);
     }
@@ -359,7 +389,8 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   }
 
   function undo() {
-    if (destroyed || !moveLog.length || pendingPromotion) return;
+    if (destroyed || paused || hud.dialogOpen || hud.overlayVisible || netOn() || !moveLog.length || pendingPromotion) return;
+    motion.cancel();
     // Contra a máquina volta o par de lances, senão o jogador só devolveria a
     // vez para ela repetir a mesma resposta.
     const steps = mode === 'maquina' && moveLog.length > 1 && pos.turn === humanColor ? 2 : 1;
@@ -378,6 +409,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
   }
 
   function newGame(keepPaused = false) {
+    motion.cancel();
     pos = createPosition();
     moveLog = []; sanLog = []; keyLog = [positionKey(pos)];
     current = status(pos, keyLog);
@@ -438,6 +470,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
 
   function netAfterChange(antes) {
     const novoLance = net.match.state.moves.length > antes;
+    const before = novoLance ? motion.snapshot() : null;
     const pausadoAntes = paused;
     netAdopt();
     // Entrar ou sair da pausa apaga o aviso pendente ("aguardando o outro
@@ -452,6 +485,9 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     else if (paused) pauseOverlay();
     else hud.hideOverlay();
     sync();
+    if (before && moveLog.length === antes + 1 && !hud.overlayVisible) {
+      motion.play(before, moveFrom(lastMove), moveTo(lastMove), !!(lastMove & CASTLE));
+    }
   }
 
   function netCommit(move) {
@@ -637,7 +673,14 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     lanPanel.hidden = !lobby;
     app.dataset.lobby = String(lobby);
     app.dataset.paused = String(paused);
-    view.inert = paused;
+    app.dataset.boardStyle = boardStyle;
+    syncOverlays();
+    for (const strip of coordinateStrips) {
+      const files = strip.classList.contains('nx-files');
+      [...strip.children].forEach((node, i) => {
+        node.textContent = files ? 'ABCDEFGH'[flipped() ? 7 - i : i] : String(flipped() ? i + 1 : 8 - i);
+      });
+    }
     board.dataset.turn = pos.turn === WHITE ? 'white' : 'black';
     board.setAttribute('aria-busy', String(thinking));
     const checkedKing = current.check ? pos.king[pos.turn >> 4] : -1;
@@ -647,6 +690,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
       const cell = squares[index], sq = squareAt(index);
       const piece = pos.board[sq];
       cell.dataset.square = String(sq);
+      cell.dataset.coordinate = algebraic(sq);
       cell.dataset.shade = (fileOf(sq) + rankOf(sq)) % 2 === 0 ? 'dark' : 'light';
       if (cell.dataset.piece !== String(piece)) {
         cell.dataset.piece = String(piece);
@@ -654,8 +698,8 @@ export function create({ hud, input, theme, audio, haptics, store }) {
       }
       const target = targets.find(move => moveTo(move) === sq);
       cell.classList.toggle('nx-selected', sq === selected);
-      cell.classList.toggle('nx-target', showHints && !!target && !piece);
-      cell.classList.toggle('nx-capture', showHints && !!target && !!piece);
+      cell.classList.toggle('nx-target', showHints && !!target && !(target & CAPTURE));
+      cell.classList.toggle('nx-capture', showHints && !!target && !!(target & CAPTURE));
       cell.classList.toggle('nx-from', sq === from);
       cell.classList.toggle('nx-to', sq === to);
       cell.classList.toggle('nx-check', sq === checkedKing);
@@ -663,6 +707,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
       const label = `${algebraic(sq)}: ${describePiece(piece)}`;
       cell.setAttribute('aria-label', target ? `${label}. Lance disponível` : label);
       cell.setAttribute('aria-disabled', String(!canPlay()));
+      cell.setAttribute('aria-pressed', String(sq === selected));
     }
 
     syncSeats();
@@ -685,7 +730,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
       ? (resultadoFinal === 'draw' ? 'Ninguém venceu.' : `Vitória das ${COLOR_NAMES[resultadoFinal === 'white' ? WHITE : BLACK]}.`)
       : selected >= 0 ? `Peça em ${algebraic(selected)} selecionada. Toque no destino.`
       : thinking ? 'Calculando a resposta…'
-      : 'Toque na peça e depois na casa de destino.';
+      : 'Toque na peça e no destino, ou arraste para mover.';
     $('.nx-message').textContent = message || headline;
     $('.nx-message').dataset.tone = messageTone;
     $('.nx-detail').textContent = detail;
@@ -722,7 +767,7 @@ export function create({ hud, input, theme, audio, haptics, store }) {
       ]);
     }
     hud.setPause(paused, !over());
-    hud.setHint('Toque na peça · <strong>depois no destino</strong>');
+    hud.setHint('Toque e escolha o destino · <strong>ou arraste</strong>');
     hud.flush();
   }
 
@@ -749,6 +794,8 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     newGame(paused || hud.dialogOpen);
   }
   function toggleFlip() {
+    if (paused || hud.dialogOpen || hud.overlayVisible || pendingPromotion) return;
+    motion.cancel();
     flip = !flipped();
     focused = -1;
     save(); sync();
@@ -782,6 +829,8 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     if (destroyed || !paused || hud.dialogOpen) return;
     if (netOn()) { audio.resume(); netSend('resume'); return; }
     paused = false; hud.hideOverlay(); audio.resume(); sync();
+    const target = pendingPromotion ? promotionList.firstElementChild : squares[focused >= 0 ? focused : 0];
+    target?.focus({ preventScroll: true });
   }
 
   $('.nx-new').addEventListener('click', () => { if (netOn()) netSend('rematch'); else newGame(); }, { signal });
@@ -816,13 +865,25 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     }
   }, { signal });
 
+  promotionBox.addEventListener('keydown', event => {
+    if (event.key !== 'Tab') return;
+    const options = [...promotionList.children];
+    const index = options.indexOf(document.activeElement);
+    event.preventDefault();
+    options[(index + (event.shiftKey ? -1 : 1) + options.length) % options.length]?.focus();
+  }, { signal });
+
   window.addEventListener('keydown', event => {
     if (hud.dialogOpen || event.repeat || event.ctrlKey || event.metaKey || event.altKey ||
         ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target?.tagName)) return;
     const key = event.key.toLowerCase();
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (pendingPromotion) { pendingPromotion = null; promotionBox.hidden = true; sync(); }
+      if (paused) resume();
+      else if (pendingPromotion) {
+        pendingPromotion = null; promotionBox.hidden = true; sync();
+        squares[focused >= 0 ? focused : 0].focus({ preventScroll: true });
+      }
       else if (selected >= 0) { selected = -1; targets = []; sync(); }
       else paused ? resume() : pause();
     } else if (key === 'p') { event.preventDefault(); paused ? resume() : pause(); }
@@ -853,6 +914,9 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     choices('Suas peças · inicia uma nova partida', 'nx-side', [['white', 'Brancas · você começa'], ['black', 'Pretas · a máquina começa']], humanColor === BLACK ? 'black' : 'white', changeSide);
     choices('Aparência', 'nx-theme', [['dark', 'Escuro'], ['light', 'Claro']], theme.mode, value => theme.setMode(value));
     choices('Cor neon', 'nx-palette', PALETTE_OPTIONS.filter(option => option.value !== 'auto').map(option => [option.value, option.label]), theme.choice === 'auto' ? 'azul' : theme.choice, value => theme.setChoice(value));
+    choices('Acabamento do tabuleiro', 'nx-board-style', [['madeira', 'Madeira clássica'], ['neon', 'Cor da biblioteca']], boardStyle, value => {
+      boardStyle = value; save(); sync();
+    });
 
     const hintsLabel = el('label', 'nx-hint-setting');
     const checkbox = el('input');
@@ -865,7 +929,8 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     panel.append(el('h3', 'guide-title', 'Como jogar'));
     const how = el('ul');
     for (const text of [
-      'Toque na peça e depois na casa de destino. Só aparecem lances legais: o rei nunca pode ficar em xeque.',
+      'Toque na peça e depois na casa de destino, ou arraste. Só aparecem lances legais: o rei nunca pode ficar em xeque.',
+      'A moldura mostra as coordenadas e acompanha o giro. O acabamento Cor da biblioteca usa a cor neon escolhida, mantendo o contraste das peças.',
       'Roque, en passant e promoção estão implementados. Ao promover, escolha a peça na janela que abre sobre o tabuleiro.',
       'Empate por afogamento, tripla repetição, regra dos 50 lances e material insuficiente são reconhecidos automaticamente.',
       'Voltar lance desfaz o par (seu lance e o da máquina). Girar troca o lado que fica embaixo.',
@@ -891,14 +956,23 @@ export function create({ hud, input, theme, audio, haptics, store }) {
 
   function resize() {
     hud.flush();
-    hud.setHint('Toque na peça · <strong>depois no destino</strong>');
+    hud.setHint('Toque e escolha o destino · <strong>ou arraste</strong>');
     hud.flush();
     const rect = zone.getBoundingClientRect();
-    // O teto antigo (420px) sobrava numa tela grande: em tablet e no desktop o
-    // tabuleiro ficava menor que o espaço disponível.
-    const size = Math.max(180, Math.min(620, rect.width - 2, rect.height - 2));
-    board.style.setProperty('--nx-board-size', size + 'px');
+    // Referência: grid 736, casas 92, margem 46 de cada lado = moldura 828.
+    // Uma única escala limita largura E altura; conteúdo das casas não mede o grid.
+    const size = Math.max(0, Math.min(736, rect.width * 8 / 9, rect.height * 8 / 9));
+    if (Math.abs(parseFloat(frame.style.getPropertyValue('--nx-board-size')) - size) < .1) return;
+    motion.cancel();
+    frame.style.setProperty('--nx-board-size', size + 'px');
+    frame.style.setProperty('--nx-cell', size / 8 + 'px');
+    frame.style.setProperty('--nx-unit', size / 736 + 'px');
   }
+
+  // O histórico e as faixas mudam de altura sem redimensionar a arena.
+  // Observar a zona evita sobras, recortes e dimensões antigas depois do lance.
+  const boardObserver = new ResizeObserver(resize);
+  boardObserver.observe(zone);
 
   if (!restore(saved?.moves)) newGame();
   // Convite aberto pelo link: o fragmento #chess=... nunca chega ao servidor,
@@ -955,11 +1029,15 @@ export function create({ hud, input, theme, audio, haptics, store }) {
       timers.clear();
       netClose(true);
       lifecycle.abort();
+      boardObserver.disconnect();
+      overlayObserver.disconnect();
       view.remove();
       input.destroy();
       app.classList.remove('nx-app');
       document.body.classList.remove('nx-body');
       delete app.dataset.paused;
+      delete app.dataset.boardStyle;
+      delete app.dataset.lobby;
     }
   };
 }

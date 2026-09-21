@@ -1,24 +1,36 @@
 
 /* Neon Chess usa o chrome, as cores, o som e a persistência da biblioteca.
    Todo seletor leva o prefixo nx- para nenhum outro jogo herdar estes estilos. */
-.nx-app{width:min(100%,560px);min-height:560px;margin-inline:auto;
-  --nx-light:#cfd9ef;--nx-dark:#5d6f9c;--nx-outline:#0a0f1d;
-  --nx-white:#f4f7ff;--nx-black:#161d31}
+.nx-app{width:min(100%,560px);min-height:600px;margin-inline:auto;
+  --nx-light:#e0b476;--nx-dark:#8f6034;--nx-frame:#251a13;--nx-frame-light:#3b291b;
+  --nx-coordinates:#ead7b0;--nx-inlay:#745334;
+  --nx-selected:rgba(221,174,87,.30);--nx-last:rgba(224,181,98,.18)}
+.nx-app[data-board-style="neon"]{
+  --nx-light:color-mix(in srgb,var(--accent) 19%,#eae2d2);
+  --nx-dark:color-mix(in srgb,var(--accent) 29%,#484049);
+  --nx-frame:color-mix(in srgb,var(--accent) 8%,#17131c);
+  --nx-frame-light:color-mix(in srgb,var(--accent) 14%,#29232f);
+  --nx-inlay:color-mix(in srgb,var(--accent) 50%,#745334);
+  --nx-coordinates:color-mix(in srgb,var(--accent) 16%,#ead7b0);
+  --nx-selected:color-mix(in srgb,var(--accent) 30%,transparent);
+  --nx-last:color-mix(in srgb,var(--accent) 18%,transparent)}
 body.nx-body{place-items:stretch}
 body.nx-body>*{justify-self:stretch}
-:root[data-theme="light"] .nx-app{--nx-light:#e7edfb;--nx-dark:#8095c2;--nx-outline:#131a2b}
 .nx-app .brand>div{min-width:0}
 .nx-app .edition{font-size:.6rem;white-space:nowrap}
 .nx-app .tools{flex-shrink:0}
 .nx-app .arena{touch-action:pan-y;background:radial-gradient(ellipse at 50% 38%,var(--glow),transparent 70%),var(--arena)}
 .nx-app canvas{position:absolute;inset:0;opacity:0;pointer-events:none}
-.nx-app .overlay{background:var(--overlay)}
+.nx-app .overlay{background:var(--overlay);z-index:20}
+.nx-app #toast{z-index:21}
 .nx-app .footer{font-size:.72rem}
 .nx-app .stat .value{font-variant-numeric:tabular-nums}
 
-.nx-surface{position:absolute;inset:0;display:grid;
+.nx-surface{position:absolute;inset:0;display:grid;z-index:0;isolation:isolate;
+  grid-template-columns:minmax(0,1fr);
   grid-template-rows:auto auto minmax(180px,1fr) auto auto auto auto;
   gap:8px;padding:12px 12px 11px;overflow:auto;scrollbar-width:thin}
+.nx-surface>*{min-width:0}
 .nx-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;
   color:var(--muted);font:500 .6rem ui-monospace,monospace;letter-spacing:.12em}
 .nx-mode{display:flex;align-items:center;gap:7px}
@@ -30,56 +42,70 @@ body.nx-body>*{justify-self:stretch}
   border:1px solid var(--line);border-radius:11px;background:var(--surface);
   transition:border-color .2s,background .2s}
 .nx-player[data-active="true"]{border-color:var(--accent);background:var(--wash)}
+.nx-player::before{content:"";width:9px;height:9px;flex-shrink:0;border-radius:50%;
+  background:#f7eeda;border:1px solid #a98a5e}
+.nx-player[data-color="black"]::before{background:#25272a;border-color:#77797b}
 .nx-player-name{color:var(--text);font:700 .64rem ui-monospace,monospace;letter-spacing:.06em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
 .nx-taken{display:flex;flex-wrap:wrap;gap:1px;flex:1 1 auto;min-width:0;justify-content:flex-end}
-.nx-taken .nx-piece{width:15px;height:15px}
+.nx-taken .nx-piece{width:18px;height:18px}
+.nx-taken .nx-piece[data-color="black"],.nx-promotion-option .nx-piece[data-color="black"]{
+  background:#d4ba8c;border-radius:4px}
 .nx-edge{color:var(--accent);font:700 .68rem ui-monospace,monospace;flex-shrink:0}
 
 /* -------------------------------------------------------------- tabuleiro */
-.nx-board-zone{display:grid;place-items:center;position:relative;min-height:0}
-.nx-board{display:grid;grid-template-columns:repeat(8,1fr);
-  width:var(--nx-board-size,300px);aspect-ratio:1;
-  border:2px solid var(--line);border-radius:8px;overflow:hidden;
-  box-shadow:0 0 30px var(--glow),inset 0 0 0 1px rgba(0,0,0,.35)}
-.nx-square{display:grid;place-items:center;padding:0;border:0;position:relative;
-  background:var(--nx-light);transition:background .15s}
-.nx-square[data-shade="dark"]{background:var(--nx-dark)}
-.nx-square .nx-piece{width:86%;height:86%;pointer-events:none;position:relative;z-index:2}
-.nx-square:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;z-index:4}
-.nx-from,.nx-to{box-shadow:inset 0 0 0 100px color-mix(in srgb,var(--accent) 24%,transparent)}
-.nx-selected{box-shadow:inset 0 0 0 3px var(--accent)}
-/* Destino livre vira ponto; destino com peça vira moldura. A diferença entre
-   "ando até aqui" e "capturo aqui" precisa ser lida sem cor, no toque rápido. */
-.nx-target::after{content:"";position:absolute;width:30%;height:30%;border-radius:50%;
-  background:color-mix(in srgb,var(--accent) 70%,transparent);z-index:1}
-.nx-capture::before{content:"";position:absolute;inset:4%;border-radius:50%;
-  border:3px solid color-mix(in srgb,var(--accent) 75%,transparent);z-index:1}
-.nx-check{background:radial-gradient(circle,#ff5f6d 10%,transparent 72%),var(--nx-light)}
-.nx-check[data-shade="dark"]{background:radial-gradient(circle,#ff5f6d 10%,transparent 72%),var(--nx-dark)}
-
-/* Corpo da peça: contorno desenhado por fora do preenchimento (paint-order),
-   o que mantém a silhueta nítida mesmo com a casa de 40px do celular. */
-.nx-piece path,.nx-piece circle,.nx-piece ellipse{fill:currentColor;stroke:var(--nx-outline);
-  stroke-width:1.5;stroke-linejoin:round;paint-order:stroke fill}
-.nx-piece[data-color="white"]{color:var(--nx-white)}
-.nx-piece[data-color="black"]{color:var(--nx-black)}
-/* Só as formas sem classe recebem o degradê; corte, olho, brilho e sombra
-   têm tratamento próprio. */
-.nx-piece[data-color="white"] :not([class]){fill:url(#nxWhitePiece) var(--nx-white)}
-.nx-piece[data-color="black"] :not([class]){fill:url(#nxBlackPiece) var(--nx-black)}
-.nx-piece[data-color="black"] path,.nx-piece[data-color="black"] circle{stroke:#dfe7f8;stroke-width:1.2}
-.nx-piece .nx-cut,.nx-piece .nx-eye{fill:var(--nx-outline);stroke:none}
-.nx-piece[data-color="black"] .nx-cut,.nx-piece[data-color="black"] .nx-eye{fill:#dfe7f8}
-.nx-piece .nx-shade{fill:#000;opacity:.22;stroke:none}
-.nx-piece[data-color="black"] .nx-shade{fill:#000;opacity:.4}
-.nx-piece .nx-shine{fill:#fff;opacity:.5;stroke:none}
-.nx-piece[data-color="black"] .nx-shine{opacity:.22}
-.nx-piece .nx-drop{fill:#000;opacity:.2;stroke:none}
+.nx-board-zone{display:grid;place-items:center;position:relative;min-width:0;min-height:0}
+.nx-board-frame{--nx-board-size:294.4px;--nx-cell:36.8px;--nx-unit:.4px;
+  position:relative;flex:none;padding:calc(var(--nx-cell)*.5);
+  width:calc(var(--nx-board-size) + var(--nx-cell));aspect-ratio:1;
+  border-radius:calc(var(--nx-unit)*10);
+  background:linear-gradient(125deg,var(--nx-frame-light),var(--nx-frame) 55%,var(--nx-frame-light));
+  box-shadow:inset 0 0 0 calc(var(--nx-unit)*3) #0e0d0c,
+    inset 0 0 0 calc(var(--nx-unit)*5) color-mix(in srgb,var(--accent) 25%,var(--nx-inlay)),
+    0 calc(var(--nx-unit)*4) calc(var(--nx-unit)*10) #0007}
+.nx-coordinates{position:absolute;display:grid;color:var(--nx-coordinates);pointer-events:none;
+  font:400 calc(var(--nx-unit)*26)/1 Georgia,"Times New Roman",serif;z-index:1}
+.nx-coordinates span{display:grid;place-items:center}
+.nx-files{left:calc(var(--nx-cell)*.5);right:calc(var(--nx-cell)*.5);
+  height:calc(var(--nx-cell)*.5);grid-template-columns:repeat(8,minmax(0,1fr))}
+.nx-ranks{top:calc(var(--nx-cell)*.5);bottom:calc(var(--nx-cell)*.5);
+  width:calc(var(--nx-cell)*.5);grid-template-rows:repeat(8,minmax(0,1fr))}
+.nx-files[data-edge="top"]{top:0}.nx-files[data-edge="bottom"]{bottom:0}
+.nx-ranks[data-edge="left"]{left:0}.nx-ranks[data-edge="right"]{right:0}
+/* Linhas E colunas explícitas; imagem absoluta não participa da medida.
+   Uma linha vazia tem exatamente a mesma altura de uma cheia de peças. */
+.nx-board{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));
+  grid-template-rows:repeat(8,minmax(0,1fr));gap:0;position:relative;isolation:isolate;z-index:2;
+  width:var(--nx-board-size);height:var(--nx-board-size);aspect-ratio:1;touch-action:none;
+  box-shadow:0 0 0 calc(var(--nx-unit)*2) var(--nx-inlay),0 0 0 calc(var(--nx-unit)*4) #0e0d0c}
+.nx-square{display:block;appearance:none;padding:0;margin:0;border:0;border-radius:0;position:relative;
+  min-width:0;min-height:0;width:100%;height:100%;line-height:0;touch-action:none;
+  background-color:var(--nx-light);
+  background-image:repeating-linear-gradient(3deg,#ffffff00 0 calc(var(--nx-unit)*5),
+    #ffffff04 calc(var(--nx-unit)*6) calc(var(--nx-unit)*7),#00000003 calc(var(--nx-unit)*8) calc(var(--nx-unit)*10))}
+.nx-square[data-shade="dark"]{background-color:var(--nx-dark)}
+.nx-square::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0}
+.nx-piece{display:block;object-fit:contain;pointer-events:none;user-select:none;-webkit-user-drag:none}
+.nx-square .nx-piece{position:absolute;inset:0;width:100%;height:100%;z-index:2}
+.nx-square:focus-visible{outline:calc(var(--nx-unit)*3) solid var(--accent);
+  outline-offset:calc(var(--nx-unit)*-3);z-index:4}
+.nx-from::before,.nx-to::before{background:var(--nx-last)}
+.nx-selected::before{background:var(--nx-selected);
+  box-shadow:inset 0 0 0 calc(var(--nx-unit)*2) color-mix(in srgb,var(--accent) 60%,#ddae57)}
+.nx-target::after{content:"";position:absolute;left:41%;top:41%;width:18%;height:18%;
+  border-radius:50%;background:rgba(35,35,31,.28);pointer-events:none;z-index:1}
+.nx-capture::after{content:"";position:absolute;inset:5%;border-radius:50%;pointer-events:none;
+  border:calc(var(--nx-cell)*.06) solid rgba(35,35,31,.35);z-index:3}
+.nx-check::before{background:rgba(175,65,55,.32);box-shadow:inset 0 0 0 calc(var(--nx-unit)*3) #af4137}
+.nx-moving{z-index:5}
+.nx-captured,.nx-dragged{position:absolute;pointer-events:none}
+.nx-captured{z-index:2}
+.nx-dragged{z-index:10;transform-origin:50% 90%}
+.nx-drag-origin .nx-piece{visibility:hidden}
 
 /* -------------------------------------------------------------- promoção */
 .nx-promotion{position:absolute;inset:0;display:grid;place-content:center;gap:10px;
-  background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(3px);z-index:5;
+  background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(3px);z-index:12;
   border-radius:8px;padding:14px}
 .nx-promotion[hidden]{display:none}
 .nx-promotion p{margin:0;text-align:center;color:var(--text);font:700 .72rem ui-monospace,monospace;letter-spacing:.06em}
@@ -115,6 +141,7 @@ body.nx-body>*{justify-self:stretch}
    regra, "Voltar lance" e "Entregar" apareceriam nos dois modos ao mesmo tempo. */
 .nx-controls button[hidden]{display:none}
 .nx-controls button{display:flex;align-items:center;justify-content:center;gap:5px;padding:9px 4px;
+  min-height:44px;
   border:1px solid var(--line);border-radius:11px;background:var(--surface);color:var(--text);
   font:600 .63rem ui-monospace,monospace;letter-spacing:.01em}
 .nx-controls button:hover:not(:disabled),.nx-controls button:focus-visible:not(:disabled){
@@ -145,7 +172,7 @@ body.nx-body>*{justify-self:stretch}
   .nx-surface{padding-left:8px;padding-right:8px}
 }
 @media (max-width:360px){
-  .nx-controls span{display:none}
+  .nx-controls button{font-size:.59rem;gap:3px}
   .nx-player-name{font-size:.58rem}
 }
 
@@ -156,11 +183,11 @@ body.nx-body>*{justify-self:stretch}
 /* Em paisagem o shell estreita a arena para caber jogos em retrato (razão
    5/6). O xadrez quer a largura inteira, como a mesa do Neon Pool. */
 @media (orientation:landscape){
-  .nx-app{width:100%;max-width:1040px;min-height:0}
+  .nx-app{width:100%;max-width:1260px;min-height:0}
   .nx-app .arena{aspect-ratio:auto;width:100%}
 }
 @media (min-width:700px) and (min-aspect-ratio:1/1){
-  .nx-app{width:min(100%,1040px);min-height:0}
+  .nx-app{width:min(100%,1260px);min-height:0;max-height:none}
   /* A coluna do painel tem largura própria e o tabuleiro fica com todo o
      resto: com frações, o tabuleiro perdia espaço para um painel que não
      precisava dele. */
