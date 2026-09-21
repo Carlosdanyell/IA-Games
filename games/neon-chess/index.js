@@ -6,7 +6,7 @@ import {
   CAPTURE, CASTLE, PROMOTION_CHOICES, SAN_LETTERS
 } from './model.js';
 import { chooseMove, LEVELS, DEFAULT_LEVEL, levelOf, VALUES } from './ai.js';
-import { pieceSvg, describePiece } from './pieces.js';
+import { pieceSvg, describePiece, ensurePieceDefs } from './pieces.js';
 import { createBoardMotion } from './board-motion.js';
 import { LanTransport } from './lan-transport.js';
 import { createLanLobby } from './lan-ui.js';
@@ -54,6 +54,9 @@ export function create({ hud, input, theme, audio, haptics, store }) {
     style.addEventListener('load', () => resize(), { signal });
     document.head.append(style);
   }
+  // Os degradês das peças ficam dentro da arena para herdarem as variáveis de
+  // cor do acabamento escolhido.
+  ensurePieceDefs(hud.arena);
   const app = hud.arena.closest('.app');
   app.classList.add('nx-app');
   document.body.classList.add('nx-body');

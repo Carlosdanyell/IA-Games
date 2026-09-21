@@ -9,7 +9,7 @@
 // HTTP cache do navegador.
 //
 // Ao adicionar um jogo, inclua os arquivos dele em ASSETS e suba VERSION.
-const VERSION = 'ia-games-v45';
+const VERSION = 'ia-games-v46';
 const DOC_TIMEOUT = 3500;   // HTML: vale esperar um pouco mais
 const ASSET_TIMEOUT = 1200; // módulos e CSS: rédea curta, cache logo atrás
 const ASSETS = [
@@ -109,18 +109,6 @@ const ASSETS = [
   './games/neon-chess/ai.js',
   './games/neon-chess/pieces.js',
   './games/neon-chess/board-motion.js',
-  './games/neon-chess/pieces/black_bishop.svg',
-  './games/neon-chess/pieces/black_king.svg',
-  './games/neon-chess/pieces/black_knight.svg',
-  './games/neon-chess/pieces/black_pawn.svg',
-  './games/neon-chess/pieces/black_queen.svg',
-  './games/neon-chess/pieces/black_rook.svg',
-  './games/neon-chess/pieces/white_bishop.svg',
-  './games/neon-chess/pieces/white_king.svg',
-  './games/neon-chess/pieces/white_knight.svg',
-  './games/neon-chess/pieces/white_pawn.svg',
-  './games/neon-chess/pieces/white_queen.svg',
-  './games/neon-chess/pieces/white_rook.svg',
   './games/neon-chess/lan-protocol.js',
   './games/neon-chess/lan-match.js',
   './games/neon-chess/lan-transport.js',

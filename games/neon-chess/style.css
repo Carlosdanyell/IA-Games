@@ -24,7 +24,25 @@
   --nx-check:rgba(255,95,109,.30);--nx-check-line:#ff5f6d;
   --nx-chip-light:#f4f7ff;--nx-chip-dark:#161d31;
   --nx-chip-line:color-mix(in srgb,var(--accent) 45%,var(--line));
-  --nx-taken-bg:color-mix(in srgb,var(--accent) 22%,transparent)}
+  --nx-taken-bg:color-mix(in srgb,var(--accent) 22%,transparent);
+  /* Peças: o desenho é o mesmo nos dois acabamentos; só a paleta muda. As
+     claras continuam claras e as escuras escuras — o tom é que recebe a cor
+     neon, para a peça pertencer ao tema sem perder o contraste com a casa. */
+  --nx-pw-1:color-mix(in srgb,var(--accent) 5%,#ffffff);
+  --nx-pw-2:color-mix(in srgb,var(--accent) 12%,#f4f7ff);
+  --nx-pw-3:color-mix(in srgb,var(--accent) 20%,#e8edfa);
+  --nx-pw-4:color-mix(in srgb,var(--accent) 32%,#c6d0e8);
+  --nx-pw-lite:color-mix(in srgb,var(--accent) 5%,#ffffff);
+  --nx-pw-shade:color-mix(in srgb,var(--accent) 42%,#96a3c2);
+  --nx-pw-ink:color-mix(in srgb,var(--accent) 16%,#0a0f1d);
+  --nx-pb-1:color-mix(in srgb,var(--accent) 34%,#4b5573);
+  --nx-pb-2:color-mix(in srgb,var(--accent) 26%,#2f3752);
+  --nx-pb-3:color-mix(in srgb,var(--accent) 18%,#161c2f);
+  --nx-pb-4:color-mix(in srgb,var(--accent) 12%,#0b101d);
+  --nx-pb-lite:color-mix(in srgb,var(--accent) 45%,#808ba8);
+  --nx-pb-lite2:color-mix(in srgb,var(--accent) 55%,#98a3bf);
+  --nx-pb-shade:color-mix(in srgb,var(--accent) 10%,#070b14);
+  --nx-pb-ink:color-mix(in srgb,var(--accent) 8%,#03060c)}
 /* Tema claro: a moldura acompanha o chrome claro do shell em vez de virar um
    bloco escuro no meio da tela. */
 :root[data-theme="light"] .nx-app{
@@ -33,7 +51,15 @@
   --nx-frame:color-mix(in srgb,var(--accent) 13%,#e6ebf7);
   --nx-frame-light:color-mix(in srgb,var(--accent) 7%,#fbfcff);
   --nx-edge:color-mix(in srgb,var(--accent) 34%,#93a0bb);
-  --nx-coordinates:color-mix(in srgb,var(--accent) 45%,#3f4a60)}
+  --nx-coordinates:color-mix(in srgb,var(--accent) 45%,#3f4a60);
+  /* No tema claro o destaque é escuro e saturado: a peça clara recebe menos
+     tinta para não ficar colorida, e a escura recebe mais brilho. */
+  --nx-pw-3:color-mix(in srgb,var(--accent) 10%,#e9eefb);
+  --nx-pw-4:color-mix(in srgb,var(--accent) 18%,#c4cee6);
+  --nx-pw-shade:color-mix(in srgb,var(--accent) 26%,#96a3c2);
+  --nx-pb-1:color-mix(in srgb,var(--accent) 26%,#525d7c);
+  --nx-pb-lite:color-mix(in srgb,var(--accent) 30%,#8e99b5);
+  --nx-pb-lite2:color-mix(in srgb,var(--accent) 34%,#a6b1cc)}
 .nx-app[data-board-style="madeira"]{
   --nx-light:#e0b476;--nx-dark:#8f6034;--nx-frame:#251a13;--nx-frame-light:#3b291b;
   --nx-edge:#0e0d0c;--nx-coordinates:#ead7b0;--nx-inlay:#745334;
@@ -41,7 +67,12 @@
   --nx-dot:rgba(35,35,31,.28);--nx-ring:rgba(35,35,31,.35);
   --nx-check:rgba(175,65,55,.32);--nx-check-line:#af4137;
   --nx-chip-light:#f7eeda;--nx-chip-dark:#25272a;--nx-chip-line:#a98a5e;
-  --nx-taken-bg:#d4ba8c}
+  --nx-taken-bg:#d4ba8c;
+  /* Marfim e grafite do conjunto clássico, exatamente como estavam. */
+  --nx-pw-1:#fff9ea;--nx-pw-2:#f7eeda;--nx-pw-3:#f1dfc0;--nx-pw-4:#d4ba8c;
+  --nx-pw-lite:#fff9ea;--nx-pw-shade:#a98a5e;--nx-pw-ink:#191714;
+  --nx-pb-1:#56575a;--nx-pb-2:#3b3d40;--nx-pb-3:#151719;--nx-pb-4:#0d0e0f;
+  --nx-pb-lite:#77797b;--nx-pb-lite2:#999a9c;--nx-pb-shade:#0d0e0f;--nx-pb-ink:#050607}
 body.nx-body{place-items:stretch}
 body.nx-body>*{justify-self:stretch}
 .nx-app .brand>div{min-width:0}
@@ -113,7 +144,23 @@ body.nx-body>*{justify-self:stretch}
     #ffffff04 calc(var(--nx-unit)*6) calc(var(--nx-unit)*7),#00000003 calc(var(--nx-unit)*8) calc(var(--nx-unit)*10))}
 .nx-square[data-shade="dark"]{background-color:var(--nx-dark)}
 .nx-square::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0}
-.nx-piece{display:block;object-fit:contain;pointer-events:none;user-select:none;-webkit-user-drag:none}
+.nx-piece{display:block;overflow:visible;pointer-events:none;user-select:none;-webkit-user-drag:none}
+/* Cada forma do desenho carrega o PAPEL que exerce, não uma cor. Trocar de
+   acabamento ou de cor neon é trocar estas sete variáveis. */
+.nx-piece[data-color="white"]{--p-body:url(#nxPieceLight);--p-lite:var(--nx-pw-lite);
+  --p-lite2:var(--nx-pw-lite);--p-shade:var(--nx-pw-shade);--p-ink:var(--nx-pw-ink)}
+.nx-piece[data-color="black"]{--p-body:url(#nxPieceDark);--p-lite:var(--nx-pb-lite);
+  --p-lite2:var(--nx-pb-lite2);--p-shade:var(--nx-pb-shade);--p-ink:var(--nx-pb-ink)}
+.nx-piece .f-body{fill:var(--p-body)}
+.nx-piece .f-drop{fill:url(#nxPieceDrop)}
+.nx-piece .f-lite{fill:var(--p-lite)}   .nx-piece .s-lite{stroke:var(--p-lite)}
+.nx-piece .f-lite2{fill:var(--p-lite2)} .nx-piece .s-lite2{stroke:var(--p-lite2)}
+.nx-piece .f-shade{fill:var(--p-shade)} .nx-piece .s-shade{stroke:var(--p-shade)}
+.nx-piece .f-ink{fill:var(--p-ink)}     .nx-piece .s-ink{stroke:var(--p-ink)}
+#nxPieceLight .s1{stop-color:var(--nx-pw-1)} #nxPieceLight .s2{stop-color:var(--nx-pw-2)}
+#nxPieceLight .s3{stop-color:var(--nx-pw-3)} #nxPieceLight .s4{stop-color:var(--nx-pw-4)}
+#nxPieceDark .s1{stop-color:var(--nx-pb-1)}  #nxPieceDark .s2{stop-color:var(--nx-pb-2)}
+#nxPieceDark .s3{stop-color:var(--nx-pb-3)}  #nxPieceDark .s4{stop-color:var(--nx-pb-4)}
 .nx-square .nx-piece{position:absolute;inset:0;width:100%;height:100%;z-index:2}
 .nx-square:focus-visible{outline:calc(var(--nx-unit)*3) solid var(--accent);
   outline-offset:calc(var(--nx-unit)*-3);z-index:4}
