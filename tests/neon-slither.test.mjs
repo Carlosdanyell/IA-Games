@@ -402,6 +402,23 @@ test('a paleta veste a arena sem apagar nenhuma skin', () => {
   assert.deepEqual([...oferecidas].sort(), Object.keys(PALETTES).sort());
 });
 
+test('o brilho neon acende as escuras e não some com ninguém', () => {
+  const acesas = SKINS.filter(s => s.glow);
+  assert.ok(acesas.length >= 6, 'poucas skins com brilho para o efeito existir');
+  assert.ok(acesas.every(s => s.glow > 0 && s.glow <= 1), 'força de brilho fora de 0 a 1');
+
+  // O halo soma luz na cor `detail`, então ele só ajuda se essa cor for mais
+  // clara que o corpo. Numa skin escura é justamente isso que a resgata.
+  for (const skin of acesas)
+    assert.ok(luminance(skin.detail) > luminance(skin.colors[0]),
+      `${skin.name} tem detail mais escuro que o corpo: o brilho apagaria em vez de acender`);
+
+  // As três que eu havia medido abaixo do contraste mínimo precisam estar entre
+  // as acesas, senão o brilho não resolve o problema que ele podia resolver.
+  for (const id of ['magma', 'eclipse', 'singularidade'])
+    assert.ok(SKINS.find(s => s.id === id)?.glow, `${id} é escura e precisa de brilho`);
+});
+
 test('perfil saneia dados corrompidos e trava skin não liberada', () => {
   for (const value of [null, [], 'oi', 42]) {
     const profile = cleanProfile(value);
