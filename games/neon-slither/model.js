@@ -234,7 +234,10 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
         for (const q of hunter.path) {
           const dx = cx - q.x, dy = cy - q.y;
           const d = Math.sqrt(dx * dx + dy * dy);
-          if (d <= anel || d > ARENA.lassoReach) continue;
+          // Só o trecho que forma o nó se aperta. Puxar o corpo inteiro que
+          // estivesse por perto fazia a cobra derivar para dentro inteira, e o
+          // que devia ser um ajuste fino virava o cerco fechando na sua frente.
+          if (d <= anel || d > anel + ARENA.lassoBand) continue;
           const anda = Math.min(passo, d - anel);
           q.x += dx / d * anda; q.y += dy / d * anda;
         }
