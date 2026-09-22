@@ -435,19 +435,20 @@ test('perfil saneia dados corrompidos e trava skin não liberada', () => {
 
 // A prévia da skin é uma cobra com a cabeça presa na direita. Quem anda é o
 // corpo: o rastro escorre para a cauda. Se escorrer para a cabeça, a leitura é
-// de uma cobra de ré — foi o defeito que este teste tranca.
+// de uma cobra de ré — foi o primeiro defeito que este teste tranca.
 test('a prévia escorre da cabeça para a cauda', () => {
-  const inicio = previewPath(0);
+  const { path: inicio } = previewPath(0);
   // A cabeça é o primeiro ponto e é a ponta mais à direita: quem olha vê o
   // focinho apontando para onde a cobra avança.
   assert.equal(inicio[0].x, Math.max(...inicio.map(p => p.x)), 'a cabeça precisa ser a ponta direita');
-  assert.ok(inicio[0].x > inicio[1].x, 'a cabeça precisa olhar para +x');
+  assert.ok(inicio[0].x > inicio[2].x, 'a cabeça precisa olhar para +x');
+  assert.ok(Math.abs(previewPath(0).angle) < Math.PI / 2, 'o rumo precisa apontar para +x');
   // Índice maior é mais perto da cauda. A crista da onda e a carne (o ponto de
   // número de série fixo) têm de caminhar os dois nesse sentido.
-  const crista = path => path.reduce((melhor, p, i) => p.y > path[melhor].y ? i : melhor, 0);
+  const crista = path => path.reduce((melhor, p, i) => p.y > path[melhor].y ? i : melhor, 1);
   const carne = (path, n) => path.findIndex(p => p.n === n);
   const alvo = inicio[20].n;
-  const depois = previewPath(1);
+  const { path: depois } = previewPath(.2);
   const andouCrista = crista(depois) - crista(inicio);
   const andouCarne = carne(depois, alvo) - carne(inicio, alvo);
   assert.ok(andouCrista > 0, `a onda foi para a cabeça (${andouCrista} pontos)`);
@@ -458,4 +459,41 @@ test('a prévia escorre da cabeça para a cauda', () => {
   // O número de série da cabeça cresce, como no jogo: é o que faz a estampa
   // nascer na cabeça e morrer na cauda em vez de ficar congelada.
   assert.ok(depois[0].n > inicio[0].n, 'a cabeça precisa gerar série nova');
+});
+
+// O tremor tinha uma causa só: a estampa presa ao número de série e o corpo
+// cravado na tela. A série anda de um em um, então o padrão ficava parado três
+// ou quatro quadros e saltava um espaçamento inteiro no seguinte. Agora a
+// geometria escorre junto com a série, e o que mede isso não é a distância por
+// quadro — é a regularidade dela.
+test('a prévia escorre sem degrau', () => {
+  // Uma carne perto da cabeça, seguida por um tempo curto: no ritmo do jogo ela
+  // chega à cauda em pouco mais de dois segundos.
+  const quadro = 1 / 30, passos = 45;
+  const alvo = previewPath(0).path[5].n;
+  const onde = t => previewPath(t).path.find(p => p.n === alvo);
+  let antes = onde(0), menor = Infinity, maior = 0;
+  for (let k = 1; k <= passos; k++) {
+    const agora = onde(k * quadro);
+    assert.ok(agora, 'a carne saiu do corpo antes da hora');
+    const andou = Math.hypot(agora.x - antes.x, agora.y - antes.y);
+    menor = Math.min(menor, andou); maior = Math.max(maior, andou);
+    antes = agora;
+  }
+  assert.ok(menor > 0, 'a carne precisa andar em todo quadro, não só de vez em quando');
+  // Antes disto o mínimo era zero e o máximo, um espaçamento: a razão explodia.
+  assert.ok(maior / menor < 1.2, `andar irregular: ${menor.toFixed(2)} a ${maior.toFixed(2)} por quadro`);
+  // E a cabeça não sai do lugar enquanto o corpo escorre por baixo dela.
+  const cabeca = t => previewPath(t).path[0].x;
+  for (let k = 0; k <= passos; k++) assert.ok(Math.abs(cabeca(k * quadro) - cabeca(0)) < 1e-9, 'a cabeça saiu do lugar');
+});
+
+// Lento demais também é defeito: a prévia precisa ler como a cobra em cruzeiro,
+// não como uma cobra parada tremendo.
+test('a prévia anda no ritmo do jogo', () => {
+  const andou = previewPath(1).path[1].n - previewPath(0).path[1].n;
+  assert.ok(andou >= ARENA.speed / ARENA.spacing - 1, `a carne anda ${andou} pontos por segundo, menos que o cruzeiro`);
+  // O corpo inteiro passa em poucos segundos, não em dez: era o que fazia a
+  // prévia antiga parecer travada.
+  assert.ok(66 / andou < 4, 'a cobra demora demais para passar o corpo todo');
 });
