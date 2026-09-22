@@ -211,22 +211,31 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
   c.restore();
 }
 
-// Corpo da prévia: a cabeça fica parada na direita e o corpo é o rastro que ela
-// já deixou, então tudo — ondulação e estampa — tem de correr da cabeça para a
-// cauda. Com o tempo somado à fase o sentido era o contrário, e a cobra lia como
-// se andasse de ré. Separado do desenho para o teste conferir o sentido sem DOM.
-const ONDAS = 1.04, PASSO = .65, PONTOS = 66;
+// Corpo da prévia: a cobra nada por uma pista senoidal parada e a câmera só
+// acompanha a cabeça na horizontal. Cada ponto vive numa posição `u` da pista;
+// os assentados ficam em `u` inteiro e a cabeça em `u` contínuo, como o modelo
+// faz na partida. É isso que tira o tremor: prender a estampa ao número de
+// série sem deslizar a geometria junto fazia o padrão saltar um espaçamento
+// inteiro de cada vez, porque o corpo estava cravado na tela.
+const ONDAS = 1.04, PONTOS = 66, AMPLITUDE = 30, PASSO_X = 249 / PONTOS;
+const ONDA = TAU * ONDAS / PONTOS;
+// Ritmo da carne em pontos por segundo, tirado do cruzeiro do jogo: uma cobra
+// deste porte anda `speed` por segundo e larga um ponto a cada `spacing`.
+const RITMO = ARENA.speed / ARENA.spacing;
+
 export function previewPath(time = 0) {
-  // Número de série como no jogo: a cabeça fica com o maior e ele cresce com o
-  // tempo, então faixa e escama caminham para a cauda no ritmo da carne. O fator
-  // é o da própria onda, para estampa e relevo não deslizarem um sobre o outro.
-  const serie = Math.round(time * PASSO * PONTOS / (TAU * ONDAS));
-  const path = [];
-  for (let i = 0; i <= PONTOS; i++) {
-    const t = i / PONTOS;
-    path.push({ x: 304 - t * 249, y: 80 + Math.sin(t * TAU * ONDAS - time * PASSO) * 30, n: serie - i });
-  }
-  return path;
+  const cabeca = time * RITMO, assentado = Math.floor(cabeca);
+  // X acompanha a câmera e escorre sem degrau; Y é a pista, que não se mexe.
+  // Quando a cabeça cruza um inteiro nasce um ponto e todos os índices andam
+  // um, mas nenhum ponto muda de lugar na tela — a estampa segue colada à carne.
+  const ponto = u => ({ x: 304 + (u - cabeca) * PASSO_X, y: 80 + Math.sin(u * ONDA) * AMPLITUDE, n: u });
+  // `path[0]` fica na cabeça, como no modelo: o traço do corpo começa no 1.
+  const path = [{ ...ponto(cabeca), n: assentado + 1 }];
+  for (let i = 0; i <= PONTOS; i++) path.push(ponto(assentado - i));
+  // Rumo pela tangente da pista. Pelo vetor até `path[1]` ele giraria: esse
+  // ponto encosta na cabeça toda vez que um ponto novo está para nascer.
+  const angle = Math.atan2(AMPLITUDE * ONDA * Math.cos(cabeca * ONDA), PASSO_X);
+  return { path, angle };
 }
 
 export function drawSkinPreview(canvas, id, time = 0) {
@@ -235,7 +244,7 @@ export function drawSkinPreview(canvas, id, time = 0) {
   const skin=skinFor(id), halo=c.createRadialGradient(180,90,4,180,90,175);
   halo.addColorStop(0,skin.colors[0]+'22'); halo.addColorStop(1,skin.colors[0]+'00');
   c.fillStyle=halo; c.fillRect(0,0,360,160);
-  const path=previewPath(time), head=path[0], next=path[1];
-  drawSnake(c,{...head,px:head.x,py:head.y,path,skin:id,angle:Math.atan2(head.y-next.y,head.x-next.x)}, {radius:14,pointSpacing:5});
+  const { path, angle } = previewPath(time), head = path[0];
+  drawSnake(c,{...head,px:head.x,py:head.y,path,skin:id,angle}, {radius:14,pointSpacing:5});
   c.restore();
 }

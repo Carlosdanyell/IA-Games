@@ -191,7 +191,9 @@ export function create({ viewport, input, hud, store, theme, audio, haptics }) {
     render(dt, alpha) {
       renderer.draw(world, dt, joy, alpha); hud.flush();
       previewClock += dt;
-      if (previewClock >= 1/24 && !reduced.matches) {
+      // A prévia só é desenhada no menu, então trinta quadros cabem: a vinte e
+      // quatro o corpo, que agora anda no ritmo do jogo, aparecia aos saltos.
+      if (previewClock >= 1/30 && !reduced.matches) {
         previewTime += previewClock; previewClock = 0;
         if (hud.dialogOpen && settingsPreview) drawSkinPreview(settingsPreview, inspectedSkin, previewTime);
         else if (state === 'menu') drawSkinPreview(lobby.querySelector('canvas'), profile.skin, previewTime);
