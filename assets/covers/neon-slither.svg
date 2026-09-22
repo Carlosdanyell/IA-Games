@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 320 200" fill="none">
+  <title>Neon Slither — skins, luzes e rivais</title>
+  <defs>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="12"/></filter>
+    
+<radialGradient id="bg" cx=".5" cy=".5" r=".75"><stop stop-color="#164944"/><stop offset=".6" stop-color="#112d37"/><stop offset="1" stop-color="#071727"/></radialGradient>
+<linearGradient id="gold" x1=".1" y1="1" x2=".7" y2="0"><stop stop-color="#cc6b32"/><stop offset=".3" stop-color="#ffb14c"/><stop offset=".65" stop-color="#ffda78"/><stop offset="1" stop-color="#fff1ac"/></linearGradient>
+<linearGradient id="teal" x2=".7" y2="1"><stop stop-color="#b4ffe2"/><stop offset=".4" stop-color="#61dfba"/><stop offset="1" stop-color="#168d8e"/></linearGradient>
+<linearGradient id="pink" x2="1" y2="1"><stop stop-color="#eda7c3"/><stop offset="1" stop-color="#9654ab"/></linearGradient>
+<pattern id="grid" width="24" height="21" patternUnits="userSpaceOnUse"><path d="m6 0 12 0 6 10.5-6 10.5H6L0 10.5z" stroke="#8dd8c0" stroke-width=".45" opacity=".12"/></pattern>
+<path id="hero" d="M-12 165C28 189 84 182 111 164C145 141 136 114 115 103C88 89 76 74 89 56C107 31 155 35 178 58C203 83 184 111 210 123C231 133 255 120 258 96"/>
+<path id="rival" d="M331 47C303 33 278 41 276 59C274 81 301 88 291 112C277 149 225 173 187 173"/>
+
+  </defs>
+  
+<path fill="url(#bg)" d="M0 0h320v200H0z"/>
+<path fill="url(#grid)" d="M0 0h320v200H0z"/>
+<ellipse cx="160" cy="96" rx="142" ry="77" fill="#7bf1b5" opacity=".06" filter="url(#soft)"/>
+<path d="M-18 87c29-61 104-89 177-84s143 28 175 77" stroke="#ffa7b9" stroke-width=".7" opacity=".22"/>
+<g opacity=".68" stroke-linecap="round">
+ <path d="M14-12c-8 41 2 58 27 57s19-27 39-27" stroke="#efa5c2" stroke-width="15" opacity=".15" filter="url(#glow)"/>
+ <path d="M14-12c-8 41 2 58 27 57s19-27 39-27" stroke="url(#pink)" stroke-width="10"/>
+ <ellipse cx="80" cy="18" rx="8" ry="6" fill="#e0a4d5"/>
+ <circle cx="82" cy="15" r="2.2" fill="#f9faff"/><circle cx="82" cy="21" r="2.2" fill="#f9faff"/>
+ <circle cx="83" cy="15" r="1" fill="#243340"/><circle cx="83" cy="21" r="1" fill="#243340"/>
+</g>
+<g stroke-linecap="round">
+ <use href="#rival" stroke="#081f2b" stroke-width="23" transform="translate(0 5)"/>
+ <use href="#rival" stroke="#6eeac3" stroke-width="26" opacity=".17" filter="url(#glow)"/>
+ <use href="#rival" stroke="url(#teal)" stroke-width="15"/>
+ <use href="#rival" stroke="#1a7580" stroke-width="14" stroke-dasharray="3 10" opacity=".48"/>
+ <use href="#rival" stroke="#dbfff0" stroke-width="2" opacity=".38"/>
+</g>
+<g transform="translate(187 173) rotate(180)">
+ <ellipse rx="11" ry="9" fill="#83edcf"/>
+ <circle cx="3" cy="-4.6" r="3.6" fill="#f7fff5"/><circle cx="3" cy="4.6" r="3.6" fill="#f7fff5"/>
+ <circle cx="4.2" cy="-4.6" r="1.6" fill="#163b47"/><circle cx="4.2" cy="4.6" r="1.6" fill="#163b47"/>
+</g>
+<g stroke-linecap="round" stroke-linejoin="round">
+ <use href="#hero" stroke="#031622" stroke-width="32" transform="translate(0 6)"/>
+ <use href="#hero" stroke="#ffce69" stroke-width="33" opacity=".2" filter="url(#glow)"/>
+ <use href="#hero" stroke="url(#gold)" stroke-width="23"/>
+ <use href="#hero" stroke="#593e32" stroke-width="23" stroke-linecap="butt" stroke-dasharray="5 17" opacity=".85"/>
+ <use href="#hero" stroke="#372f33" stroke-width="22" stroke-linecap="butt" stroke-dasharray="1 6" opacity=".16"/>
+ <use href="#hero" stroke="#fff2c0" stroke-width="4" opacity=".55"/>
+</g>
+<g transform="translate(258 96) rotate(-86)">
+ <ellipse rx="17" ry="14" fill="url(#gold)"/>
+ <path d="M-11-11 1-7-5 0 1 7-12 10" fill="#654534"/>
+ <ellipse cx="-4" cy="-7" rx="7" ry="2.5" fill="#fff4c8" opacity=".5"/>
+ <circle cx="6" cy="-7.2" r="5.3" fill="#fffdf0"/><circle cx="6" cy="7.2" r="5.3" fill="#fffdf0"/>
+ <circle cx="8" cy="-7.6" r="2.6" fill="#283738"/><circle cx="8" cy="6.8" r="2.6" fill="#283738"/>
+ <circle cx="8.8" cy="-8.6" r="1" fill="#fff"/><circle cx="8.8" cy="5.8" r="1" fill="#fff"/>
+ <path d="M15-2q2 2 0 4" stroke="#986e42" stroke-width="1" stroke-linecap="round"/>
+</g>
+<g fill="#b8ffdb">
+ <circle cx="251" cy="57" r="10" opacity=".18" filter="url(#glow)"/><circle cx="251" cy="57" r="3.5"/>
+ <circle cx="230" cy="38" r="8" opacity=".17" filter="url(#glow)"/><circle cx="230" cy="38" r="2.6"/>
+ <circle cx="204" cy="24" r="2"/>
+</g>
+<g fill="#f9db85"><circle cx="38" cy="101" r="3"/><circle cx="155" cy="149" r="2.7"/><circle cx="301" cy="166" r="2.7"/></g>
+<g fill="#c3acff"><circle cx="56" cy="132" r="2.3"/><circle cx="216" cy="69" r="2.1"/><circle cx="111" cy="194" r="2"/></g>
+<g fill="#bdf4d8"><circle cx="90.1" cy="125.1" r="0.8" opacity="0.53"/><circle cx="68.9" cy="50.0" r="0.5" opacity="0.25"/><circle cx="227.9" cy="33.5" r="0.7" opacity="0.25"/><circle cx="100.5" cy="83.2" r="0.9" opacity="0.42"/><circle cx="19.2" cy="57.5" r="0.5" opacity="0.54"/><circle cx="249.8" cy="145.0" r="0.9" opacity="0.49"/><circle cx="290.3" cy="143.0" r="0.6" opacity="0.53"/><circle cx="156.2" cy="136.6" r="0.7" opacity="0.34"/><circle cx="120.6" cy="82.9" r="0.6" opacity="0.20"/><circle cx="252.7" cy="143.7" r="1.0" opacity="0.46"/><circle cx="175.7" cy="135.5" r="0.5" opacity="0.45"/><circle cx="143.6" cy="41.1" r="0.5" opacity="0.39"/><circle cx="88.5" cy="87.8" r="0.8" opacity="0.33"/><circle cx="52.9" cy="93.0" r="0.5" opacity="0.26"/><circle cx="71.4" cy="72.5" r="0.4" opacity="0.44"/><circle cx="291.6" cy="76.3" r="0.8" opacity="0.57"/><circle cx="27.5" cy="35.4" r="0.9" opacity="0.53"/><circle cx="200.3" cy="38.4" r="0.6" opacity="0.54"/><circle cx="272.0" cy="144.5" r="0.5" opacity="0.53"/><circle cx="123.7" cy="130.2" r="0.5" opacity="0.59"/><circle cx="190.0" cy="131.2" r="0.5" opacity="0.43"/><circle cx="183.5" cy="109.6" r="0.6" opacity="0.48"/><circle cx="114.0" cy="60.7" r="0.5" opacity="0.46"/><circle cx="47.6" cy="49.2" r="0.4" opacity="0.44"/><circle cx="176.3" cy="101.6" r="0.4" opacity="0.35"/></g>
+</svg>

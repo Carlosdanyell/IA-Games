@@ -9,7 +9,7 @@
 // HTTP cache do navegador.
 //
 // Ao adicionar um jogo, inclua os arquivos dele em ASSETS e suba VERSION.
-const VERSION = 'ia-games-v61';
+const VERSION = 'ia-games-v62';
 const DOC_TIMEOUT = 3500;   // HTML: vale esperar um pouco mais
 const ASSET_TIMEOUT = 1200; // módulos e CSS: rédea curta, cache logo atrás
 const ASSETS = [
@@ -18,6 +18,11 @@ const ASSETS = [
   './play.html',
   './manifest.webmanifest',
   './assets/icon.svg',
+  './assets/covers/neon-arrow.svg',
+  './assets/covers/neon-chess.svg',
+  './assets/covers/neon-memo.svg',
+  './assets/covers/neon-slither.svg',
+  './assets/covers/neon-grid.svg',
   './assets/icon-192.png',
   './assets/icon-512.png',
   './assets/icon-maskable.png',
