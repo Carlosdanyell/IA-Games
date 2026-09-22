@@ -29,14 +29,22 @@ export const DIFFICULTIES = {
     note: 'Rivais antecipam curvas e aceleram para interceptar presas menores.' }
 };
 export const SKINS = [
-  { id: 'aurora', name: 'Aurora', colors: ['#65f3cb', '#2cbaa0'], goal: 0 },
-  { id: 'plasma', name: 'Plasma', colors: ['#d49aff', '#854dec'], goal: 0 },
-  { id: 'solar', name: 'Solar', colors: ['#ffd166', '#ff855e'], goal: 0 },
-  { id: 'oceano', name: 'Oceano', colors: ['#72d8ff', '#4186ee'], goal: 0 },
-  { id: 'sintese', name: 'Síntese', colors: ['#ff82bc', '#e6b1ff', '#71e9e0'], goal: 150 },
-  { id: 'prisma', name: 'Prisma', colors: ['#ff7d88', '#ffd166', '#abeb77', '#67ddd8', '#8eaaff', '#d69aff'], goal: 400 },
-  { id: 'polar', name: 'Polar', colors: ['#f1f6ff', '#89b7d9'], goal: 800 },
-  { id: 'eclipse', name: 'Eclipse', colors: ['#bf9aff', '#645887', '#ffd166'], goal: 1400 }
+  { id: 'aurora', name: 'Aurora', colors: ['#75ffd0', '#27bf9e'], pattern: 'ribbon', detail: '#d6fff0', note: 'Uma fita de luz verde.', goal: 0 },
+  { id: 'plasma', name: 'Plasma', colors: ['#c887ff', '#733be0'], pattern: 'rings', detail: '#efd5ff', note: 'Anéis de energia violeta.', goal: 0 },
+  { id: 'solar', name: 'Solar', colors: ['#ffc75a', '#ff8650'], pattern: 'chevron', detail: '#fff0ae', note: 'Raios dourados em movimento.', goal: 0 },
+  { id: 'oceano', name: 'Oceano', colors: ['#54d4ff', '#3675d9'], pattern: 'wave', detail: '#c4f6ff', note: 'Ondas de azul profundo.', goal: 0 },
+  { id: 'sintese', name: 'Síntese', colors: ['#ff82bc', '#b99dff', '#71e9e0'], pattern: 'confetti', detail: '#fff1fd', note: 'Confetes em tons de doce.', goal: 150 },
+  { id: 'prisma', name: 'Prisma', colors: ['#ff7d88', '#ffd166', '#abeb77', '#67ddd8', '#8eaaff', '#d69aff'], pattern: 'ribbon', detail: '#ffffff', note: 'O espectro inteiro na arena.', goal: 400 },
+  { id: 'polar', name: 'Polar', colors: ['#e9f6ff', '#81badb'], pattern: 'facets', detail: '#ffffff', note: 'Cristais talhados em gelo.', goal: 800 },
+  { id: 'eclipse', name: 'Eclipse', colors: ['#5a477d', '#332848'], pattern: 'rings', detail: '#ffd77c', note: 'Anéis de ouro na escuridão.', goal: 1400 },
+  { id: 'tigre', name: 'Tigre', colors: ['#ffb23f', '#f7812f'], pattern: 'tiger', detail: '#342235', note: 'Listras selvagens em âmbar.', goal: 0 },
+  { id: 'koi', name: 'Koi', colors: ['#fff5e8', '#e8dbd1'], pattern: 'spots', detail: '#f45859', note: 'Manchas vermelhas sobre pérola.', goal: 0 },
+  { id: 'circuito', name: 'Circuito', colors: ['#163e45', '#102b35'], pattern: 'circuit', detail: '#60ffe2', note: 'Trilhas elétricas e visor neon.', goal: 0 },
+  { id: 'pixel', name: 'Pixel', colors: ['#8060f2', '#5543be'], pattern: 'pixels', detail: '#9eff65', note: 'Blocos verdes. Alma de arcade.', goal: 0 },
+  { id: 'magma', name: 'Magma', colors: ['#74352e', '#35232b'], pattern: 'cracks', detail: '#ff9958', note: 'Fendas acesas como lava.', goal: 250 },
+  { id: 'draco', name: 'Draco', colors: ['#4fb589', '#24604e'], pattern: 'scales', detail: '#d4ef8a', note: 'Escamas de jade e ouro.', goal: 600 },
+  { id: 'galaxia', name: 'Galáxia', colors: ['#7545b4', '#353262'], pattern: 'stars', detail: '#aff1ff', note: 'Uma constelação para guiar.', goal: 1100 },
+  { id: 'imperial', name: 'Imperial', colors: ['#efd078', '#bd8844'], pattern: 'diamonds', detail: '#433048', note: 'Diamantes sobre ouro polido.', goal: 2000 }
 ];
 export const NAMES = ['Órbita', 'Cometa', 'Íon', 'Vórtice', 'Quasar', 'Nébula', 'Pulso', 'Fóton', 'Vega', 'Nova', 'Cosmo', 'Prisma', 'Lúmen', 'Eclipse'];
 export const skinFor = id => SKINS.find(s => s.id === id) || SKINS[0];
