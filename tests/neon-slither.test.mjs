@@ -100,6 +100,36 @@ test('crescer continua visível muito além do teto antigo', () => {
   assert.ok(campoPara(ARENA.maxMass) / (ARENA.radius * 2) < .4, 'no tamanho máximo ainda tem de sobrar mapa fora da tela');
 });
 
+test('o ponto do corpo guarda um número estável, para a estampa não tremer', () => {
+  const world = arena();
+  const s = world.player;
+  s.mass = 400; s.invulnerable = 1e9;
+  for (let i = 0; i < 120; i++) world.update(1 / 60, { angle: 0 });
+
+  // O índice no array desloca a cada ponto novo na cabeça. Quem pinta a skin
+  // pelo índice vê o desenho escorregar um espaçamento inteiro trinta vezes por
+  // segundo, e é isso que aparece como corpo tremendo.
+  assert.ok(world.snakes.every(v => v.path.every(q => Number.isFinite(q.n))),
+    'todo ponto do corpo precisa de número de série');
+  const numeros = s.path.map(q => q.n);
+  assert.equal(new Set(numeros).size, numeros.length, 'número de série repetido no mesmo corpo');
+  // Cresce em direção à cabeça: a skin usa isso para saber a ordem da carne.
+  for (let i = 1; i < numeros.length; i++)
+    assert.ok(numeros[i] < numeros[i - 1], `os números precisam decrescer da cabeça à cauda (índice ${i})`);
+
+  // O ponto identificado pelo número não anda: a carne fica onde foi criada.
+  const alvo = s.path[10].n;
+  const antes = { ...s.path.find(q => q.n === alvo) };
+  let maior = 0;
+  for (let i = 0; i < 60; i++) {
+    world.update(1 / 60, { angle: 0 });
+    const agora = s.path.find(q => q.n === alvo);
+    if (!agora) break;
+    maior = Math.max(maior, Math.hypot(agora.x - antes.x, agora.y - antes.y));
+  }
+  assert.equal(maior, 0, `o ponto andou ${maior.toFixed(2)} unidades depois de criado`);
+});
+
 test('a arena nasce com jogador vivo, rivais e alimento', () => {
   const world = createWorld({ difficulty: 'normal', seed: 4 });
   assert.equal(world.player.player, true);

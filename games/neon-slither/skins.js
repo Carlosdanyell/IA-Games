@@ -56,13 +56,17 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
   c.globalAlpha = snake.invulnerable > 0 ? .8 : 1;
   // Largura das faixas e distância das estampas acompanham o crescimento.
   const bandLength = Math.max(3, Math.round(r * (colors.length > 3 ? 2.5 : 4) / pointSpacing));
+  // A estampa é pintada na carne, então segue o número de série do ponto. Pelo
+  // índice do array ela escorregaria um espaçamento a cada ponto novo na
+  // cabeça — trinta saltos por segundo, que é o corpo tremendo.
+  const bandOf = (b, i) => ((Math.floor((b.n ?? -i) / bandLength) % colors.length) + colors.length) % colors.length;
   for (let band=-2; band<colors.length; band++) {
     if (band === -2) { c.strokeStyle = skin.detail+'66'; c.lineWidth=r*2+(snake.boost ? 10 : 2); }
     else if (band === -1) { c.strokeStyle=colors[1]; c.lineWidth=r*2; }
     else { c.strokeStyle=colors[band]; c.lineWidth=r*1.82; }
     c.beginPath(); let a={x:hx,y:hy}, pen=false;
     for (let i=1;i<path.length;i++) {
-      const b=path[i], mine=band<0 || Math.floor((i-1)/bandLength)%colors.length===band;
+      const b=path[i], mine=band<0 || bandOf(b,i)===band;
       if (mine && seen(a,b)) { if (!pen) c.moveTo(a.x,a.y); c.lineTo(b.x,b.y); pen=true; } else pen=false;
       a=b;
     }
@@ -70,8 +74,11 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
   }
   if (details) {
     const stamp=stampFor(skin), gap=Math.max(3,Math.round(r * (skin.pattern==='ribbon' ? 1.4 : 2) / pointSpacing));
-    for (let i=3;i<path.length-2;i+=gap) {
-      const p=path[i], next=path[i+1]; if (!seen(p,p)) continue;
+    for (let i=3;i<path.length-2;i++) {
+      const p=path[i];
+      // Cada estampa nasce num ponto da carne e fica ali até a cauda passar.
+      if ((((p.n ?? i) % gap) + gap) % gap !== 0) continue;
+      const next=path[i+1]; if (!seen(p,p)) continue;
       c.save(); c.translate(p.x,p.y); c.rotate(Math.atan2(p.y-next.y,p.x-next.x));
       c.drawImage(stamp,-r*1.2,-r*1.2,r*2.4,r*2.4); c.restore();
     }
@@ -116,7 +123,7 @@ export function drawSkinPreview(canvas, id, time = 0) {
   const path=[];
   for (let i=0;i<=66;i++) {
     const t=i/66, x=304-t*249, y=80+Math.sin(t*TAU*1.04+time*.65)*30;
-    path.push({x,y});
+    path.push({x,y,n:-i});
   }
   const head=path[0], next=path[1];
   drawSnake(c,{...head,px:head.x,py:head.y,path,skin:id,angle:Math.atan2(head.y-next.y,head.x-next.x)}, {radius:14,pointSpacing:5});

@@ -98,12 +98,15 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
       : Math.round(level.mass[0] + rng.next() ** 2.2 * (level.mass[1] - level.mass[0]));
     const s = { id, name: player ? 'Você' : `${NAMES[id % NAMES.length]} ${id}`, player, x: p.x, y: p.y, px: p.x, py: p.y,
       angle: a, target: a, mass, skin: player ? skin : SKINS[id % SKINS.length].id, alive: true, boost: false,
-      think: rng.next() * level.reaction, boostClock: 0, path: [], segments: [], invulnerable: 3, deaths: 0,
+      think: rng.next() * level.reaction, boostClock: 0, path: [], segments: [], invulnerable: 3, deaths: 0, headSeq: 0,
       // Cada rival tem sua mão: precisão do rumo e disposição para caçar.
       skill: player ? 1 : Math.min(1, level.skill * (.72 + rng.next() * .5)),
       temper: player ? 0 : .45 + rng.next() * 1.1, huntClock: 0, prey: null };
     const n = Math.ceil(lengthOf(s) / ARENA.spacing);
-    for (let i = 0; i <= n; i++) s.path.push({ x: p.x - Math.cos(a) * i * ARENA.spacing, y: p.y - Math.sin(a) * i * ARENA.spacing });
+    // `n` numera o ponto na ordem em que a carne foi criada e nunca muda. O
+    // índice no array, esse sim, desloca a cada ponto novo na cabeça — e quem
+    // pinta a estampa pelo índice vê o desenho saltar 30 vezes por segundo.
+    for (let i = 0; i <= n; i++) s.path.push({ x: p.x - Math.cos(a) * i * ARENA.spacing, y: p.y - Math.sin(a) * i * ARENA.spacing, n: -i });
     world.snakes.push(s); return s;
   }
   world.player = spawn(true);
@@ -212,8 +215,8 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
       s.angle += Math.max(-turn * dt, Math.min(turn * dt, angleDelta(s.target - s.angle)));
       s.px = s.x; s.py = s.y; s.x += Math.cos(s.angle) * speed * dt; s.y += Math.sin(s.angle) * speed * dt;
       const previous = s.path[1];
-      if (previous && distance(s, previous) >= ARENA.spacing) s.path.unshift({ x: s.x, y: s.y });
-      else s.path[0] = { x: s.x, y: s.y };
+      if (previous && distance(s, previous) >= ARENA.spacing) s.path.unshift({ x: s.x, y: s.y, n: ++s.headSeq });
+      else { s.path[0].x = s.x; s.path[0].y = s.y; }
       s.path.length = Math.min(s.path.length, Math.ceil(lengthOf(s) / ARENA.spacing) + 1);
       if (s.boost) {
         // Acelerar custa proporcional ao tamanho: a cobra pequena não fica sem
