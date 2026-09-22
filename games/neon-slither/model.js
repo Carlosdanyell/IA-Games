@@ -50,10 +50,23 @@ export class SpatialGrid {
 // Leque de rumos que a IA considera, de -90° a +90° em passos de 18°.
 const RAYS = 11, RAY_STEP = Math.PI / 10, RAY_MID = (RAYS - 1) / 2;
 
+// Quantas voltas o corpo dá em torno de um ponto. Somar as variações de ângulo
+// ao longo do caminho é o número de giro: uma volta fechada dá 2π, um corpo que
+// só passa ao lado dá quase zero. É o que distingue cercar de encostar.
+export function turnsAround(path, p) {
+  if (!path || path.length < 3) return 0;
+  let total = 0, anterior = Math.atan2(path[0].y - p.y, path[0].x - p.x);
+  for (let i = 1; i < path.length; i++) {
+    const atual = Math.atan2(path[i].y - p.y, path[i].x - p.x);
+    total += angleDelta(atual - anterior); anterior = atual;
+  }
+  return Math.abs(total) / (Math.PI * 2);
+}
+
 export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Date.now() } = {}) {
   const level = DIFFICULTIES[difficulty] || DIFFICULTIES.normal, rng = createRng(seed);
   const world = { snakes: [], foods: [], time: 0, started: false, over: false, best: ARENA.startMass, kills: 0, events: [], level,
-    bodyGrid: new SpatialGrid(), foodGrid: new SpatialGrid(), respawns: [], nextId: 0, foodClock: 0 };
+    bodyGrid: new SpatialGrid(), foodGrid: new SpatialGrid(), respawns: [], nextId: 0, foodClock: 0, lassoClock: 0 };
   // Buffers reaproveitados pelas consultas do passo: nada é alocado por quadro.
   const risk = new Float64Array(RAYS), seenBody = [], seenFood = [], seenHit = [], seenBite = [];
   const point = margin => { const a = rng.next() * TAU, r = Math.sqrt(rng.next()) * (ARENA.radius - margin); return { x: Math.cos(a) * r, y: Math.sin(a) * r }; };
@@ -92,10 +105,16 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
     }
     if (!safe) return null;
     const a = Math.atan2(-p.y, -p.x) + (rng.next() - .5), id = world.nextId++;
-    // Rivais nascem na mesma escala do jogador, a maioria pequena: a arena é
-    // uma disputa desde o início, não uma corrida atrás de gigantes prontos.
+    // No começo todo rival nasce pequeno, a arena é uma disputa desde o início.
+    // Depois, quem renasce entra numa escala puxada pelo maior rival vivo: sem
+    // isso o rival mediano, que vive só 43 s, nunca alcança ninguém e o placar
+    // vira um gigante cercado de anões. O teto ignora o jogador de propósito,
+    // para crescer não convocar rivais maiores contra você.
+    let lider = 0;
+    for (const v of world.snakes) if (v.alive && !v.player && v.mass > lider) lider = v.mass;
+    const teto = Math.max(level.mass[1], lider * ARENA.respawnShare);
     const mass = player ? ARENA.startMass
-      : Math.round(level.mass[0] + rng.next() ** 2.2 * (level.mass[1] - level.mass[0]));
+      : Math.round(level.mass[0] + rng.next() ** 2.2 * (teto - level.mass[0]));
     const s = { id, name: player ? 'Você' : `${NAMES[id % NAMES.length]} ${id}`, player, x: p.x, y: p.y, px: p.x, py: p.y,
       angle: a, target: a, mass, skin: player ? skin : SKINS[id % SKINS.length].id, alive: true, boost: false,
       think: rng.next() * level.reaction, boostClock: 0, path: [], segments: [], invulnerable: 3, deaths: 0, headSeq: 0,
@@ -166,7 +185,7 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
       const rel = angleDelta(Math.atan2(dy, dx) - s.angle);
       const clear = myR + radiusOf(seg.snake) + 22;
       const half = Math.atan2(clear, Math.max(clear, d));
-      const weight = (1 - d / eye) ** 2 * 320;
+      const weight = (1 - d / eye) ** 2 * ARENA.avoidWeight;
       for (let i = 0; i < RAYS; i++) {
         const off = Math.abs(angleDelta((i - RAY_MID) * RAY_STEP - rel));
         if (off < half) risk[i] += weight * (1 - off / half);
@@ -188,6 +207,39 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
     }
     s.target = selected;
     s.boost = chosenRisk < 60 && hunt && s.mass > 90 && Math.abs(angleDelta(selected - s.angle)) < .45;
+  }
+  // Laço: uma volta fechada em torno de outra cobra vai se apertando devagar.
+  // Sem isso o cerco é inútil contra quem se enrola num círculo perfeito menor
+  // que o raio de curva do caçador — não há como diminuir o espaço, porque a
+  // volta do caçador não fecha mais que o próprio raio. Aqui o corpo desloca,
+  // como a corda de um laço correndo pelo nó, até ficar justo na presa.
+  function lasso(dt) {
+    for (const hunter of world.snakes) {
+      if (!hunter.alive || hunter.path.length < 24) continue;
+      for (const prey of world.snakes) {
+        if (prey === hunter || !prey.alive || prey.invulnerable > 0) continue;
+        if (distance(hunter, prey) > ARENA.lassoReach) continue;
+        if (turnsAround(hunter.path, prey) < .9) continue;
+        // O aperto é um anel em torno do rolo da presa, não um amassado na
+        // cabeça dela: puxar para a cabeça só faz um dente, de onde a presa
+        // sai circulando. O centro do corpo dela é o alvo que não escapa.
+        let cx = 0, cy = 0;
+        for (const q of prey.path) { cx += q.x; cy += q.y; }
+        cx /= prey.path.length; cy /= prey.path.length;
+        // O anel fecha até um pouco abaixo da curva mais fechada que a presa
+        // consegue fazer. Aí o círculo perfeito dela não cabe mais, e é isso
+        // que torna o cerco vencível em vez de eterno.
+        const anel = turnRadiusOf(prey) + radiusOf(hunter) + radiusOf(prey) * ARENA.lassoGrip;
+        const passo = ARENA.lassoRate * dt;
+        for (const q of hunter.path) {
+          const dx = cx - q.x, dy = cy - q.y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d <= anel || d > ARENA.lassoReach) continue;
+          const anda = Math.min(passo, d - anel);
+          q.x += dx / d * anda; q.y += dy / d * anda;
+        }
+      }
+    }
   }
   function die(s, killer = null) {
     if (!s.alive) return;
@@ -226,6 +278,9 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
         if (s.boostClock >= .22) { s.boostClock -= .22; food(s.path.at(-1), 1.2, s.id % 6); }
       }
     }
+    // O aperto é lento: rodar a 30 Hz basta e poupa a busca de cerco.
+    world.lassoClock += dt;
+    if (world.lassoClock >= 1 / 30) { lasso(world.lassoClock); world.lassoClock = 0; }
     bodyIndex();
     // Decide todas as mortes antes de aplicá-las: ordem do array não salva um rival.
     const deaths = new Map();

@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createWorld, radiusOf, lengthOf, turnRadiusOf, angleDelta, segmentDistance, SpatialGrid } from '../games/neon-slither/model.js';
+import { createWorld, radiusOf, lengthOf, turnRadiusOf, turnsAround, angleDelta, segmentDistance, SpatialGrid } from '../games/neon-slither/model.js';
 import { ARENA, cleanProfile, SKINS, DIFFICULTIES } from '../games/neon-slither/config.js';
 import { zoomFor } from '../games/neon-slither/render.js';
+import { PALETTES, PALETTE_OPTIONS, tintHue, luminance } from '../core/theme.js';
 
 const arena = (options = {}) => {
   const world = createWorld({ difficulty: 'easy', seed: 9, ...options });
@@ -130,6 +131,92 @@ test('o ponto do corpo guarda um número estável, para a estampa não tremer', 
   assert.equal(maior, 0, `o ponto andou ${maior.toFixed(2)} unidades depois de criado`);
 });
 
+const TAU = Math.PI * 2;
+// Cena montada à mão: presa enrolada na curva mais fechada que consegue, com um
+// caçador de corpo já fechado em volta. É o caso em que o cerco era eterno.
+function cerco(seed = 4) {
+  const world = createWorld({ difficulty: 'easy', seed });
+  world.started = true;
+  const presa = world.snakes[1], cacador = world.player;
+  for (const s of world.snakes) if (s !== presa && s !== cacador) s.alive = false;
+  presa.mass = 200; cacador.mass = 3000;
+  presa.invulnerable = 0; cacador.invulnerable = 0;
+  const volta = (s, raio, pontos) => {
+    s.path.length = 0;
+    for (let i = 0; i < pontos; i++) {
+      const a = -i / pontos * TAU * (pontos / 80);
+      s.path.push({ x: Math.cos(a) * raio, y: Math.sin(a) * raio, n: -i });
+    }
+    Object.assign(s, { x: raio, y: 0, px: raio, py: 0, angle: Math.PI / 2, target: Math.PI / 2 });
+  };
+  volta(presa, turnRadiusOf(presa), 80);
+  volta(cacador, 140, 260);
+  return { world, presa, cacador };
+}
+
+test('o número de giro distingue cercar de passar ao lado', () => {
+  const reto = [];
+  for (let i = 0; i < 100; i++) reto.push({ x: -300 + i * 6, y: 0, n: -i });
+  assert.ok(turnsAround(reto, { x: 0, y: 40 }) < .9, 'corpo reto passando ao lado não é cerco');
+
+  const meia = [], inteira = [], dupla = [];
+  for (let i = 0; i < 100; i++) {
+    const t = i / 100;
+    meia.push({ x: Math.cos(-t * Math.PI) * 80, y: Math.sin(-t * Math.PI) * 80 });
+    inteira.push({ x: Math.cos(-t * TAU) * 80, y: Math.sin(-t * TAU) * 80 });
+    dupla.push({ x: Math.cos(-t * TAU * 2) * 80, y: Math.sin(-t * TAU * 2) * 80 });
+  }
+  assert.ok(turnsAround(meia, { x: 0, y: 0 }) < .9, 'meio cerco ainda não fecha');
+  assert.ok(Math.abs(turnsAround(inteira, { x: 0, y: 0 }) - 1) < .05, 'uma volta fechada vale 1');
+  assert.ok(Math.abs(turnsAround(dupla, { x: 0, y: 0 }) - 2) < .05, 'duas voltas valem 2');
+  assert.equal(turnsAround([], { x: 0, y: 0 }), 0);
+});
+
+test('o laço aperta o cerco, e sem ele o círculo perfeito é invencível', () => {
+  const guardado = ARENA.lassoRate;
+  try {
+    // Sem deslocamento do corpo, a presa no raio mínimo nunca é alcançada: a
+    // volta do caçador não fecha mais que o próprio raio de curva dele.
+    ARENA.lassoRate = 0;
+    const parado = cerco();
+    assert.ok(turnsAround(parado.cacador.path, parado.presa) > 1, 'a cena precisa ser um cerco de verdade');
+    for (let i = 0; i < 60 * 20 && parado.presa.alive; i++) {
+      parado.presa.target = parado.presa.angle + 1;
+      parado.world.update(1 / 60, { angle: parado.cacador.angle + 1 });
+    }
+    assert.equal(parado.presa.alive, true, 'sem laço o cerco não deveria vencer');
+
+    ARENA.lassoRate = guardado;
+    const laco = cerco();
+    let t = 0;
+    for (; t < 20 && laco.presa.alive; t += 1 / 60) {
+      laco.presa.target = laco.presa.angle + 1;
+      laco.world.update(1 / 60, { angle: laco.cacador.angle + 1 });
+    }
+    assert.equal(laco.presa.alive, false, `o laço precisa fechar o cerco (durou ${t.toFixed(1)} s)`);
+    // "Suavemente": o aperto leva segundos, não é morte no instante do cerco.
+    assert.ok(t > .8, `o laço fechou em ${t.toFixed(2)} s, rápido demais para ser suave`);
+  } finally { ARENA.lassoRate = guardado; }
+});
+
+test('o laço não mexe no corpo de quem não cercou ninguém', () => {
+  const world = arena();
+  const s = world.player;
+  s.mass = 3000; s.invulnerable = 1e9;
+  for (let i = 0; i < 120; i++) world.update(1 / 60, { angle: 0 });
+  const antes = s.path.map(q => ({ x: q.x, y: q.y, n: q.n }));
+  for (let i = 0; i < 120; i++) world.update(1 / 60, { angle: 0 });
+  // Os pontos antigos que sobraram não podem ter sido deslocados.
+  let conferidos = 0;
+  for (const velho of antes) {
+    const agora = s.path.find(q => q.n === velho.n);
+    if (!agora) continue;
+    conferidos++;
+    assert.equal(Math.hypot(agora.x - velho.x, agora.y - velho.y), 0, 'corpo deslocado sem cerco');
+  }
+  assert.ok(conferidos > 20, 'o teste precisa conferir pontos de verdade');
+});
+
 test('a arena nasce com jogador vivo, rivais e alimento', () => {
   const world = createWorld({ difficulty: 'normal', seed: 4 });
   assert.equal(world.player.player, true);
@@ -155,6 +242,41 @@ test('rivais nascem na escala do jogador e longe dele', () => {
   }
 });
 
+test('quem renasce acompanha a arena, mas nunca o tamanho do jogador', () => {
+  const level = DIFFICULTIES.normal;
+  // No começo não há líder, então a partida abre como disputa entre iguais.
+  const novo = createWorld({ difficulty: 'normal', seed: 5 });
+  assert.ok(novo.snakes.filter(s => !s.player).every(s => s.mass <= level.mass[1]),
+    'sem líder na arena, ninguém deveria nascer grande');
+
+  // Um jogador enorme não pode puxar o teto: seria um elástico punindo crescer.
+  const gordo = createWorld({ difficulty: 'normal', seed: 5 });
+  gordo.started = true;
+  gordo.player.mass = ARENA.maxMass;
+  for (const s of gordo.snakes) if (!s.player) s.mass = level.mass[0];
+  // Confere cada rival no instante em que nasce: os que já estavam na arena
+  // engordam comendo, e olhar a massa deles depois não diz nada sobre o teto.
+  const conhecidos = new Set(gordo.snakes);
+  let nascidos = 0;
+  for (let i = 0; i < 60 * 40; i++) {
+    gordo.player.invulnerable = 1e9;
+    gordo.update(1 / 60, { angle: Math.sin(i / 200) * 2 });
+    for (const s of gordo.snakes) {
+      if (conhecidos.has(s)) continue;
+      conhecidos.add(s); nascidos++;
+      assert.ok(s.mass <= level.mass[1],
+        `rival nasceu com ${Math.round(s.mass)} tendo o jogador em ${Math.round(gordo.player.mass)}`);
+    }
+  }
+  assert.ok(nascidos > 0, 'o teste precisa ver alguém renascer para valer');
+
+  // Com um rival grande vivo, o teto sobe: é daí que sai a classe média.
+  const teto = Math.max(level.mass[1], 20000 * ARENA.respawnShare);
+  assert.ok(teto > level.mass[1], 'a fração precisa levantar o teto de renascimento');
+  assert.ok(ARENA.respawnShare > 0 && ARENA.respawnShare < .4,
+    `fração de renascimento fora da faixa medida como saudável: ${ARENA.respawnShare}`);
+});
+
 test('rival só caça quem está em desvantagem e o jogador não é o alvo preferido', () => {
   let cacadas = 0, contraJogador = 0;
   // Várias partidas: uma só não junta caçadas suficientes para a conta valer.
@@ -169,9 +291,11 @@ test('rival só caça quem está em desvantagem e o jogador não é o alvo prefe
         if (anterior.get(s) === s.prey) continue;
         anterior.set(s, s.prey);
         cacadas++;
-        // A presa é escolhida menor; a massa muda durante a perseguição, então
-        // a folga confere o instante da escolha.
-        assert.ok(s.prey.mass <= s.mass * .73, `rival de ${Math.round(s.mass)} escolheu presa de ${Math.round(s.prey.mass)}`);
+        // A escolha exige presa com no máximo 0,72 da massa do caçador, mas a
+        // presa continua comendo entre a escolha e esta leitura — medindo, a
+        // pior razão observada foi 0,733. A folga cobre essa deriva sem deixar
+        // passar uma caçada contra alguém do mesmo tamanho.
+        assert.ok(s.prey.mass <= s.mass * .78, `rival de ${Math.round(s.mass)} escolheu presa de ${Math.round(s.prey.mass)}`);
         if (s.prey.player) contraJogador++;
       }
     }
@@ -236,6 +360,65 @@ test('medidas de corpo e utilitários de geometria', () => {
   assert.equal(grid.collect(400, 400, 10, out).length, 0);
 });
 
+// Contraste de objeto gráfico pela WCAG: (L+0.05)/(L+0.05), limite 3.0.
+const contraste = (a, b) => {
+  const [alto, baixo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (alto + .05) / (baixo + .05);
+};
+// O alfa do canvas compõe em sRGB, então o halo é medido assim.
+const sobrepor = (fundo, cor, alfa) => '#' + [1, 3, 5].map(i => {
+  const f = parseInt(fundo.slice(i, i + 2), 16), c = parseInt(cor.slice(i, i + 2), 16);
+  return Math.round(f * (1 - alfa) + c * alfa).toString(16).padStart(2, '0');
+}).join('');
+// A silhueta que o olho acha é o melhor entre o corpo e o halo da cor `detail`.
+const visibilidade = (skin, fundo) =>
+  Math.max(contraste(skin.colors[0], fundo), contraste(sobrepor(fundo, skin.detail, .4), fundo));
+
+test('a paleta veste a arena sem apagar nenhuma skin', () => {
+  const FUNDO = '#122c35';
+  // Tingir misturando com a cor viva clareia o fundo e come o contraste das
+  // skins escuras. `tintHue` devolve o brilho, e é isso que torna o tema
+  // aplicável: o desvio de luminância precisa ser desprezível.
+  for (const [nome, p] of Object.entries(PALETTES)) {
+    const fundo = tintHue(FUNDO, p.dark.accent);
+    const desvio = Math.abs(luminance(fundo) / luminance(FUNDO) - 1);
+    assert.ok(desvio < .05, `${nome} mudou o brilho do fundo em ${(desvio * 100).toFixed(1)}%`);
+    assert.notEqual(fundo.toLowerCase(), FUNDO.toLowerCase(), `${nome} não mudou a matiz`);
+  }
+
+  // Nenhuma paleta pode deixar uma skin menos visível do que ela já é hoje.
+  const base = Object.fromEntries(SKINS.map(s => [s.id, visibilidade(s, FUNDO)]));
+  for (const [nome, p] of Object.entries(PALETTES)) {
+    const fundo = tintHue(FUNDO, p.dark.accent);
+    for (const skin of SKINS) {
+      const agora = visibilidade(skin, fundo);
+      assert.ok(agora >= base[skin.id] * .92,
+        `${skin.name} perdeu contraste em ${nome}: ${base[skin.id].toFixed(2)} para ${agora.toFixed(2)}`);
+    }
+  }
+
+  // O seletor precisa oferecer todas as paletas, senão o tema fica escondido.
+  const oferecidas = PALETTE_OPTIONS.map(o => o.value).filter(v => v !== 'auto');
+  assert.deepEqual([...oferecidas].sort(), Object.keys(PALETTES).sort());
+});
+
+test('o brilho neon acende as escuras e não some com ninguém', () => {
+  const acesas = SKINS.filter(s => s.glow);
+  assert.ok(acesas.length >= 6, 'poucas skins com brilho para o efeito existir');
+  assert.ok(acesas.every(s => s.glow > 0 && s.glow <= 1), 'força de brilho fora de 0 a 1');
+
+  // O halo soma luz na cor `detail`, então ele só ajuda se essa cor for mais
+  // clara que o corpo. Numa skin escura é justamente isso que a resgata.
+  for (const skin of acesas)
+    assert.ok(luminance(skin.detail) > luminance(skin.colors[0]),
+      `${skin.name} tem detail mais escuro que o corpo: o brilho apagaria em vez de acender`);
+
+  // As três que eu havia medido abaixo do contraste mínimo precisam estar entre
+  // as acesas, senão o brilho não resolve o problema que ele podia resolver.
+  for (const id of ['magma', 'eclipse', 'singularidade'])
+    assert.ok(SKINS.find(s => s.id === id)?.glow, `${id} é escura e precisa de brilho`);
+});
+
 test('perfil saneia dados corrompidos e trava skin não liberada', () => {
   for (const value of [null, [], 'oi', 42]) {
     const profile = cleanProfile(value);
@@ -254,5 +437,16 @@ test('perfil saneia dados corrompidos e trava skin não liberada', () => {
   assert.equal(profile.control, 'direct');
   const veterano = cleanProfile({ best: 3000, skin: 'eclipse' });
   assert.equal(veterano.skin, 'eclipse');
-  assert.equal(SKINS.filter(s => s.goal <= 3000).length, SKINS.length);
+  // As lendárias ficam fora de alcance de um recorde de 3000 de propósito: é o
+  // que dá o que perseguir depois que a coleção comum acaba.
+  const lendarias = SKINS.filter(s => s.legend);
+  assert.ok(lendarias.length >= 4, 'a coleção precisa ter lendárias');
+  assert.ok(lendarias.every(s => s.goal > 3000), 'lendária liberada cedo demais');
+  assert.equal(SKINS.filter(s => s.goal <= 3000).length, SKINS.length - lendarias.length);
+  assert.equal(cleanProfile({ best: 3000, skin: 'ouroboros' }).skin, 'aurora', 'lendária bloqueada volta para a padrão');
+  assert.equal(cleanProfile({ best: 60000, skin: 'singularidade' }).skin, 'singularidade');
+  // As metas sobem sem buraco nem empate, para a coleção ter degraus claros.
+  const metas = SKINS.map(s => s.goal).sort((a, b) => a - b);
+  assert.equal(new Set(lendarias.map(s => s.goal)).size, lendarias.length, 'duas lendárias com a mesma meta');
+  assert.ok(Math.max(...metas) >= 25000, 'a maior meta precisa passar de uma sessão longa');
 });

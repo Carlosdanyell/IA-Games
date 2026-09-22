@@ -43,7 +43,95 @@ function stampFor(skin) {
   stamps.set(skin.id, canvas); return canvas;
 }
 
-export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, details = true, pointSpacing = ARENA.spacing } = {}) {
+// Fileiras de escamas atravessando o corpo. Cada fileira é desenhada no
+// referencial local da carne — `t` ao longo do corpo, `nx`/`ny` cruzando —, por
+// isso a escama acompanha a curva em vez de ficar chapada. As fileiras vêm
+// alternadas, como na pele de uma cobra de verdade, e o passo é escolhido pelo
+// número de série do ponto para a textura não escorregar quando a cauda anda.
+const SCALE_ROWS = [-.62, 0, .62];
+function scales(c, path, { r, hx, hy, seen, pointSpacing, scale }) {
+  // Escama menor que uns poucos pixels na tela não aparece, só custa. Uma cobra
+  // pequena ao longe pula a textura inteira sem diferença visível.
+  const naTela = r * scale;
+  if (naTela < 5) return;
+  // Uma fileira a cada meio raio: mais espaçado vira listra, mais junto vira borrão.
+  const step = Math.max(1, Math.round(r * .55 / pointSpacing));
+  const largura = r * .34, fundo = r * .3;
+  // Sulco e brilho saem em dois traços só, um para cada tom do relevo.
+  const camadas = [['#0a141e40', Math.max(.8, r * .13), 0]];
+  if (naTela >= 11) camadas.push(['#ffffff20', Math.max(.6, r * .09), -r * .1]);
+  for (const [tom, espessura, recuo] of camadas) {
+    c.strokeStyle = tom; c.lineWidth = espessura; c.beginPath();
+    for (let i = 1; i < path.length - 1; i++) {
+      const p = path[i], serie = p.n ?? -i;
+      if ((((serie % step) + step) % step) !== 0) continue;
+      const anterior = i === 1 ? { x: hx, y: hy } : path[i - 1];
+      if (!seen(p, p)) continue;
+      let tx = anterior.x - path[i + 1].x, ty = anterior.y - path[i + 1].y;
+      const comp = Math.hypot(tx, ty) || 1; tx /= comp; ty /= comp;
+      const nx = -ty, ny = tx;
+      // Fileiras ímpares deslocadas meia escama: o encaixe é o que lê como pele.
+      const desloca = (((Math.floor(serie / step) % 2) + 2) % 2) ? largura : 0;
+      for (const linha of SCALE_ROWS) {
+        const meio = linha * r + desloca;
+        if (Math.abs(meio) > r * .92) continue;
+        const ax = meio - largura, bx = meio + largura;
+        // Arco abrindo para a cauda: a ponta da escama aponta para trás.
+        c.moveTo(p.x + nx * ax + tx * recuo, p.y + ny * ax + ty * recuo);
+        c.quadraticCurveTo(
+          p.x + nx * meio - tx * (fundo - recuo), p.y + ny * meio - ty * (fundo - recuo),
+          p.x + nx * bx + tx * recuo, p.y + ny * bx + ty * recuo);
+      }
+    }
+    c.stroke();
+  }
+}
+
+// Halo neon somado por cima do corpo. `shadowBlur` daria o borrão de graça mas
+// custa caro demais por quadro, então o brilho sai de traços largos e fracos em
+// modo `lighter`: cada camada soma luz e o degrau entre elas lê como difusão.
+// Duas camadas bastam; a terceira não muda nada que o olho note.
+function halo(c, path, { r, hx, hy, seen, cor, forca, boost }) {
+  const camadas = boost
+    ? [[r * 2 + 26, .1 * forca], [r * 2 + 12, .17 * forca]]
+    : [[r * 2 + 13, .07 * forca], [r * 2 + 6, .12 * forca]];
+  c.save(); c.globalCompositeOperation = 'lighter'; c.strokeStyle = cor;
+  for (const [largura, alfa] of camadas) {
+    c.globalAlpha = alfa; c.lineWidth = largura;
+    c.beginPath();
+    let a = { x: hx, y: hy }, pen = false;
+    for (let i = 1; i < path.length; i++) {
+      const b = path[i];
+      if (seen(a, b, largura)) { if (!pen) c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); pen = true; } else pen = false;
+      a = b;
+    }
+    c.stroke();
+  }
+  c.restore();
+}
+
+// Borrão da aceleração: um rastro curto e claro logo atrás da cabeça, que vai
+// sumindo. É o que dá a leitura de velocidade sem mexer no corpo inteiro.
+function rastro(c, path, { r, hx, hy, seen, cor }) {
+  const quanto = Math.min(path.length - 1, 16);
+  if (quanto < 5) return;
+  c.save(); c.globalCompositeOperation = 'lighter'; c.strokeStyle = cor; c.lineCap = 'round';
+  let a = path[1];
+  for (let i = 2; i <= quanto; i++) {
+    const b = path[i], t = (i - 2) / (quanto - 2);
+    // O brilho acende logo atrás da cabeça e some na cauda. Começar nela lavava
+    // a cabeça de branco e engolia os olhos.
+    if (seen(a, b, r * 3)) {
+      c.globalAlpha = .26 * Math.min(1, t * 4) * (1 - t) ** 1.6;
+      c.lineWidth = r * (1.9 + (1 - t) * 1.2);
+      c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
+    }
+    a = b;
+  }
+  c.restore();
+}
+
+export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, details = true, pointSpacing = ARENA.spacing, scale = 1 } = {}) {
   const skin = skinFor(snake.skin), path = snake.path;
   if (!path?.length) return;
   const hx = (snake.px ?? snake.x) + (snake.x - (snake.px ?? snake.x)) * alpha;
@@ -52,6 +140,13 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
   const seen = (a,b,margin=r+8) => !bounds || Math.max(a.x,b.x) >= bounds.left-margin && Math.min(a.x,b.x) <= bounds.right+margin
     && Math.max(a.y,b.y) >= bounds.top-margin && Math.min(a.y,b.y) <= bounds.bottom+margin;
   c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+  // Brilho abaixo de uns poucos pixels na tela não aparece, só custa.
+  const aceso = details && r * scale >= 4;
+  if (aceso && (skin.glow || snake.boost)) {
+    // Acelerar acende qualquer skin; as de identidade neon já vêm acesas.
+    const forca = Math.max(skin.glow ?? 0, snake.boost ? .85 : 0);
+    halo(c, path, { r, hx, hy, seen, cor: skin.detail, forca, boost: snake.boost });
+  }
   // Proteção mantém a skin legível; o anel na cabeça explica seu estado.
   c.globalAlpha = snake.invulnerable > 0 ? .8 : 1;
   // Largura das faixas e distância das estampas acompanham o crescimento.
@@ -72,6 +167,7 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
     }
     c.stroke();
   }
+  if (details) scales(c, path, { r, hx, hy, seen, pointSpacing, scale });
   if (details) {
     const stamp=stampFor(skin), gap=Math.max(3,Math.round(r * (skin.pattern==='ribbon' ? 1.4 : 2) / pointSpacing));
     for (let i=3;i<path.length-2;i++) {
@@ -83,6 +179,7 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
       c.drawImage(stamp,-r*1.2,-r*1.2,r*2.4,r*2.4); c.restore();
     }
   }
+  if (aceso && snake.boost) rastro(c, path, { r, hx, hy, seen, cor: skin.detail });
   // Reflexo dorsal em um traço só, para o corpo ter volume sem borrar a borda.
   c.strokeStyle='#ffffff24'; c.lineWidth=Math.max(1,r*.3); c.beginPath();
   let a={x:hx,y:hy}, pen=false;

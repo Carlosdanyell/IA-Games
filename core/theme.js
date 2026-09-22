@@ -104,3 +104,21 @@ export function createTheme(store, { onChange } = {}) {
     setAuto(name) { if (autoName !== name) { autoName = name; if (choice === 'auto') apply(); } }
   };
 }
+
+// Tinge uma cor com a matiz de outra sem mexer no brilho. Misturar direto com a
+// cor viva da paleta clareia o fundo, e num jogo com skins escuras isso apaga
+// justamente elas: medindo as 20 do Neon Slither, a mistura simples levava de 3
+// para 6 as que ficam abaixo do contraste mínimo. Misturar em espaço linear e
+// devolver a luminância ao valor original mantém o contraste onde estava.
+const aLinear = v => v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4;
+const aSrgb = v => v <= .0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - .055;
+const canais = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+const brilho = linear => .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2];
+export const luminance = hex => brilho(canais(hex).map(aLinear));
+export function tintHue(base, color, amount = .6) {
+  const linear = canais(base).map(aLinear), alvo = brilho(linear);
+  const tom = canais(color).map(aLinear).map((v, i) => linear[i] * (1 - amount) + v * amount);
+  const escala = brilho(tom) > 0 ? alvo / brilho(tom) : 1;
+  return '#' + tom.map(v => Math.round(Math.min(1, Math.max(0, aSrgb(Math.min(1, v * escala)))) * 255)
+    .toString(16).padStart(2, '0')).join('');
+}
