@@ -3,6 +3,7 @@ import { PHYSICS, AIM, FIGURE, SCORE, LIVES, TIMING, TRAVEL, FALL, DIFFICULTY, B
   from './config.js';
 import { PHASES, phaseFor } from './levels.js';
 import { layout, targetAt, bodyOf, firstHit, segmentCircle, bonusFor, clamp } from './world.js';
+import { detachPart, stepPart, transformPoint } from './anatomy.js';
 import { createBlood } from './blood.js';
 import { createRenderer } from './render.js';
 import { buildDialog } from './ui.js';
@@ -52,6 +53,10 @@ export function create(services) {
   }
   const app = hud.arena.closest('.app');
   app.classList.add('arrow-app');
+  hud.el.settings.innerHTML = 'Ajustes & regras <span aria-hidden="true">↗</span>';
+  const originalHint = 'Arraste para trás e solte · <strong>como puxar a corda</strong>';
+  // O shell configura sua dica genérica depois da criação do jogo.
+  queueMicrotask(() => { if (S.state === 'intro') { hud.setHint(originalHint); hud.flush(); } });
   document.body.classList.add('arrow-body');
 
   const validDifficulty = v => (DIFFICULTY[v] ? v : 'normal');
@@ -59,9 +64,10 @@ export function create(services) {
     mode: store.get('mode', 'campaign'),
     difficulty: validDifficulty(store.get('difficulty', 'normal')),
     guide: store.get('guide', true),
-    blood: store.get('blood', 'forte')
+    blood: store.get('blood', 'forte'),
+    dismemberment: store.get('dismemberment', true)
   };
-  const rules = () => DIFFICULTY[settings.difficulty];
+  const rules = () => DIFFICULTY[S.difficulty];
 
   const S = {
     state: 'intro',    // intro | ready | flying | resolve | travel | paused | over | win
@@ -105,6 +111,8 @@ export function create(services) {
     fallT: 0,
     landed: false,
     woundOffset: null,
+    detached: null,
+    trail: [],
     targetArms: 'down',
     flinch: 0,
     bits: [],
@@ -120,6 +128,8 @@ export function create(services) {
   };
 
   const aim = { angle: 0.35, power: 0.6, pulling: false, ready: true, anchorX: 0, anchorY: 0 };
+  const lifecycle = new AbortController();
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   let scene = layout(view, { distance: S.viewDistance });
   let hudDirty = true;
   let pausedFrom = null;
@@ -240,12 +250,14 @@ export function create(services) {
   function resetTarget() {
     // Quem levantar é outra pessoa: as flechas cravadas no corpo vão embora
     // com ele, só as do chão ficam.
-    for (let i = S.stuck.length - 1; i >= 0; i--) if (S.stuck[i].onBody) S.stuck.splice(i, 1);
+    for (let i = S.stuck.length - 1; i >= 0; i--) if (S.stuck[i].onBody || S.stuck[i].onFragment) S.stuck.splice(i, 1);
     S.wounded = false;
     S.lean = 0;
     S.fallT = 0;
     S.landed = false;
     S.woundOffset = null;
+    S.detached = null;
+    S.trail.length = 0;
     S.targetArms = 'down';
     S.flinch = 0;
     S.bits.length = 0;
@@ -259,6 +271,9 @@ export function create(services) {
     S.phase = phaseFor(S.mode, index, S.seed);
     S.arrowsHere = 0;
     S.outcome = '';
+    S.freeze = S.flash = S.shake = S.voiceIn = 0;
+    S.banner = '';
+    S.bannerTime = 0;
     S.bonusTaken = false;
     S.clock = 0;
     S.stuck.length = 0;
@@ -353,6 +368,7 @@ export function create(services) {
       vy: Math.sin(aim.angle) * speed,
       t: 0
     };
+    S.trail.length = 0;
     S.arrowsHere++;
     S.arrowsTotal++;
     S.state = 'flying';
@@ -440,7 +456,8 @@ export function create(services) {
     hudDirty = true;
   }
 
-  function hitPerson(point, body, part, dir) {
+  function hitPerson(point, body, hit, dir) {
+    const part = hit.part;
     const target = currentTarget();
     S.lives--;
     S.victims++;
@@ -449,6 +466,16 @@ export function create(services) {
     S.fallT = 0;
     S.landed = false;
     S.woundOffset = { dx: point.x - target.x, dy: point.y - target.y };
+    S.detached = detachPart(hit, body, target, dir, settings.dismemberment && settings.blood !== 'off');
+    if (S.detached) {
+      S.woundOffset = S.detached.wound;
+      const arrow = S.stuck[S.stuck.length - 1];
+      if (arrow) {
+        arrow.onFragment = true;
+        arrow.fx = point.x - S.detached.x;
+        arrow.fy = point.y - S.detached.y;
+      }
+    }
     // A maçã cai da cabeça junto com o corpo.
     S.loose = {
       x: body.apple.x, y: body.apple.y, r: body.apple.r,
@@ -464,7 +491,7 @@ export function create(services) {
     S.voiceIn = 0.1;
     S.voiceStrong = ['cabeça', 'peito', 'ombro'].includes(part);
     haptics.buzz([30, 40, 60]);
-    showBanner(`ACERTOU ${part.toUpperCase()}`, 'bad', 1.8);
+    showBanner(`${part.toUpperCase()} · −1 VIDA`, 'bad', 1.8);
     S.outcome = 'person';
     S.resolveTime = TIMING.retry + FALL.time * 0.6;
     S.state = 'resolve';
@@ -597,6 +624,8 @@ export function create(services) {
     a.t += dt;
     if (!S.whooshed && a.t > 0.09) { S.whooshed = true; sfx.whoosh(); }
     const after = toScreen(a);
+    S.trail.push(after);
+    if (S.trail.length > 16) S.trail.shift();
 
     const target = currentTarget();
     const body = currentBody(target);
@@ -631,8 +660,8 @@ export function create(services) {
         stickArrow(point.x, point.y, angle, false);
         hitApple(point, body, dir);
       } else {
-        stickArrow(point.x, point.y, angle, true, true);
-        hitPerson(point, body, hit.part, dir);
+        stickArrow(point.x, point.y, angle, true, settings.blood !== 'off');
+        hitPerson(point, body, hit, dir);
       }
       return;
     }
@@ -653,6 +682,7 @@ export function create(services) {
 
   // Pedaços de maçã e maçã solta caem com gravidade simples de tela.
   function stepDebris(dt) {
+    if (S.detached) stepPart(S.detached, dt, scene.groundY, view.w);
     for (let i = S.bits.length - 1; i >= 0; i--) {
       const b = S.bits[i];
       b.vy += GRAVITY_PX * dt;
@@ -780,6 +810,10 @@ export function create(services) {
     const body = currentBody(target);
     const arrow = S.arrow ? { ...toScreen(S.arrow), vx: S.arrow.vx, vy: -S.arrow.vy } : null;
     const stuck = S.stuck.map(a => {
+      if (a.onFragment && S.detached) {
+        const p = transformPoint({x:a.fx,y:a.fy},S.detached,S.detached.angle);
+        return {...a,...p,angle:a.angle+S.detached.angle};
+      }
       if (!a.onBody) return a;
       const p = attached(a);
       return { ...a, x: p.x, y: p.y, angle: a.angle + S.lean };
@@ -798,13 +832,13 @@ export function create(services) {
       aim, guide: guidePoints(),
       blood, wind: S.wind, clock: S.clock, shift: S.shift, walk: S.walk,
       wounded: S.wounded,
-      // Tremor de nervoso enquanto a corda é puxada, e susto ao ver a maçã ir.
-      lean: S.lean + (S.flinch > 0 ? Math.sin(S.flinch * 22) * 0.05 : 0) +
-            (targetFace === 'medo' ? Math.sin(S.clock * 17) * 0.009 : 0),
+      // O desenho mantém a posição usada pela colisão até o impacto.
+      lean: S.lean,
       targetArms: S.targetArms,
       showApple: !S.wounded && S.outcome !== 'apple',
-      bits: S.bits, loose: S.loose,
-      flash: S.flash, flashTone: S.flashTone, shake: S.shake,
+      bits: S.bits, loose: S.loose, detached: S.detached,
+      trail: S.arrow ? S.trail : [], state: S.state,
+      flash: reducedMotion.matches ? 0 : S.flash, flashTone: S.flashTone, shake: reducedMotion.matches ? 0 : S.shake,
       banner: S.banner, bannerTone: S.bannerTone,
       difficulty: S.difficulty,
       stats: loopStats
@@ -842,9 +876,16 @@ export function create(services) {
     aim.anchorY = p.y;
   });
 
+  // O cancelamento do sistema operacional nunca solta uma flecha.
+  hud.arena.addEventListener('pointercancel', () => { aim.pulling = false; },
+    {capture:true,signal:lifecycle.signal});
+  hud.arena.addEventListener('lostpointercapture', () => { aim.pulling = false; },
+    {signal:lifecycle.signal});
+  input.on('move', () => { if (aim.pulling && S.state === 'ready') applyPointer(); });
   input.on('release', () => {
     if (!aim.pulling) return;
     const pull = Math.hypot(input.state.x - aim.anchorX, input.state.y - aim.anchorY);
+    applyPointer();
     aim.pulling = false;
     if (S.state !== 'ready' || hud.dialogOpen || isPortrait()) return;
     if (pull < AIM.minPull) { showBanner('TIRO CANCELADO', '', 0.9); return; }
@@ -854,9 +895,15 @@ export function create(services) {
   input.on('key', event => {
     if (hud.dialogOpen || isPortrait()) return;
     const tag = event.target && event.target.tagName;
-    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (['INPUT','SELECT','TEXTAREA','BUTTON','A'].includes(tag)) return;
+    if (event.key === 'Escape' || event.key.toLowerCase() === 'p') {
+      event.preventDefault();
+      if (S.state === 'paused') resume(); else pause();
+      return;
+    }
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       event.preventDefault();
+      if (S.state !== 'ready') return;
       aim.power = clamp(aim.power + (event.key === 'ArrowUp' ? 1 : -1) * AIM.keyPower * 0.12, 0, 1);
       return;
     }
@@ -908,6 +955,11 @@ export function create(services) {
     hudDirty = true;
   }
 
+  function clearDetached() {
+    S.detached = null;
+    S.stuck = S.stuck.filter(a => !a.onFragment);
+  }
+
   function openSettings() {
     const playing = !['intro', 'over', 'win', 'paused'].includes(S.state);
     if (playing) pause();
@@ -932,7 +984,16 @@ export function create(services) {
         settings.blood = value;
         store.set('blood', value);
         blood.setLevel(value);
-        if (value === 'off') blood.clear();
+        if (value === 'off') {
+          blood.clear();
+          clearDetached();
+          S.stuck.forEach(a => { a.bloodied = false; });
+        }
+      },
+      onDismemberment: value => {
+        settings.dismemberment = value;
+        store.set('dismemberment', value);
+        if (!value) clearDetached();
       }
     });
     hud.setDialogContent(node, 'Ajustes & regras');
@@ -940,7 +1001,12 @@ export function create(services) {
   }
 
   function resize() {
+    const oldGround = scene.groundY;
     rebuildScene();
+    const delta = scene.groundY - oldGround;
+    for (const p of [...S.bits, S.loose, S.detached, ...S.trail].filter(Boolean)) p.y += delta;
+    for (const a of S.stuck) if (!a.onBody) a.y += delta;
+    if (delta) blood.clear();
     renderer.invalidate();
     wasPortrait = null;
     hudDirty = true;
@@ -952,11 +1018,11 @@ export function create(services) {
     const run = savedRun();
     const best = store.get(`best-${settings.mode}-${settings.difficulty}`, { score: 0, level: 0, streak: 0 });
     present({
-      tag: 'Tiro ao alvo',
-      title: 'A maçã está<br>na cabeça dele.',
+      tag: 'Precisão sob pressão',
+      title: 'Uma maçã.<br>Um tiro perfeito.',
       text: run
         ? `Você parou na fase ${run.levelIndex + 1} com ${run.score} pontos.`
-        : 'Puxe a corda arrastando para trás e solte. Acertar a pessoa custa uma vida — e sangue.',
+        : 'Arraste para puxar a corda e solte para atirar. Mire na maçã: atingir a pessoa custa uma vida.',
       action: run ? 'Continuar' : 'Começar',
       secondary: run ? 'Nova partida' : null,
       note: `${MODES[settings.mode].label} · ${DIFFICULTY[settings.difficulty].label} · recorde ${best.score} pontos`
@@ -978,12 +1044,14 @@ export function create(services) {
       phase: S.phase.name, distance: S.phase.distance, wind: S.wind, score: S.score,
       lives: S.lives, streak: S.streak, arrows: S.arrowsTotal, hits: S.hits,
       victims: S.victims, wounded: S.wounded, blood: settings.blood, particles: blood.count,
+      dismemberment: settings.dismemberment, detached: S.detached?.id || null,
       bonus: !!currentBonus(), bonusTaken: S.bonusTaken, portrait: isPortrait()
     }),
     inspect: () => ({ S, aim, scene, settings, blood }),
     applePoint: () => currentBody().apple,
     bonusPoint: () => currentBonus(),
     destroy: () => {
+      lifecycle.abort();
       input.destroy();
       app.classList.remove('arrow-app');
       document.body.classList.remove('arrow-body');
