@@ -205,48 +205,20 @@ test('o número de giro distingue cercar de passar ao lado', () => {
   assert.equal(turnsAround([], { x: 0, y: 0 }), 0);
 });
 
-test('o laço tira a impossibilidade do fim, sem fechar o cerco pelo jogador', () => {
-  const guardado = ARENA.lassoRate;
-  try {
-    // Travada no eixo, a presa é matematicamente inalcançável em qualquer
-    // aperto: a volta do caçador não fecha mais que o raio de curva dele.
-    ARENA.lassoRate = 0;
-    for (const aperto of [95, 75, 60])
-      assert.equal(rodar(cerco(aperto), 25).viva, true, `sem laço o cerco de ${aperto} não deveria vencer`);
-
-    ARENA.lassoRate = guardado;
-    // Com o nó fechado, o laço tira o empate. Quem apertou até aqui foi o jogador.
-    const fechado = rodar(cerco(60), 25);
-    assert.equal(fechado.viva, false, `o laço precisa vencer um cerco fechado (durou ${fechado.t.toFixed(1)} s)`);
-    assert.ok(fechado.t > 2, `venceu em ${fechado.t.toFixed(1)} s, rápido demais para ser sutil`);
-
-    // Cerco largo segue sem vencer: a presa mantém o espaço para manobrar e
-    // tentar inverter o jogo, que é o que faz cercar valer a pena.
-    for (const largo of [95, 110, 140])
-      assert.equal(rodar(cerco(largo), 25).viva, true, `cerco largo de ${largo} não pode vencer sozinho`);
-  } finally { ARENA.lassoRate = guardado; }
+test('cercar não tem física própria: só a geometria decide', () => {
+  // Registro de uma decisão de projeto, para ninguém reintroduzir a regra
+  // invisível sem perceber. No slither.io os corpos se atravessam e só a cabeça
+  // mata, então cercar não desloca ninguém. Uma presa girando no próprio eixo é
+  // de fato inalcançável, e isso é aceito lá e aqui: tirar esse empate custaria
+  // uma regra que o jogador não tem como ver nem aprender.
+  for (const aperto of [95, 75, 60]) {
+    const { viva, cedeu } = rodar(cerco(aperto), 20);
+    assert.equal(cedeu, 0, `o corpo de quem cerca não pode ceder (cerco ${aperto})`);
+    assert.equal(viva, true, `sem regra própria, a presa travada no eixo sobrevive (cerco ${aperto})`);
+  }
 });
 
-test('o aperto é quase imperceptível', () => {
-  const guardado = ARENA.lassoRate;
-  try {
-    // Sem laço o corpo não cede nada: é a linha de base da medida.
-    ARENA.lassoRate = 0;
-    assert.equal(rodar(cerco(70), 10).cedeu, 0, 'sem laço nenhum ponto do corpo deveria andar');
-
-    ARENA.lassoRate = guardado;
-    const cena = cerco(70);
-    const largura = radiusOf(cena.cacador) * 2;
-    const { cedeu } = rodar(cena, 10);
-    assert.ok(cedeu > 0, 'o laço precisa estar agindo para a medida valer');
-    // Medido em 1,2 un/s contra 32,6 de largura de corpo: o limite deixa folga
-    // para afinação sem permitir que o cerco volte a fechar na tela.
-    assert.ok(cedeu < largura * .06,
-      `o corpo cedeu ${cedeu.toFixed(1)} un/s, ${(cedeu / largura * 100).toFixed(0)}% da largura dele`);
-  } finally { ARENA.lassoRate = guardado; }
-});
-
-test('o laço não mexe no corpo de quem não cercou ninguém', () => {
+test('o corpo de uma cobra sozinha nunca é deslocado', () => {
   const world = arena();
   const s = world.player;
   s.mass = 3000; s.invulnerable = 1e9;

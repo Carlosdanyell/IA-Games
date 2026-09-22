@@ -16,19 +16,15 @@ export const ARENA = {
   // Alcance em que a luz é puxada para a cabeça. Comer vira um movimento
   // contínuo em vez de exigir passar por cima do ponto exato.
   magnet: 34,
-  // Laço. `lassoReach` é o raio em que o cerco é procurado, `lassoRate` a
-  // velocidade com que a volta se aperta e `lassoGrip` o quanto ela fecha abaixo
-  // da curva mais fechada da presa, em frações do corpo dela. O aperto existe
-  // só para quebrar o empate matemático de uma presa girando no mesmo eixo para
-  // sempre: com grip .5 a margem que sobra para ela é de meia unidade. O resto
-  // é de propósito quase imperceptível — o corpo cede pouco mais de uma unidade
-  // por segundo, contra as dezoito da primeira versão, que fechava o cerco
-  // sozinha e transformava cercar em sentença. Medido em cena montada, um cerco
-  // largo não vence mais por si: quem aperta o nó é o jogador, e o laço só tira
-  // a impossibilidade do fim.
-  // `lassoBand` é a espessura do trecho que se aperta, medida do anel para fora:
-  // só o nó cede, o resto do corpo fica onde está.
-  lassoReach: 270, lassoRate: 1.2, lassoGrip: .5, lassoBand: 34,
+  // Cercar não tem regra própria, e é de propósito. Uma versão deslocava o
+  // corpo de quem cercava, como um laço; outra impedia a luz de nascer dentro
+  // do cerco. A primeira não existe no slither.io, onde os corpos se atravessam
+  // e só a cabeça mata. A segunda, medida, não muda nada: um cerco ocupa 0,03%
+  // da arena, então a luz já demora vinte e dois segundos para nascer lá dentro
+  // e o cercado já para de crescer sozinho. O empate de uma presa girando para
+  // sempre no mesmo eixo é real na teoria e existe no slither.io também, mas
+  // exige da presa uma perfeição que a IA daqui não tem: em oitenta minutos de
+  // partida os quatro cercos observados duraram 1,5 s de mediana.
   // Peso que a IA dá a desviar de um corpo. É autopreservação, não caça: mexer
   // aqui muda quanto tempo um rival sobrevive sem mudar o quanto ele persegue.
   avoidWeight: 520,
