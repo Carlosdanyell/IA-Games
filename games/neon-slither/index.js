@@ -100,7 +100,7 @@ export function create({ viewport, input, hud, store, theme, audio, haptics }) {
       inspectedSkin = id; const skin = skinFor(id), locked = profile.best < skin.goal, selected = profile.skin === id;
       const preview = body.querySelector('.nl-inspect canvas');
       preview.setAttribute('aria-label', `Prévia da skin ${skin.name}`); drawSkinPreview(preview, id);
-      body.querySelector('.nl-inspect h3').textContent = skin.name;
+      body.querySelector('.nl-inspect h3').textContent = skin.legend ? `${skin.name} ✦` : skin.name;
       body.querySelector('.nl-inspect-copy p').textContent = skin.note;
       use.disabled = locked || selected; use.textContent = locked ? 'Bloqueada' : selected ? 'Equipada ✓' : 'Usar skin';
       const status = body.querySelector('.nl-unlock');
@@ -109,13 +109,15 @@ export function create({ viewport, input, hud, store, theme, audio, haptics }) {
       for (const b of body.querySelectorAll('.nl-skin')) {
         b.setAttribute('aria-pressed', String(b.dataset.skin === id));
         const item = skinFor(b.dataset.skin);
-        b.querySelector('small').textContent = profile.skin === item.id ? 'Equipada ✓' : profile.best < item.goal ? `${item.goal} de massa` : 'Disponível';
+        b.querySelector('small').textContent = profile.skin === item.id ? 'Equipada ✓'
+          : profile.best < item.goal ? `${item.goal} de massa` : item.legend ? 'Lendária ✦' : 'Disponível';
       }
     }
     for (const skin of SKINS) {
       const button = document.createElement('button'); button.className = 'nl-skin'; button.type = 'button'; button.dataset.skin = skin.id;
       button.dataset.locked = String(profile.best < skin.goal);
-      button.setAttribute('aria-label', `${skin.name}. ${skin.note} ${profile.best < skin.goal ? `Libera com ${skin.goal} de massa.` : 'Disponível.'}`);
+      if (skin.legend) button.dataset.legend = 'true';
+      button.setAttribute('aria-label', `${skin.name}${skin.legend ? ', lendária' : ''}. ${skin.note} ${profile.best < skin.goal ? `Libera com ${skin.goal} de massa.` : 'Disponível.'}`);
       button.innerHTML = `<canvas width="360" height="160" aria-hidden="true"></canvas><span>${skin.name}</span><small></small>`;
       drawSkinPreview(button.querySelector('canvas'), skin.id);
       button.onclick = () => inspect(skin.id); body.querySelector('.nl-skins').append(button);

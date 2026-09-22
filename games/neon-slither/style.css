@@ -121,3 +121,8 @@ body.nl-body{--bg:#08121e;--surface:#11232f;--arena:#0a1725;--line:#2a4450;--mut
   .nl-app .panel .primary{min-height:46px}.nl-app .panel .secondary{margin-top:6px;min-height:42px}.nl-app .panel-note{margin-top:8px}
   .nl-app .footer>span{display:none}.nl-app>.footer{justify-content:flex-end;padding-top:0;padding-bottom:4px}
 }
+
+/* Lendárias: borda dourada para a raridade se ler de relance na coleção. */
+.nl-skin[data-legend='true'] { border-color: #e6c15e88; box-shadow: 0 0 0 1px #e6c15e33, 0 8px 18px #0006; }
+.nl-skin[data-legend='true'][data-locked='true'] { border-color: #e6c15e3d; box-shadow: none; }
+.nl-skin[data-legend='true'] small { color: #f0d489; }

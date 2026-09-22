@@ -19,7 +19,10 @@ export const ARENA = {
   // Laço. `lassoReach` é o raio em que o cerco é procurado, `lassoRate` a
   // velocidade com que a volta se aperta e `lassoGrip` o quanto ela fecha abaixo
   // da curva mais fechada da presa, em frações do corpo dela.
-  lassoReach: 270, lassoRate: 18, lassoGrip: .35
+  lassoReach: 270, lassoRate: 18, lassoGrip: .35,
+  // Peso que a IA dá a desviar de um corpo. É autopreservação, não caça: mexer
+  // aqui muda quanto tempo um rival sobrevive sem mudar o quanto ele persegue.
+  avoidWeight: 520
 };
 // bots: quantos rivais; reaction: intervalo entre decisões; foresight: alcance
 // da leitura de perigo; aggression: chance de caçar quem já está em desvantagem;
@@ -48,7 +51,19 @@ export const SKINS = [
   { id: 'magma', name: 'Magma', colors: ['#74352e', '#35232b'], pattern: 'cracks', detail: '#ff9958', note: 'Fendas acesas como lava.', goal: 250 },
   { id: 'draco', name: 'Draco', colors: ['#4fb589', '#24604e'], pattern: 'scales', detail: '#d4ef8a', note: 'Escamas de jade e ouro.', goal: 600 },
   { id: 'galaxia', name: 'Galáxia', colors: ['#7545b4', '#353262'], pattern: 'stars', detail: '#aff1ff', note: 'Uma constelação para guiar.', goal: 1100 },
-  { id: 'imperial', name: 'Imperial', colors: ['#efd078', '#bd8844'], pattern: 'diamonds', detail: '#433048', note: 'Diamantes sobre ouro polido.', goal: 2000 }
+  { id: 'imperial', name: 'Imperial', colors: ['#efd078', '#bd8844'], pattern: 'diamonds', detail: '#433048', note: 'Diamantes sobre ouro polido.', goal: 2000 },
+  // Lendárias. As metas são ancoradas no que uma partida rende de fato: a
+  // mediana termina perto de 6000 e uma partida boa dobra isso; daí para cima
+  // é sessão longa. Antes a última skin saía aos 2000, e o resto da partida
+  // ficava sem nada para perseguir.
+  { id: 'brasa', name: 'Brasa', colors: ['#ff7a3d', '#7a1f12'], pattern: 'cracks', detail: '#ffd48a',
+    note: 'Rocha viva, rachada por dentro.', goal: 6000, legend: true },
+  { id: 'boreal', name: 'Boreal', colors: ['#7bffce', '#3d8fd6', '#b58cff'], pattern: 'wave', detail: '#e8fff6',
+    note: 'A aurora presa no corpo.', goal: 12000, legend: true },
+  { id: 'ouroboros', name: 'Ouroboros', colors: ['#f2c65a', '#2b2119'], pattern: 'scales', detail: '#fff0b8',
+    note: 'A serpente que come a própria cauda.', goal: 25000, legend: true },
+  { id: 'singularidade', name: 'Singularidade', colors: ['#6a2fd6', '#141126'], pattern: 'rings', detail: '#c9a6ff',
+    note: 'Luz curvando no horizonte.', goal: 50000, legend: true }
 ];
 export const NAMES = ['Órbita', 'Cometa', 'Íon', 'Vórtice', 'Quasar', 'Nébula', 'Pulso', 'Fóton', 'Vega', 'Nova', 'Cosmo', 'Prisma', 'Lúmen', 'Eclipse'];
 export const skinFor = id => SKINS.find(s => s.id === id) || SKINS[0];

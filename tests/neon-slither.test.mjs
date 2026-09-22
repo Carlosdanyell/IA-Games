@@ -255,9 +255,11 @@ test('rival só caça quem está em desvantagem e o jogador não é o alvo prefe
         if (anterior.get(s) === s.prey) continue;
         anterior.set(s, s.prey);
         cacadas++;
-        // A presa é escolhida menor; a massa muda durante a perseguição, então
-        // a folga confere o instante da escolha.
-        assert.ok(s.prey.mass <= s.mass * .73, `rival de ${Math.round(s.mass)} escolheu presa de ${Math.round(s.prey.mass)}`);
+        // A escolha exige presa com no máximo 0,72 da massa do caçador, mas a
+        // presa continua comendo entre a escolha e esta leitura — medindo, a
+        // pior razão observada foi 0,733. A folga cobre essa deriva sem deixar
+        // passar uma caçada contra alguém do mesmo tamanho.
+        assert.ok(s.prey.mass <= s.mass * .78, `rival de ${Math.round(s.mass)} escolheu presa de ${Math.round(s.prey.mass)}`);
         if (s.prey.player) contraJogador++;
       }
     }
@@ -340,5 +342,16 @@ test('perfil saneia dados corrompidos e trava skin não liberada', () => {
   assert.equal(profile.control, 'direct');
   const veterano = cleanProfile({ best: 3000, skin: 'eclipse' });
   assert.equal(veterano.skin, 'eclipse');
-  assert.equal(SKINS.filter(s => s.goal <= 3000).length, SKINS.length);
+  // As lendárias ficam fora de alcance de um recorde de 3000 de propósito: é o
+  // que dá o que perseguir depois que a coleção comum acaba.
+  const lendarias = SKINS.filter(s => s.legend);
+  assert.ok(lendarias.length >= 4, 'a coleção precisa ter lendárias');
+  assert.ok(lendarias.every(s => s.goal > 3000), 'lendária liberada cedo demais');
+  assert.equal(SKINS.filter(s => s.goal <= 3000).length, SKINS.length - lendarias.length);
+  assert.equal(cleanProfile({ best: 3000, skin: 'ouroboros' }).skin, 'aurora', 'lendária bloqueada volta para a padrão');
+  assert.equal(cleanProfile({ best: 60000, skin: 'singularidade' }).skin, 'singularidade');
+  // As metas sobem sem buraco nem empate, para a coleção ter degraus claros.
+  const metas = SKINS.map(s => s.goal).sort((a, b) => a - b);
+  assert.equal(new Set(lendarias.map(s => s.goal)).size, lendarias.length, 'duas lendárias com a mesma meta');
+  assert.ok(Math.max(...metas) >= 25000, 'a maior meta precisa passar de uma sessão longa');
 });

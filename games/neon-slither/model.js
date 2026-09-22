@@ -179,7 +179,7 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
       const rel = angleDelta(Math.atan2(dy, dx) - s.angle);
       const clear = myR + radiusOf(seg.snake) + 22;
       const half = Math.atan2(clear, Math.max(clear, d));
-      const weight = (1 - d / eye) ** 2 * 320;
+      const weight = (1 - d / eye) ** 2 * ARENA.avoidWeight;
       for (let i = 0; i < RAYS; i++) {
         const off = Math.abs(angleDelta((i - RAY_MID) * RAY_STEP - rel));
         if (off < half) risk[i] += weight * (1 - off / half);
