@@ -211,18 +211,31 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
   c.restore();
 }
 
+// Corpo da prévia: a cabeça fica parada na direita e o corpo é o rastro que ela
+// já deixou, então tudo — ondulação e estampa — tem de correr da cabeça para a
+// cauda. Com o tempo somado à fase o sentido era o contrário, e a cobra lia como
+// se andasse de ré. Separado do desenho para o teste conferir o sentido sem DOM.
+const ONDAS = 1.04, PASSO = .65, PONTOS = 66;
+export function previewPath(time = 0) {
+  // Número de série como no jogo: a cabeça fica com o maior e ele cresce com o
+  // tempo, então faixa e escama caminham para a cauda no ritmo da carne. O fator
+  // é o da própria onda, para estampa e relevo não deslizarem um sobre o outro.
+  const serie = Math.round(time * PASSO * PONTOS / (TAU * ONDAS));
+  const path = [];
+  for (let i = 0; i <= PONTOS; i++) {
+    const t = i / PONTOS;
+    path.push({ x: 304 - t * 249, y: 80 + Math.sin(t * TAU * ONDAS - time * PASSO) * 30, n: serie - i });
+  }
+  return path;
+}
+
 export function drawSkinPreview(canvas, id, time = 0) {
   const c=canvas.getContext('2d'), w=canvas.width, h=canvas.height;
   c.clearRect(0,0,w,h); c.save(); c.scale(w/360,h/160);
   const skin=skinFor(id), halo=c.createRadialGradient(180,90,4,180,90,175);
   halo.addColorStop(0,skin.colors[0]+'22'); halo.addColorStop(1,skin.colors[0]+'00');
   c.fillStyle=halo; c.fillRect(0,0,360,160);
-  const path=[];
-  for (let i=0;i<=66;i++) {
-    const t=i/66, x=304-t*249, y=80+Math.sin(t*TAU*1.04+time*.65)*30;
-    path.push({x,y,n:-i});
-  }
-  const head=path[0], next=path[1];
+  const path=previewPath(time), head=path[0], next=path[1];
   drawSnake(c,{...head,px:head.x,py:head.y,path,skin:id,angle:Math.atan2(head.y-next.y,head.x-next.x)}, {radius:14,pointSpacing:5});
   c.restore();
 }

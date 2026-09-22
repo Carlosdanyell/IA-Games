@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createWorld, radiusOf, lengthOf, turnRadiusOf, turnsAround, angleDelta, segmentDistance, SpatialGrid } from '../games/neon-slither/model.js';
 import { ARENA, cleanProfile, SKINS, DIFFICULTIES } from '../games/neon-slither/config.js';
 import { zoomFor } from '../games/neon-slither/render.js';
+import { previewPath } from '../games/neon-slither/skins.js';
 
 const arena = (options = {}) => {
   const world = createWorld({ difficulty: 'easy', seed: 9, ...options });
@@ -430,4 +431,31 @@ test('perfil saneia dados corrompidos e trava skin não liberada', () => {
   const metas = SKINS.map(s => s.goal).sort((a, b) => a - b);
   assert.equal(new Set(lendarias.map(s => s.goal)).size, lendarias.length, 'duas lendárias com a mesma meta');
   assert.ok(Math.max(...metas) >= 25000, 'a maior meta precisa passar de uma sessão longa');
+});
+
+// A prévia da skin é uma cobra com a cabeça presa na direita. Quem anda é o
+// corpo: o rastro escorre para a cauda. Se escorrer para a cabeça, a leitura é
+// de uma cobra de ré — foi o defeito que este teste tranca.
+test('a prévia escorre da cabeça para a cauda', () => {
+  const inicio = previewPath(0);
+  // A cabeça é o primeiro ponto e é a ponta mais à direita: quem olha vê o
+  // focinho apontando para onde a cobra avança.
+  assert.equal(inicio[0].x, Math.max(...inicio.map(p => p.x)), 'a cabeça precisa ser a ponta direita');
+  assert.ok(inicio[0].x > inicio[1].x, 'a cabeça precisa olhar para +x');
+  // Índice maior é mais perto da cauda. A crista da onda e a carne (o ponto de
+  // número de série fixo) têm de caminhar os dois nesse sentido.
+  const crista = path => path.reduce((melhor, p, i) => p.y > path[melhor].y ? i : melhor, 0);
+  const carne = (path, n) => path.findIndex(p => p.n === n);
+  const alvo = inicio[20].n;
+  const depois = previewPath(1);
+  const andouCrista = crista(depois) - crista(inicio);
+  const andouCarne = carne(depois, alvo) - carne(inicio, alvo);
+  assert.ok(andouCrista > 0, `a onda foi para a cabeça (${andouCrista} pontos)`);
+  assert.ok(andouCarne > 0, `a estampa foi para a cabeça (${andouCarne} pontos)`);
+  // E no mesmo ritmo: onda mais rápida que a carne faria a pele deslizar sobre
+  // o corpo. Um ponto de folga é o arredondamento do número de série.
+  assert.ok(Math.abs(andouCrista - andouCarne) <= 1, `onda e estampa em ritmos diferentes (${andouCrista} vs ${andouCarne})`);
+  // O número de série da cabeça cresce, como no jogo: é o que faz a estampa
+  // nascer na cabeça e morrer na cauda em vez de ficar congelada.
+  assert.ok(depois[0].n > inicio[0].n, 'a cabeça precisa gerar série nova');
 });
