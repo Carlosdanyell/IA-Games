@@ -43,7 +43,51 @@ function stampFor(skin) {
   stamps.set(skin.id, canvas); return canvas;
 }
 
-export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, details = true, pointSpacing = ARENA.spacing } = {}) {
+// Fileiras de escamas atravessando o corpo. Cada fileira é desenhada no
+// referencial local da carne — `t` ao longo do corpo, `nx`/`ny` cruzando —, por
+// isso a escama acompanha a curva em vez de ficar chapada. As fileiras vêm
+// alternadas, como na pele de uma cobra de verdade, e o passo é escolhido pelo
+// número de série do ponto para a textura não escorregar quando a cauda anda.
+const SCALE_ROWS = [-.62, 0, .62];
+function scales(c, path, { r, hx, hy, seen, pointSpacing, scale }) {
+  // Escama menor que uns poucos pixels na tela não aparece, só custa. Uma cobra
+  // pequena ao longe pula a textura inteira sem diferença visível.
+  const naTela = r * scale;
+  if (naTela < 5) return;
+  // Uma fileira a cada meio raio: mais espaçado vira listra, mais junto vira borrão.
+  const step = Math.max(1, Math.round(r * .55 / pointSpacing));
+  const largura = r * .34, fundo = r * .3;
+  // Sulco e brilho saem em dois traços só, um para cada tom do relevo.
+  const camadas = [['#0a141e40', Math.max(.8, r * .13), 0]];
+  if (naTela >= 11) camadas.push(['#ffffff20', Math.max(.6, r * .09), -r * .1]);
+  for (const [tom, espessura, recuo] of camadas) {
+    c.strokeStyle = tom; c.lineWidth = espessura; c.beginPath();
+    for (let i = 1; i < path.length - 1; i++) {
+      const p = path[i], serie = p.n ?? -i;
+      if ((((serie % step) + step) % step) !== 0) continue;
+      const anterior = i === 1 ? { x: hx, y: hy } : path[i - 1];
+      if (!seen(p, p)) continue;
+      let tx = anterior.x - path[i + 1].x, ty = anterior.y - path[i + 1].y;
+      const comp = Math.hypot(tx, ty) || 1; tx /= comp; ty /= comp;
+      const nx = -ty, ny = tx;
+      // Fileiras ímpares deslocadas meia escama: o encaixe é o que lê como pele.
+      const desloca = (((Math.floor(serie / step) % 2) + 2) % 2) ? largura : 0;
+      for (const linha of SCALE_ROWS) {
+        const meio = linha * r + desloca;
+        if (Math.abs(meio) > r * .92) continue;
+        const ax = meio - largura, bx = meio + largura;
+        // Arco abrindo para a cauda: a ponta da escama aponta para trás.
+        c.moveTo(p.x + nx * ax + tx * recuo, p.y + ny * ax + ty * recuo);
+        c.quadraticCurveTo(
+          p.x + nx * meio - tx * (fundo - recuo), p.y + ny * meio - ty * (fundo - recuo),
+          p.x + nx * bx + tx * recuo, p.y + ny * bx + ty * recuo);
+      }
+    }
+    c.stroke();
+  }
+}
+
+export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, details = true, pointSpacing = ARENA.spacing, scale = 1 } = {}) {
   const skin = skinFor(snake.skin), path = snake.path;
   if (!path?.length) return;
   const hx = (snake.px ?? snake.x) + (snake.x - (snake.px ?? snake.x)) * alpha;
@@ -72,6 +116,7 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
     }
     c.stroke();
   }
+  if (details) scales(c, path, { r, hx, hy, seen, pointSpacing, scale });
   if (details) {
     const stamp=stampFor(skin), gap=Math.max(3,Math.round(r * (skin.pattern==='ribbon' ? 1.4 : 2) / pointSpacing));
     for (let i=3;i<path.length-2;i++) {

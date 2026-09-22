@@ -15,7 +15,11 @@ export const ARENA = {
   boostDrain: .022, boostFloor: 3.4,
   // Alcance em que a luz é puxada para a cabeça. Comer vira um movimento
   // contínuo em vez de exigir passar por cima do ponto exato.
-  magnet: 34
+  magnet: 34,
+  // Laço. `lassoReach` é o raio em que o cerco é procurado, `lassoRate` a
+  // velocidade com que a volta se aperta e `lassoGrip` o quanto ela fecha abaixo
+  // da curva mais fechada da presa, em frações do corpo dela.
+  lassoReach: 270, lassoRate: 18, lassoGrip: .35
 };
 // bots: quantos rivais; reaction: intervalo entre decisões; foresight: alcance
 // da leitura de perigo; aggression: chance de caçar quem já está em desvantagem;

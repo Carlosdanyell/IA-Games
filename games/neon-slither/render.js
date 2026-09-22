@@ -59,7 +59,7 @@ export function createRenderer(viewport, theme) {
       if (!s.alive) continue;
       const r = radiusOf(s);
       const hx = s.px + (s.x - s.px) * alpha, hy = s.py + (s.y - s.py) * alpha;
-      drawSnake(c,s,{radius:r,alpha,bounds:{left,top,right,bottom}});
+      drawSnake(c,s,{radius:r,alpha,bounds:{left,top,right,bottom},scale:camera.zoom});
       if (s.player) {
         c.save(); c.translate(hx, hy); c.rotate(s.target); c.strokeStyle = theme.dark ? '#ffffffaa' : '#263449aa'; c.lineWidth = 2;
         const arrow = Math.max(33, r + 14); c.beginPath(); c.moveTo(arrow, -5); c.lineTo(arrow + 7, 0); c.lineTo(arrow, 5); c.stroke(); c.restore();

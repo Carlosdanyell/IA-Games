@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createWorld, radiusOf, lengthOf, turnRadiusOf, angleDelta, segmentDistance, SpatialGrid } from '../games/neon-slither/model.js';
+import { createWorld, radiusOf, lengthOf, turnRadiusOf, turnsAround, angleDelta, segmentDistance, SpatialGrid } from '../games/neon-slither/model.js';
 import { ARENA, cleanProfile, SKINS, DIFFICULTIES } from '../games/neon-slither/config.js';
 import { zoomFor } from '../games/neon-slither/render.js';
 
@@ -128,6 +128,92 @@ test('o ponto do corpo guarda um número estável, para a estampa não tremer', 
     maior = Math.max(maior, Math.hypot(agora.x - antes.x, agora.y - antes.y));
   }
   assert.equal(maior, 0, `o ponto andou ${maior.toFixed(2)} unidades depois de criado`);
+});
+
+const TAU = Math.PI * 2;
+// Cena montada à mão: presa enrolada na curva mais fechada que consegue, com um
+// caçador de corpo já fechado em volta. É o caso em que o cerco era eterno.
+function cerco(seed = 4) {
+  const world = createWorld({ difficulty: 'easy', seed });
+  world.started = true;
+  const presa = world.snakes[1], cacador = world.player;
+  for (const s of world.snakes) if (s !== presa && s !== cacador) s.alive = false;
+  presa.mass = 200; cacador.mass = 3000;
+  presa.invulnerable = 0; cacador.invulnerable = 0;
+  const volta = (s, raio, pontos) => {
+    s.path.length = 0;
+    for (let i = 0; i < pontos; i++) {
+      const a = -i / pontos * TAU * (pontos / 80);
+      s.path.push({ x: Math.cos(a) * raio, y: Math.sin(a) * raio, n: -i });
+    }
+    Object.assign(s, { x: raio, y: 0, px: raio, py: 0, angle: Math.PI / 2, target: Math.PI / 2 });
+  };
+  volta(presa, turnRadiusOf(presa), 80);
+  volta(cacador, 140, 260);
+  return { world, presa, cacador };
+}
+
+test('o número de giro distingue cercar de passar ao lado', () => {
+  const reto = [];
+  for (let i = 0; i < 100; i++) reto.push({ x: -300 + i * 6, y: 0, n: -i });
+  assert.ok(turnsAround(reto, { x: 0, y: 40 }) < .9, 'corpo reto passando ao lado não é cerco');
+
+  const meia = [], inteira = [], dupla = [];
+  for (let i = 0; i < 100; i++) {
+    const t = i / 100;
+    meia.push({ x: Math.cos(-t * Math.PI) * 80, y: Math.sin(-t * Math.PI) * 80 });
+    inteira.push({ x: Math.cos(-t * TAU) * 80, y: Math.sin(-t * TAU) * 80 });
+    dupla.push({ x: Math.cos(-t * TAU * 2) * 80, y: Math.sin(-t * TAU * 2) * 80 });
+  }
+  assert.ok(turnsAround(meia, { x: 0, y: 0 }) < .9, 'meio cerco ainda não fecha');
+  assert.ok(Math.abs(turnsAround(inteira, { x: 0, y: 0 }) - 1) < .05, 'uma volta fechada vale 1');
+  assert.ok(Math.abs(turnsAround(dupla, { x: 0, y: 0 }) - 2) < .05, 'duas voltas valem 2');
+  assert.equal(turnsAround([], { x: 0, y: 0 }), 0);
+});
+
+test('o laço aperta o cerco, e sem ele o círculo perfeito é invencível', () => {
+  const guardado = ARENA.lassoRate;
+  try {
+    // Sem deslocamento do corpo, a presa no raio mínimo nunca é alcançada: a
+    // volta do caçador não fecha mais que o próprio raio de curva dele.
+    ARENA.lassoRate = 0;
+    const parado = cerco();
+    assert.ok(turnsAround(parado.cacador.path, parado.presa) > 1, 'a cena precisa ser um cerco de verdade');
+    for (let i = 0; i < 60 * 20 && parado.presa.alive; i++) {
+      parado.presa.target = parado.presa.angle + 1;
+      parado.world.update(1 / 60, { angle: parado.cacador.angle + 1 });
+    }
+    assert.equal(parado.presa.alive, true, 'sem laço o cerco não deveria vencer');
+
+    ARENA.lassoRate = guardado;
+    const laco = cerco();
+    let t = 0;
+    for (; t < 20 && laco.presa.alive; t += 1 / 60) {
+      laco.presa.target = laco.presa.angle + 1;
+      laco.world.update(1 / 60, { angle: laco.cacador.angle + 1 });
+    }
+    assert.equal(laco.presa.alive, false, `o laço precisa fechar o cerco (durou ${t.toFixed(1)} s)`);
+    // "Suavemente": o aperto leva segundos, não é morte no instante do cerco.
+    assert.ok(t > .8, `o laço fechou em ${t.toFixed(2)} s, rápido demais para ser suave`);
+  } finally { ARENA.lassoRate = guardado; }
+});
+
+test('o laço não mexe no corpo de quem não cercou ninguém', () => {
+  const world = arena();
+  const s = world.player;
+  s.mass = 3000; s.invulnerable = 1e9;
+  for (let i = 0; i < 120; i++) world.update(1 / 60, { angle: 0 });
+  const antes = s.path.map(q => ({ x: q.x, y: q.y, n: q.n }));
+  for (let i = 0; i < 120; i++) world.update(1 / 60, { angle: 0 });
+  // Os pontos antigos que sobraram não podem ter sido deslocados.
+  let conferidos = 0;
+  for (const velho of antes) {
+    const agora = s.path.find(q => q.n === velho.n);
+    if (!agora) continue;
+    conferidos++;
+    assert.equal(Math.hypot(agora.x - velho.x, agora.y - velho.y), 0, 'corpo deslocado sem cerco');
+  }
+  assert.ok(conferidos > 20, 'o teste precisa conferir pontos de verdade');
 });
 
 test('a arena nasce com jogador vivo, rivais e alimento', () => {
