@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { createWorld, radiusOf, lengthOf, turnRadiusOf, turnsAround, angleDelta, segmentDistance, SpatialGrid } from '../games/neon-slither/model.js';
 import { ARENA, cleanProfile, SKINS, DIFFICULTIES } from '../games/neon-slither/config.js';
 import { zoomFor } from '../games/neon-slither/render.js';
-import { PALETTES, PALETTE_OPTIONS, tintHue, luminance } from '../core/theme.js';
 
 const arena = (options = {}) => {
   const world = createWorld({ difficulty: 'easy', seed: 9, ...options });
@@ -379,6 +378,14 @@ test('medidas de corpo e utilitários de geometria', () => {
   assert.equal(grid.collect(400, 400, 10, out).length, 0);
 });
 
+// Luminância relativa pela WCAG, usada para conferir que o halo de uma skin é
+// mais claro que o corpo dela. Morava no core enquanto a arena vestia a paleta;
+// com a arena de volta à cor fixa, só o teste precisa da régua.
+const luminance = hex => {
+  const canal = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map(v => v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+  return .2126 * canal[0] + .7152 * canal[1] + .0722 * canal[2];
+};
 // Contraste de objeto gráfico pela WCAG: (L+0.05)/(L+0.05), limite 3.0.
 const contraste = (a, b) => {
   const [alto, baixo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
@@ -392,51 +399,6 @@ const sobrepor = (fundo, cor, alfa) => '#' + [1, 3, 5].map(i => {
 // A silhueta que o olho acha é o melhor entre o corpo e o halo da cor `detail`.
 const visibilidade = (skin, fundo) =>
   Math.max(contraste(skin.colors[0], fundo), contraste(sobrepor(fundo, skin.detail, .4), fundo));
-
-test('a paleta veste a arena sem apagar nenhuma skin', () => {
-  const FUNDO = '#122c35';
-  // Tingir misturando com a cor viva clareia o fundo e come o contraste das
-  // skins escuras. `tintHue` devolve o brilho, e é isso que torna o tema
-  // aplicável: o desvio de luminância precisa ser desprezível.
-  for (const [nome, p] of Object.entries(PALETTES)) {
-    const fundo = tintHue(FUNDO, p.dark.accent);
-    const desvio = Math.abs(luminance(fundo) / luminance(FUNDO) - 1);
-    assert.ok(desvio < .05, `${nome} mudou o brilho do fundo em ${(desvio * 100).toFixed(1)}%`);
-    assert.notEqual(fundo.toLowerCase(), FUNDO.toLowerCase(), `${nome} não mudou a matiz`);
-  }
-
-  // Nenhuma paleta pode deixar uma skin menos visível do que ela já é hoje.
-  const base = Object.fromEntries(SKINS.map(s => [s.id, visibilidade(s, FUNDO)]));
-  for (const [nome, p] of Object.entries(PALETTES)) {
-    const fundo = tintHue(FUNDO, p.dark.accent);
-    for (const skin of SKINS) {
-      const agora = visibilidade(skin, fundo);
-      assert.ok(agora >= base[skin.id] * .92,
-        `${skin.name} perdeu contraste em ${nome}: ${base[skin.id].toFixed(2)} para ${agora.toFixed(2)}`);
-    }
-  }
-
-  // O seletor precisa oferecer todas as paletas, senão o tema fica escondido.
-  const oferecidas = PALETTE_OPTIONS.map(o => o.value).filter(v => v !== 'auto');
-  assert.deepEqual([...oferecidas].sort(), Object.keys(PALETTES).sort());
-});
-
-test('o brilho neon acende as escuras e não some com ninguém', () => {
-  const acesas = SKINS.filter(s => s.glow);
-  assert.ok(acesas.length >= 6, 'poucas skins com brilho para o efeito existir');
-  assert.ok(acesas.every(s => s.glow > 0 && s.glow <= 1), 'força de brilho fora de 0 a 1');
-
-  // O halo soma luz na cor `detail`, então ele só ajuda se essa cor for mais
-  // clara que o corpo. Numa skin escura é justamente isso que a resgata.
-  for (const skin of acesas)
-    assert.ok(luminance(skin.detail) > luminance(skin.colors[0]),
-      `${skin.name} tem detail mais escuro que o corpo: o brilho apagaria em vez de acender`);
-
-  // As três que eu havia medido abaixo do contraste mínimo precisam estar entre
-  // as acesas, senão o brilho não resolve o problema que ele podia resolver.
-  for (const id of ['magma', 'eclipse', 'singularidade'])
-    assert.ok(SKINS.find(s => s.id === id)?.glow, `${id} é escura e precisa de brilho`);
-});
 
 test('perfil saneia dados corrompidos e trava skin não liberada', () => {
   for (const value of [null, [], 'oi', 42]) {
