@@ -105,10 +105,16 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
     }
     if (!safe) return null;
     const a = Math.atan2(-p.y, -p.x) + (rng.next() - .5), id = world.nextId++;
-    // Rivais nascem na mesma escala do jogador, a maioria pequena: a arena é
-    // uma disputa desde o início, não uma corrida atrás de gigantes prontos.
+    // No começo todo rival nasce pequeno, a arena é uma disputa desde o início.
+    // Depois, quem renasce entra numa escala puxada pelo maior rival vivo: sem
+    // isso o rival mediano, que vive só 43 s, nunca alcança ninguém e o placar
+    // vira um gigante cercado de anões. O teto ignora o jogador de propósito,
+    // para crescer não convocar rivais maiores contra você.
+    let lider = 0;
+    for (const v of world.snakes) if (v.alive && !v.player && v.mass > lider) lider = v.mass;
+    const teto = Math.max(level.mass[1], lider * ARENA.respawnShare);
     const mass = player ? ARENA.startMass
-      : Math.round(level.mass[0] + rng.next() ** 2.2 * (level.mass[1] - level.mass[0]));
+      : Math.round(level.mass[0] + rng.next() ** 2.2 * (teto - level.mass[0]));
     const s = { id, name: player ? 'Você' : `${NAMES[id % NAMES.length]} ${id}`, player, x: p.x, y: p.y, px: p.x, py: p.y,
       angle: a, target: a, mass, skin: player ? skin : SKINS[id % SKINS.length].id, alive: true, boost: false,
       think: rng.next() * level.reaction, boostClock: 0, path: [], segments: [], invulnerable: 3, deaths: 0, headSeq: 0,

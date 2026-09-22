@@ -22,7 +22,12 @@ export const ARENA = {
   lassoReach: 270, lassoRate: 18, lassoGrip: .35,
   // Peso que a IA dá a desviar de um corpo. É autopreservação, não caça: mexer
   // aqui muda quanto tempo um rival sobrevive sem mudar o quanto ele persegue.
-  avoidWeight: 520
+  avoidWeight: 520,
+  // Classe média: fração do maior rival vivo que serve de teto para quem
+  // renasce. Ancorar no maior rival, e não no jogador, evita o elástico que
+  // puniria você por crescer. Zero devolve o comportamento antigo, em que todo
+  // rival nascia no mínimo e a arena virava um gigante cercado de anões.
+  respawnShare: .18
 };
 // bots: quantos rivais; reaction: intervalo entre decisões; foresight: alcance
 // da leitura de perigo; aggression: chance de caçar quem já está em desvantagem;

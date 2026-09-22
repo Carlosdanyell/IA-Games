@@ -241,6 +241,41 @@ test('rivais nascem na escala do jogador e longe dele', () => {
   }
 });
 
+test('quem renasce acompanha a arena, mas nunca o tamanho do jogador', () => {
+  const level = DIFFICULTIES.normal;
+  // No começo não há líder, então a partida abre como disputa entre iguais.
+  const novo = createWorld({ difficulty: 'normal', seed: 5 });
+  assert.ok(novo.snakes.filter(s => !s.player).every(s => s.mass <= level.mass[1]),
+    'sem líder na arena, ninguém deveria nascer grande');
+
+  // Um jogador enorme não pode puxar o teto: seria um elástico punindo crescer.
+  const gordo = createWorld({ difficulty: 'normal', seed: 5 });
+  gordo.started = true;
+  gordo.player.mass = ARENA.maxMass;
+  for (const s of gordo.snakes) if (!s.player) s.mass = level.mass[0];
+  // Confere cada rival no instante em que nasce: os que já estavam na arena
+  // engordam comendo, e olhar a massa deles depois não diz nada sobre o teto.
+  const conhecidos = new Set(gordo.snakes);
+  let nascidos = 0;
+  for (let i = 0; i < 60 * 40; i++) {
+    gordo.player.invulnerable = 1e9;
+    gordo.update(1 / 60, { angle: Math.sin(i / 200) * 2 });
+    for (const s of gordo.snakes) {
+      if (conhecidos.has(s)) continue;
+      conhecidos.add(s); nascidos++;
+      assert.ok(s.mass <= level.mass[1],
+        `rival nasceu com ${Math.round(s.mass)} tendo o jogador em ${Math.round(gordo.player.mass)}`);
+    }
+  }
+  assert.ok(nascidos > 0, 'o teste precisa ver alguém renascer para valer');
+
+  // Com um rival grande vivo, o teto sobe: é daí que sai a classe média.
+  const teto = Math.max(level.mass[1], 20000 * ARENA.respawnShare);
+  assert.ok(teto > level.mass[1], 'a fração precisa levantar o teto de renascimento');
+  assert.ok(ARENA.respawnShare > 0 && ARENA.respawnShare < .4,
+    `fração de renascimento fora da faixa medida como saudável: ${ARENA.respawnShare}`);
+});
+
 test('rival só caça quem está em desvantagem e o jogador não é o alvo preferido', () => {
   let cacadas = 0, contraJogador = 0;
   // Várias partidas: uma só não junta caçadas suficientes para a conta valer.
