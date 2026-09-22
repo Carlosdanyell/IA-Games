@@ -1,6 +1,5 @@
 import { ARENA, skinFor } from './config.js';
 import { radiusOf } from './model.js';
-import { tintHue } from '../../core/theme.js';
 import { drawSnake } from './skins.js';
 
 const COLORS = ['#78efd0', '#c4a0ff', '#ff99bf', '#ffd887', '#7dcfff', '#b8ef81'];
@@ -29,29 +28,28 @@ export function createRenderer(viewport, theme) {
     const targetZoom = zoomFor(p.mass);
     camera.zoom += (targetZoom - camera.zoom) * factor;
     viewport.begin();
-    // A arena veste a paleta escolhida, mas só na matiz: `tintHue` devolve o
-    // brilho original, senão o fundo clareia e as skins escuras somem nele.
-    // A borda e o joystick usam a cor viva, porque não ficam atrás de ninguém.
-    const tom = theme.tokens.accent;
-    const key = `${v.w}:${v.h}:${theme.dark}:${tom}`;
+    // A arena tem cor própria e não segue a paleta. Chegou a segui-la, tingida
+    // só na matiz para não comer o contraste das skins, mas o verde da arena é
+    // identidade do jogo e mudá-lo não acrescentava nada.
+    const key = `${v.w}:${v.h}:${theme.dark}`;
     if (key !== backdropKey) {
       backdropKey = key; backdrop = c.createRadialGradient(v.w*.5,v.h*.42,0,v.w*.5,v.h*.42,Math.max(v.w,v.h)*.75);
-      backdrop.addColorStop(0, tintHue(theme.dark ? '#122c35' : '#e5f4f2', tom));
-      backdrop.addColorStop(1, tintHue(theme.dark ? '#080f20' : '#c3d8e4', tom));
+      backdrop.addColorStop(0, theme.dark ? '#122c35' : '#e5f4f2');
+      backdrop.addColorStop(1, theme.dark ? '#080f20' : '#c3d8e4');
     }
     c.fillStyle = backdrop; c.fillRect(0, 0, v.w, v.h);
     c.save(); c.translate(v.w / 2, v.h / 2); c.scale(camera.zoom, camera.zoom); c.translate(-camera.x, -camera.y);
     const left = camera.x - v.w / camera.zoom / 2, top = camera.y - v.h / camera.zoom / 2;
     const right = camera.x + v.w / camera.zoom / 2, bottom = camera.y + v.h / camera.zoom / 2;
-    c.strokeStyle = tom + (theme.dark ? '14' : '20'); c.lineWidth = 1;
+    c.strokeStyle = theme.dark ? '#85d9d310' : '#445e781a'; c.lineWidth = 1;
     c.beginPath();
     for (let x = Math.floor(left / 60) * 60; x < right; x += 60) { c.moveTo(x, top); c.lineTo(x, bottom); }
     for (let y = Math.floor(top / 60) * 60; y < bottom; y += 60) { c.moveTo(left, y); c.lineTo(right, y); }
     c.stroke();
-    c.fillStyle = tom + (theme.dark ? '2e' : '38');
+    c.fillStyle = theme.dark ? '#a3eee824' : '#34616a30';
     for (let x=Math.floor(left/180)*180;x<right;x+=180) for (let y=Math.floor(top/180)*180;y<bottom;y+=180) c.fillRect(x-1,y-1,2,2);
-    c.strokeStyle = theme.tokens.warn; c.lineWidth = 8; c.beginPath(); c.arc(0, 0, ARENA.radius, 0, Math.PI * 2); c.stroke();
-    c.strokeStyle = theme.tokens.warn + '20'; c.lineWidth = 35; c.stroke();
+    c.strokeStyle = '#fa6c88'; c.lineWidth = 8; c.beginPath(); c.arc(0, 0, ARENA.radius, 0, Math.PI * 2); c.stroke();
+    c.strokeStyle = '#fa6c8820'; c.lineWidth = 35; c.stroke();
     for (const f of world.foods) {
       if (f.eaten || f.x < left - 20 || f.x > right + 20 || f.y < top - 20 || f.y > bottom + 20) continue;
       const size = 16 + Math.min(20, f.value * 2);
@@ -100,13 +98,12 @@ export function createRenderer(viewport, theme) {
   }
   function minimap(canvas, world) {
     const g = canvas.getContext('2d'), size = canvas.width, k = (size / 2 - 5) / ARENA.radius;
-    const tom = theme.tokens.accent;
-    g.clearRect(0, 0, size, size); g.fillStyle = tintHue('#071623', tom) + 'df'; g.strokeStyle = tom + '88';
+    g.clearRect(0, 0, size, size); g.fillStyle = '#071623df'; g.strokeStyle = '#8ddeca88';
     g.beginPath(); g.arc(size / 2, size / 2, size / 2 - 3, 0, Math.PI * 2); g.fill(); g.stroke();
-    g.strokeStyle = tom + '20'; g.beginPath(); g.moveTo(size/2,6); g.lineTo(size/2,size-6); g.moveTo(6,size/2); g.lineTo(size-6,size/2); g.stroke();
+    g.strokeStyle = '#a6e6dd18'; g.beginPath(); g.moveTo(size/2,6); g.lineTo(size/2,size-6); g.moveTo(6,size/2); g.lineTo(size-6,size/2); g.stroke();
     // O ponto do jogador fica na cor viva e os rivais em cinza: achar a si
     // mesmo no mapa não pode depender de distinguir matizes parecidas.
-    for (const s of world.snakes) if (s.alive) { g.fillStyle = s.player ? tom : '#afc6d988'; g.beginPath(); g.arc(size / 2 + s.x * k, size / 2 + s.y * k, s.player ? 4.5 : 2, 0, Math.PI * 2); g.fill(); }
+    for (const s of world.snakes) if (s.alive) { g.fillStyle = s.player ? '#b4ffda' : '#afc6d988'; g.beginPath(); g.arc(size / 2 + s.x * k, size / 2 + s.y * k, s.player ? 4.5 : 2, 0, Math.PI * 2); g.fill(); }
   }
   return { draw, minimap, camera, reset(world) { camera.x = world.player.x; camera.y = world.player.y; camera.zoom = 1; sparks.length=0; eventTime=-1; } };
 }
