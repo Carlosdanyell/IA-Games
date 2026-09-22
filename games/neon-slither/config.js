@@ -16,10 +16,15 @@ export const ARENA = {
   // Alcance em que a luz é puxada para a cabeça. Comer vira um movimento
   // contínuo em vez de exigir passar por cima do ponto exato.
   magnet: 34,
-  // Laço. `lassoReach` é o raio em que o cerco é procurado, `lassoRate` a
-  // velocidade com que a volta se aperta e `lassoGrip` o quanto ela fecha abaixo
-  // da curva mais fechada da presa, em frações do corpo dela.
-  lassoReach: 270, lassoRate: 18, lassoGrip: .35,
+  // Cercar não tem regra própria, e é de propósito. Uma versão deslocava o
+  // corpo de quem cercava, como um laço; outra impedia a luz de nascer dentro
+  // do cerco. A primeira não existe no slither.io, onde os corpos se atravessam
+  // e só a cabeça mata. A segunda, medida, não muda nada: um cerco ocupa 0,03%
+  // da arena, então a luz já demora vinte e dois segundos para nascer lá dentro
+  // e o cercado já para de crescer sozinho. O empate de uma presa girando para
+  // sempre no mesmo eixo é real na teoria e existe no slither.io também, mas
+  // exige da presa uma perfeição que a IA daqui não tem: em oitenta minutos de
+  // partida os quatro cercos observados duraram 1,5 s de mediana.
   // Peso que a IA dá a desviar de um corpo. É autopreservação, não caça: mexer
   // aqui muda quanto tempo um rival sobrevive sem mudar o quanto ele persegue.
   avoidWeight: 520,

@@ -132,26 +132,59 @@ test('o ponto do corpo guarda um número estável, para a estampa não tremer', 
 });
 
 const TAU = Math.PI * 2;
-// Cena montada à mão: presa enrolada na curva mais fechada que consegue, com um
-// caçador de corpo já fechado em volta. É o caso em que o cerco era eterno.
-function cerco(seed = 4) {
+// Cena com a geometria do jogo: pontos espaçados como o modelo espaça, presa
+// enrolada na curva mais fechada que consegue e caçador num círculo em volta.
+function cerco(raioCacador, seed = 4) {
   const world = createWorld({ difficulty: 'easy', seed });
   world.started = true;
   const presa = world.snakes[1], cacador = world.player;
   for (const s of world.snakes) if (s !== presa && s !== cacador) s.alive = false;
   presa.mass = 200; cacador.mass = 3000;
   presa.invulnerable = 0; cacador.invulnerable = 0;
-  const volta = (s, raio, pontos) => {
+  const circulo = (s, raio) => {
+    const pontos = Math.min(Math.ceil(TAU * raio / ARENA.spacing) * 2,
+      Math.ceil(lengthOf(s) / ARENA.spacing));
     s.path.length = 0;
     for (let i = 0; i < pontos; i++) {
-      const a = -i / pontos * TAU * (pontos / 80);
+      const a = -i * ARENA.spacing / raio;
       s.path.push({ x: Math.cos(a) * raio, y: Math.sin(a) * raio, n: -i });
     }
     Object.assign(s, { x: raio, y: 0, px: raio, py: 0, angle: Math.PI / 2, target: Math.PI / 2 });
   };
-  volta(presa, turnRadiusOf(presa), 80);
-  volta(cacador, 140, 260);
+  circulo(presa, turnRadiusOf(presa));
+  circulo(cacador, raioCacador);
   return { world, presa, cacador };
+}
+// Cada um segue o próprio círculo: a tangente no ponto onde está.
+const tangente = s => Math.atan2(s.y, s.x) + Math.PI / 2;
+// Roda a cena e devolve quando a presa caiu e o quanto o corpo do caçador
+// cedeu por segundo, que é o que se enxerga na tela.
+function rodar(cena, segundos) {
+  const { world, presa, cacador } = cena;
+  let t = 0, maior = 0, prox = 1;
+  let marco = new Map(cacador.path.map(q => [q.n, { x: q.x, y: q.y }]));
+  while (t < segundos && presa.alive) {
+    presa.target = tangente(presa);
+    // A presa é um bot: sem travar o relógio de decisão, a IA dela assume o
+    // rumo e ela sai vagando, o que mede outra coisa que não o cerco.
+    presa.think = 1e9;
+    world.update(1 / 60, { angle: tangente(cacador) });
+    // Trava a presa no eixo: é o caso "girando para sempre no mesmo círculo".
+    // Solta, ela espirala para fora e encosta no caçador sozinha, o que mediria
+    // a deriva da bancada em vez do laço.
+    const raio = turnRadiusOf(presa), k = raio / (Math.hypot(presa.x, presa.y) || 1);
+    presa.x *= k; presa.y *= k;
+    t += 1 / 60;
+    if (t < prox) continue;
+    prox += 1;
+    // A cabeça anda sozinha; medir o corpo é que diz quanto o laço cedeu.
+    for (const q of cacador.path.slice(40)) {
+      const a = marco.get(q.n);
+      if (a) maior = Math.max(maior, Math.hypot(q.x - a.x, q.y - a.y));
+    }
+    marco = new Map(cacador.path.map(q => [q.n, { x: q.x, y: q.y }]));
+  }
+  return { viva: presa.alive, t, cedeu: maior };
 }
 
 test('o número de giro distingue cercar de passar ao lado', () => {
@@ -172,34 +205,20 @@ test('o número de giro distingue cercar de passar ao lado', () => {
   assert.equal(turnsAround([], { x: 0, y: 0 }), 0);
 });
 
-test('o laço aperta o cerco, e sem ele o círculo perfeito é invencível', () => {
-  const guardado = ARENA.lassoRate;
-  try {
-    // Sem deslocamento do corpo, a presa no raio mínimo nunca é alcançada: a
-    // volta do caçador não fecha mais que o próprio raio de curva dele.
-    ARENA.lassoRate = 0;
-    const parado = cerco();
-    assert.ok(turnsAround(parado.cacador.path, parado.presa) > 1, 'a cena precisa ser um cerco de verdade');
-    for (let i = 0; i < 60 * 20 && parado.presa.alive; i++) {
-      parado.presa.target = parado.presa.angle + 1;
-      parado.world.update(1 / 60, { angle: parado.cacador.angle + 1 });
-    }
-    assert.equal(parado.presa.alive, true, 'sem laço o cerco não deveria vencer');
-
-    ARENA.lassoRate = guardado;
-    const laco = cerco();
-    let t = 0;
-    for (; t < 20 && laco.presa.alive; t += 1 / 60) {
-      laco.presa.target = laco.presa.angle + 1;
-      laco.world.update(1 / 60, { angle: laco.cacador.angle + 1 });
-    }
-    assert.equal(laco.presa.alive, false, `o laço precisa fechar o cerco (durou ${t.toFixed(1)} s)`);
-    // "Suavemente": o aperto leva segundos, não é morte no instante do cerco.
-    assert.ok(t > .8, `o laço fechou em ${t.toFixed(2)} s, rápido demais para ser suave`);
-  } finally { ARENA.lassoRate = guardado; }
+test('cercar não tem física própria: só a geometria decide', () => {
+  // Registro de uma decisão de projeto, para ninguém reintroduzir a regra
+  // invisível sem perceber. No slither.io os corpos se atravessam e só a cabeça
+  // mata, então cercar não desloca ninguém. Uma presa girando no próprio eixo é
+  // de fato inalcançável, e isso é aceito lá e aqui: tirar esse empate custaria
+  // uma regra que o jogador não tem como ver nem aprender.
+  for (const aperto of [95, 75, 60]) {
+    const { viva, cedeu } = rodar(cerco(aperto), 20);
+    assert.equal(cedeu, 0, `o corpo de quem cerca não pode ceder (cerco ${aperto})`);
+    assert.equal(viva, true, `sem regra própria, a presa travada no eixo sobrevive (cerco ${aperto})`);
+  }
 });
 
-test('o laço não mexe no corpo de quem não cercou ninguém', () => {
+test('o corpo de uma cobra sozinha nunca é deslocado', () => {
   const world = arena();
   const s = world.player;
   s.mass = 3000; s.invulnerable = 1e9;
