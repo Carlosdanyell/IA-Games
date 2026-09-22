@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWorld, radiusOf, lengthOf, turnRadiusOf, angleDelta, segmentDistance, SpatialGrid } from '../games/neon-slither/model.js';
 import { ARENA, cleanProfile, SKINS, DIFFICULTIES } from '../games/neon-slither/config.js';
+import { zoomFor } from '../games/neon-slither/render.js';
 
 const arena = (options = {}) => {
   const world = createWorld({ difficulty: 'easy', seed: 9, ...options });
@@ -21,7 +22,8 @@ const turnRadius = (world, boost = false) => {
 
 // O campo de visão do jogador, em unidades do mundo: a tela lógica tem 600 e o
 // zoom inicial do renderizador abre um pouco mais.
-const FIELD = 600 / Math.max(.55, 1 - Math.sqrt(ARENA.startMass) * .0085);
+const campoPara = mass => 600 / zoomFor(mass);
+const FIELD = campoPara(ARENA.startMass);
 
 test('a cobra desliza rápido o bastante para a arena não parecer travada', () => {
   const travessia = FIELD / ARENA.speed;
@@ -42,9 +44,11 @@ test('a curva é um arco de verdade, não um giro no lugar', () => {
   const grande = arena();
   grande.player.mass = ARENA.maxMass;
   const largo = turnRadius(grande);
-  assert.ok(largo > inicio, 'cobra maior vira um pouco mais largo');
-  assert.ok(largo <= 44, `raio da cobra grande fora da faixa: ${largo.toFixed(1)}`);
-  assert.ok(largo / radiusOf(grande.player) <= 2.6, 'crescer não pode custar a precisão');
+  assert.ok(largo > inicio, 'cobra maior vira mais largo');
+  // Cobra grande vira largo de propósito, mas a curva tem de caber na tela
+  // dela, que também abriu com o zoom.
+  assert.ok(largo <= 60, `raio da cobra grande fora da faixa: ${largo.toFixed(1)}`);
+  assert.ok(largo / radiusOf(grande.player) <= 2, 'crescer não pode custar a precisão');
 });
 
 test('acelerar não abre a curva', () => {
@@ -71,6 +75,29 @@ test('a meia-volta é curta em tempo e cabe no dobro do raio', () => {
   // cobra tem de dar meia-volta em menos de 0,7 s.
   assert.ok(passos / 120 <= .7, `meia-volta levou ${(passos / 120).toFixed(2)} s`);
   assert.ok(volta <= raio * 2 + 2, `meia-volta ocupou ${volta.toFixed(1)} unidades para um raio de ${raio.toFixed(1)}`);
+});
+
+test('crescer continua visível muito além do teto antigo', () => {
+  // O teto que travava o jogo não era a massa: espessura e zoom paravam de
+  // mudar na massa 2803, e dali em diante crescer não aparecia na tela.
+  const TETO_ANTIGO = 2803;
+  assert.ok(ARENA.maxMass > TETO_ANTIGO * 20, 'o teto de massa precisa ficar fora de alcance');
+
+  const espessura = m => radiusOf({ mass: m });
+  assert.ok(espessura(TETO_ANTIGO * 4) > espessura(TETO_ANTIGO) * 1.3, 'a cobra precisa engrossar além do teto antigo');
+  assert.ok(campoPara(TETO_ANTIGO * 4) > campoPara(TETO_ANTIGO) * 1.3, 'o campo de visão precisa abrir além do teto antigo');
+  // Espessura no fim é bem maior que no começo: é o sinal de que você cresceu.
+  assert.ok(espessura(ARENA.maxMass) / espessura(ARENA.startMass) >= 3.5, 'a cobra máxima precisa ser bem mais grossa que a inicial');
+
+  // Como no slither.io, a cabeça fica numa fatia parecida da tela enquanto o
+  // mundo encolhe: crescer muda o mundo, não o tamanho aparente da cabeça.
+  const fatia = m => espessura(m) * 2 / campoPara(m);
+  for (const m of [ARENA.startMass, 1000, 10000, ARENA.maxMass])
+    assert.ok(fatia(m) > .015 && fatia(m) < .06, `na massa ${m} a cabeça ocupa ${(fatia(m) * 100).toFixed(1)}% da tela`);
+
+  // A arena tem de comportar a maior cobra e ainda sobrar mapa para fugir.
+  assert.ok(lengthOf({ mass: ARENA.maxMass }) < ARENA.radius * 2 * 1.2, 'a cobra máxima não pode ser maior que a arena');
+  assert.ok(campoPara(ARENA.maxMass) / (ARENA.radius * 2) < .4, 'no tamanho máximo ainda tem de sobrar mapa fora da tela');
 });
 
 test('a arena nasce com jogador vivo, rivais e alimento', () => {
@@ -163,7 +190,7 @@ test('a borda encerra a partida', () => {
 test('medidas de corpo e utilitários de geometria', () => {
   const pequena = { mass: ARENA.startMass }, grande = { mass: ARENA.maxMass };
   assert.ok(radiusOf(pequena) < radiusOf(grande));
-  assert.ok(radiusOf(grande) <= 16, 'o corpo tem teto de espessura');
+  assert.ok(radiusOf(grande) <= 32, 'o corpo tem teto de espessura');
   assert.ok(lengthOf(grande) > lengthOf(pequena));
   assert.ok(turnRadiusOf(pequena) < turnRadiusOf(grande));
   assert.equal(Math.round(segmentDistance({ x: 0, y: 10 }, { x: -10, y: 0 }, { x: 10, y: 0 })), 10);
