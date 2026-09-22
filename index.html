@@ -293,70 +293,205 @@
       <path d="M154 172l6 14 6-14z" fill="currentColor" opacity=".9"/>
     </svg>`,
     slither: `<svg viewBox="0 0 320 200" aria-hidden="true">
+      <defs>
+        <radialGradient id="slAura" cx="44%" cy="46%" r="72%">
+          <stop stop-color="#1b5f63"/><stop offset=".55" stop-color="#0c2a3c"/><stop offset="1" stop-color="#03070f"/>
+        </radialGradient>
+        <linearGradient id="slBody" x1="0" y1="1" x2="1" y2="0">
+          <stop stop-color="#38d6a8"/><stop offset=".38" stop-color="#65f3cb"/>
+          <stop offset=".68" stop-color="#7ee6ff"/><stop offset="1" stop-color="#c9a6ff"/>
+        </linearGradient>
+        <linearGradient id="slShine" x1="0" y1="0" x2="0" y2="1">
+          <stop stop-color="#ffffff" stop-opacity=".75"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </linearGradient>
+        <radialGradient id="slSpot" cx="50%" cy="50%" r="50%">
+          <stop stop-color="#65f3cb" stop-opacity=".5"/><stop offset="1" stop-color="#65f3cb" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <rect width="320" height="200" fill="url(#slAura)"/>
+      <!-- foco de luz atrás do assunto -->
+      <ellipse cx="150" cy="104" rx="120" ry="84" fill="url(#slSpot)" opacity=".5"/>
       <!-- borda da arena -->
-      <circle cx="160" cy="100" r="88" fill="none" stroke="#fa6c88" stroke-width="3" opacity=".5"/>
-      <circle cx="160" cy="100" r="88" fill="none" stroke="#fa6c88" stroke-width="16" opacity=".07"/>
-      <!-- luz espalhada pelo chão -->
+      <circle cx="158" cy="100" r="86" fill="none" stroke="#fa6c88" stroke-width="22" opacity=".05"/>
+      <circle cx="158" cy="100" r="86" fill="none" stroke="#ff8aa3" stroke-width="2.4" opacity=".4"/>
+      <!-- luz espalhada, com halo -->
       <g>
-        <circle cx="118" cy="56" r="4" fill="#ffd887"/><circle cx="208" cy="68" r="3.4" fill="#c4a0ff"/>
-        <circle cx="94" cy="116" r="3.4" fill="#7dcfff"/><circle cx="216" cy="134" r="4" fill="#ff99bf"/>
-        <circle cx="158" cy="40" r="3" fill="#b8ef81"/><circle cx="170" cy="158" r="3.4" fill="#78efd0"/>
-        <circle cx="240" cy="98" r="3" fill="#ffd887" opacity=".8"/>
+        <circle cx="104" cy="40" r="11" fill="#ffd887" opacity=".18"/><circle cx="104" cy="40" r="4" fill="#ffe9b4"/>
+        <circle cx="236" cy="52" r="10" fill="#c4a0ff" opacity=".18"/><circle cx="236" cy="52" r="3.6" fill="#ddc6ff"/>
+        <circle cx="58" cy="112" r="10" fill="#7dcfff" opacity=".18"/><circle cx="58" cy="112" r="3.6" fill="#b6e6ff"/>
+        <circle cx="262" cy="150" r="11" fill="#ff99bf" opacity=".18"/><circle cx="262" cy="150" r="4" fill="#ffc2d8"/>
+        <circle cx="146" cy="24" r="8" fill="#b8ef81" opacity=".18"/><circle cx="146" cy="24" r="3" fill="#d6f8ae"/>
+        <circle cx="196" cy="176" r="8" fill="#78efd0" opacity=".18"/><circle cx="196" cy="176" r="3" fill="#a9f7e2"/>
       </g>
-      <!-- rival, ao fundo -->
-      <path d="M238 152c-24-10-28-38-9-52 17-13 42-6 48 13" fill="none" stroke="#c4a0ff"
-        stroke-width="9" stroke-linecap="round" opacity=".4"/>
-      <!-- jogador, em curva fechada -->
-      <path d="M70 152c38 16 70-2 66-28-4-24-36-32-50-16-14 16 0 38 26 36 30-2 48-20 54-44"
-        fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="166" cy="100" r="9.5" fill="currentColor"/>
-      <circle cx="169" cy="96" r="2.4" fill="#0d1b18"/>
+      <!-- rival ao fundo -->
+      <g opacity=".5">
+        <path id="slRival" d="M270 154C242 154 228 130 238 110C247 92 272 90 284 102" fill="none"/>
+        <use href="#slRival" stroke="#c4a0ff" stroke-width="26" stroke-linecap="round" opacity=".14"/>
+        <use href="#slRival" stroke="#7a52c8" stroke-width="13" stroke-linecap="round"/>
+        <use href="#slRival" stroke="#c4a0ff" stroke-width="13" stroke-linecap="butt" stroke-dasharray="8 11"/>
+        <circle cx="284" cy="102" r="8" fill="#d4bcff"/>
+      </g>
+      <!-- rastro de aceleração atrás da cauda -->
+      <path d="M30 168C50 173 68 172 84 166" fill="none" stroke="#65f3cb" stroke-width="26"
+        stroke-linecap="round" opacity=".16"/>
+      <!-- jogador: halo, corpo, faixas, escamas, reflexo -->
+      <g>
+        <path id="slBody2" d="M30 168C72 178 108 156 124 128C140 100 128 74 106 78C88 82 92 108 118 118C160 134 200 112 222 68" fill="none"/>
+        <use href="#slBody2" stroke="#7ee6ff" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" opacity=".07"/>
+        <use href="#slBody2" stroke="#65f3cb" stroke-width="33" stroke-linecap="round" stroke-linejoin="round" opacity=".15"/>
+        <use href="#slBody2" stroke="url(#slBody)" stroke-width="23" stroke-linecap="round" stroke-linejoin="round"/>
+        <use href="#slBody2" stroke="#0d7a68" stroke-width="23" stroke-linecap="butt" stroke-dasharray="15 17" opacity=".42"/>
+        <use href="#slBody2" stroke="#04201d" stroke-width="21" stroke-linecap="butt" stroke-dasharray="1.7 5.8" opacity=".3"/>
+        <use href="#slBody2" stroke="#eafffb" stroke-width="4" stroke-linecap="round" opacity=".28"/>
+      </g>
+      <!-- cabeça -->
+      <g transform="translate(222 68) rotate(-63.4)">
+        <circle r="26" fill="#9df3ff" opacity=".2"/>
+        <ellipse rx="15" ry="12.4" fill="url(#slBody)"/>
+        <ellipse cx="-3" cy="-5" rx="8" ry="3.6" fill="#ffffff" opacity=".22"/>
+        <circle cx="4.5" cy="-6.4" r="4.8" fill="#ffffff"/><circle cx="6.4" cy="-6.8" r="2.2" fill="#0d2430"/>
+        <circle cx="4.5" cy="6.4" r="4.8" fill="#ffffff"/><circle cx="6.4" cy="6" r="2.2" fill="#0d2430"/>
+        <circle cx="7.4" cy="-7.6" r=".9" fill="#ffffff"/><circle cx="7.4" cy="5.2" r=".9" fill="#ffffff"/>
+      </g>
+      <!-- faíscas -->
+      <g fill="#dffff6">
+        <circle cx="244" cy="42" r="2" opacity=".9"/><circle cx="256" cy="30" r="1.3" opacity=".6"/>
+        <circle cx="232" cy="28" r="1.1" opacity=".5"/>
+      </g>
     </svg>`,
     memo: `<svg viewBox="0 0 320 200" aria-hidden="true">
-      <!-- carta de costas -->
-      <g transform="rotate(-8 66 100)">
-        <rect x="24" y="42" width="84" height="116" rx="15" fill="#171022" stroke="currentColor" stroke-width="3"/>
-        <rect x="50" y="82" width="32" height="32" rx="6" transform="rotate(45 66 98)" fill="none"
-          stroke="currentColor" stroke-width="2.5" opacity=".55"/>
+      <defs>
+        <radialGradient id="mmAura" cx="50%" cy="42%" r="74%">
+          <stop stop-color="#6b3d14"/><stop offset=".5" stop-color="#2d1a26"/><stop offset="1" stop-color="#0a0810"/>
+        </radialGradient>
+        <linearGradient id="mmFace" x1="0" y1="0" x2=".3" y2="1">
+          <stop stop-color="#fffaf2"/><stop offset="1" stop-color="#eed6b4"/>
+        </linearGradient>
+        <linearGradient id="mmBack" x1="0" y1="0" x2="1" y2="1">
+          <stop stop-color="#3d2a4e"/><stop offset="1" stop-color="#1a1226"/>
+        </linearGradient>
+        <radialGradient id="mmSpot" cx="50%" cy="50%" r="50%">
+          <stop stop-color="#ffb35c" stop-opacity=".55"/><stop offset="1" stop-color="#ffb35c" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="mmGloss" x1="0" y1="0" x2=".6" y2="1">
+          <stop stop-color="#ffffff" stop-opacity=".55"/><stop offset=".5" stop-color="#ffffff" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <rect width="320" height="200" fill="url(#mmAura)"/>
+      <ellipse cx="196" cy="96" rx="118" ry="86" fill="url(#mmSpot)" opacity=".5"/>
+      <!-- pilha de cartas de costas -->
+      <g transform="rotate(-13 62 112)">
+        <rect x="24" y="62" width="64" height="92" rx="11" fill="#241a33" opacity=".7"/>
+        <rect x="30" y="56" width="64" height="92" rx="11" fill="url(#mmBack)" stroke="#ffb35c" stroke-width="1.8"/>
+        <rect x="38" y="64" width="48" height="76" rx="7" fill="none" stroke="#ffb35c" stroke-width="1" opacity=".4"/>
+        <path d="M62 82l15 20-15 20-15-20z" fill="none" stroke="#ffc985" stroke-width="2.4"/>
+        <circle cx="62" cy="102" r="3.6" fill="#ffd9a0"/>
+        <rect x="30" y="56" width="64" height="92" rx="11" fill="url(#mmGloss)" opacity=".18"/>
       </g>
-      <!-- par de gatos encontrado -->
-      ${[[116, 34, 0], [210, 42, 7]].map(([x, y, r]) => `
-        <g transform="rotate(${r} ${x + 42} ${y + 58})">
-          <rect x="${x}" y="${y}" width="84" height="116" rx="15" fill="#f6f2fb" stroke="currentColor" stroke-width="3"/>
-          <g transform="translate(${x + 11} ${y + 22}) scale(.97)">
-            <path d="m15 11 6 16 10-7z" fill="#f0a05e"/><path d="m49 11-6 16-10-7z" fill="#f0a05e"/>
-            <path d="m18 16 3 8 5-3z" fill="#f9c3ae"/><path d="m46 16-3 8-5-3z" fill="#f9c3ae"/>
-            <ellipse cx="32" cy="34" rx="18" ry="16" fill="#f5ae6c"/>
-            <path d="M24 22v4M32 20v5M40 22v4" fill="none" stroke="#dd8b41" stroke-width="3" stroke-linecap="round"/>
-            <ellipse cx="32" cy="42" rx="12" ry="8" fill="#fde8d4"/>
-            <circle cx="25" cy="32" r="2.8" fill="#34293f"/><circle cx="39" cy="32" r="2.8" fill="#34293f"/>
-            <path d="m32 41-3.5-3h7z" fill="#e87d94"/>
-            <path d="M32 41v3M27.5 46.5c2.5 2 6.5 2 9 0M10 36h9M11 43l8-3M54 36h-9M53 43l-8-3"
-              fill="none" stroke="#a4693f" stroke-width="1.8" stroke-linecap="round"/>
-          </g>
-          <rect x="${x + 22}" y="${y + 94}" width="40" height="6" rx="3" fill="#cfc4dd"/>
-        </g>`).join('')}
-      <g fill="currentColor" opacity=".7">
-        <circle cx="160" cy="22" r="3"/><circle cx="212" cy="176" r="3"/><circle cx="112" cy="180" r="2.4"/>
+      <!-- par encontrado, aceso -->
+      <g>
+        <rect x="112" y="40" width="82" height="114" rx="14" fill="#ffd9a0" opacity=".2"/>
+        <rect x="116" y="44" width="74" height="106" rx="12" fill="url(#mmFace)"/>
+        <rect x="116" y="44" width="74" height="106" rx="12" fill="none" stroke="#fff2dc" stroke-width="1.6"/>
+        <g transform="translate(153 90)">
+          <circle r="25" fill="#ff9f45" opacity=".22"/>
+          <path d="M-17-11l-5-18 17 9h10l17-9-5 18" fill="#e8762e"/>
+          <circle r="19" fill="#ff9f45"/>
+          <path d="M-19-6a19 19 0 0 1 38 0z" fill="#ffb96e" opacity=".55"/>
+          <circle cx="-7" cy="-3" r="3.6" fill="#3a2110"/><circle cx="7" cy="-3" r="3.6" fill="#3a2110"/>
+          <circle cx="-5.8" cy="-4.4" r="1.3" fill="#fff"/><circle cx="8.2" cy="-4.4" r="1.3" fill="#fff"/>
+          <path d="M0 4l-4.5 4.5h9z" fill="#3a2110"/>
+          <path d="M-18 2h-10M-18 8h-9M18 2h10M18 8h9" stroke="#3a2110" stroke-width="1.6" stroke-linecap="round" opacity=".65"/>
+        </g>
+        <rect x="126" y="124" width="54" height="6" rx="3" fill="#dfc096"/>
+        <rect x="116" y="44" width="74" height="106" rx="12" fill="url(#mmGloss)" opacity=".3"/>
+      </g>
+      <g transform="rotate(10 250 100)">
+        <rect x="208" y="40" width="82" height="114" rx="14" fill="#ffd9a0" opacity=".2"/>
+        <rect x="212" y="44" width="74" height="106" rx="12" fill="url(#mmFace)"/>
+        <rect x="212" y="44" width="74" height="106" rx="12" fill="none" stroke="#fff2dc" stroke-width="1.6"/>
+        <g transform="translate(249 90)">
+          <circle r="25" fill="#ff9f45" opacity=".22"/>
+          <path d="M-17-11l-5-18 17 9h10l17-9-5 18" fill="#e8762e"/>
+          <circle r="19" fill="#ff9f45"/>
+          <path d="M-19-6a19 19 0 0 1 38 0z" fill="#ffb96e" opacity=".55"/>
+          <circle cx="-7" cy="-3" r="3.6" fill="#3a2110"/><circle cx="7" cy="-3" r="3.6" fill="#3a2110"/>
+          <circle cx="-5.8" cy="-4.4" r="1.3" fill="#fff"/><circle cx="8.2" cy="-4.4" r="1.3" fill="#fff"/>
+          <path d="M0 4l-4.5 4.5h9z" fill="#3a2110"/>
+          <path d="M-18 2h-10M-18 8h-9M18 2h10M18 8h9" stroke="#3a2110" stroke-width="1.6" stroke-linecap="round" opacity=".65"/>
+        </g>
+        <rect x="222" y="124" width="54" height="6" rx="3" fill="#dfc096"/>
+        <rect x="212" y="44" width="74" height="106" rx="12" fill="url(#mmGloss)" opacity=".3"/>
+      </g>
+      <!-- estouro do par -->
+      <g stroke="#ffe3b4" stroke-linecap="round" fill="none">
+        <path d="M201 30v-12M185 36l-8-10M217 36l8-10" stroke-width="2.4" opacity=".8"/>
+      </g>
+      <g fill="#fff3dc">
+        <circle cx="201" cy="11" r="2.6" opacity=".9"/><circle cx="170" cy="20" r="1.7" opacity=".55"/>
+        <circle cx="234" cy="18" r="1.9" opacity=".65"/>
       </g>
     </svg>`,
     chess: `<svg viewBox="0 0 320 200" aria-hidden="true">
-      <!-- tabuleiro -->
-      <g opacity=".28">${[0,1,2,3].map(r => [0,1,2,3,4,5,6,7].map(c => (r + c) % 2 === 0
-        ? `<rect x="${40 + c*30}" y="${72 + r*30}" width="30" height="30" fill="currentColor"/>` : '').join('')).join('')}</g>
-      <rect x="40" y="72" width="240" height="120" fill="none" stroke="currentColor" stroke-width="3" opacity=".55"/>
-      <!-- rei -->
-      <g fill="currentColor" transform="translate(74 52) scale(1.55)">
-        <path d="M29.6 4h4.8v4.6H39v4.8h-4.6V19h-4.8v-5.6H25V8.6h4.6z"/>
-        <path d="M32 20c8.4 0 14.5 5.4 14.5 12.4 0 4.6-2.6 7.9-7 10.6h-15c-4.4-2.7-7-6-7-10.6C17.5 25.4 23.6 20 32 20z"/>
-        <path d="M17.5 42h29l2.5 7h-34z"/>
-        <path d="M13 49.5h38a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H13a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2z"/>
+      <defs>
+        <radialGradient id="chAura" cx="50%" cy="38%" r="76%">
+          <stop stop-color="#3a3aa0"/><stop offset=".48" stop-color="#171a4a"/><stop offset="1" stop-color="#05060f"/>
+        </radialGradient>
+        <linearGradient id="chLight" x1=".2" y1="0" x2=".8" y2="1">
+          <stop stop-color="#ffffff"/><stop offset=".45" stop-color="#dfe4ff"/><stop offset="1" stop-color="#8f9dff"/>
+        </linearGradient>
+        <linearGradient id="chDark" x1=".2" y1="0" x2=".8" y2="1">
+          <stop stop-color="#8b78ff"/><stop offset=".5" stop-color="#5b3fd6"/><stop offset="1" stop-color="#241a66"/>
+        </linearGradient>
+        <radialGradient id="chSpot" cx="50%" cy="50%" r="50%">
+          <stop stop-color="#9aa8ff" stop-opacity=".5"/><stop offset="1" stop-color="#9aa8ff" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <rect width="320" height="200" fill="url(#chAura)"/>
+      <ellipse cx="160" cy="92" rx="126" ry="86" fill="url(#chSpot)" opacity=".45"/>
+      <!-- tabuleiro em fuga -->
+      <g transform="translate(160 134) skewX(-27) scale(1 .5) translate(-160 -134)">
+        <rect x="86" y="58" width="176" height="176" fill="#0d1030"/>
+        <g fill="#9aa8ff" opacity=".22">
+          <rect x="108" y="58" width="22" height="22"/><rect x="152" y="58" width="22" height="22"/><rect x="196" y="58" width="22" height="22"/><rect x="240" y="58" width="22" height="22"/>
+          <rect x="86" y="80" width="22" height="22"/><rect x="130" y="80" width="22" height="22"/><rect x="174" y="80" width="22" height="22"/><rect x="218" y="80" width="22" height="22"/>
+          <rect x="108" y="102" width="22" height="22"/><rect x="152" y="102" width="22" height="22"/><rect x="196" y="102" width="22" height="22"/><rect x="240" y="102" width="22" height="22"/>
+          <rect x="86" y="124" width="22" height="22"/><rect x="130" y="124" width="22" height="22"/><rect x="174" y="124" width="22" height="22"/><rect x="218" y="124" width="22" height="22"/>
+          <rect x="108" y="146" width="22" height="22"/><rect x="152" y="146" width="22" height="22"/><rect x="196" y="146" width="22" height="22"/><rect x="240" y="146" width="22" height="22"/>
+          <rect x="86" y="168" width="22" height="22"/><rect x="130" y="168" width="22" height="22"/><rect x="174" y="168" width="22" height="22"/><rect x="218" y="168" width="22" height="22"/>
+        </g>
+        <!-- casa de destino, acesa -->
+        <rect x="174" y="124" width="22" height="22" fill="#7ee6ff" opacity=".5"/>
+        <rect x="174" y="124" width="22" height="22" fill="none" stroke="#c9f3ff" stroke-width="1.6"/>
+        <rect x="86" y="58" width="176" height="176" fill="none" stroke="#9aa8ff" stroke-width="1.4" opacity=".5"/>
       </g>
-      <!-- cavalo -->
-      <g fill="currentColor" opacity=".55" transform="translate(178 74) scale(1.32)">
-        <path d="M27.5 9.5c.4-1.8 1.6-3.2 3.6-4l1.4 3.6 2.4-3.3c4.6.9 8.3 3.4 11 7.5 2.8 4.2 4.2 9.6 4.4 16.2.2 6.1-.4 12.1-1.7 18h-21c-.6-6.6 1.2-12.3 5.4-17.1-3.2.6-6 2.3-8.4 5.1l-5.7-4.7c2.2-5.5 5.6-9.6 10.1-12.3-1-1.5-1.5-3.2-1.5-5z"/>
-        <path d="M17.5 42h29l2.5 7h-34z"/>
-        <path d="M13 49.5h38a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H13a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2z"/>
+      <!-- rei -->
+      <g transform="translate(120 96)">
+        <ellipse cy="52" rx="32" ry="10" fill="#0a0c24" opacity=".55"/>
+        <circle cy="-8" r="40" fill="#cdd6ff" opacity=".12"/>
+        <path d="M-3.5-49h7v-7h7v7h7v7h-7v9h-7v-9h-7z" fill="#ffffff"/>
+        <path d="M0-34c14 0 23 10 23 21 0 9-6 15-11 19l3 22h-30l3-22c-5-4-11-10-11-19 0-11 9-21 23-21z" fill="url(#chLight)"/>
+        <path d="M-12-26c4-5 9-7 12-7-8 3-12 9-13 16z" fill="#ffffff" opacity=".8"/>
+        <rect x="-23" y="26" width="46" height="13" rx="6" fill="#eef1ff"/>
+        <path d="M-10-20h20M-12-9h24" stroke="#5560b8" stroke-width="2.6" stroke-linecap="round" opacity=".45"/>
+      </g>
+      <!-- cavalo adversário -->
+      <g transform="translate(216 108)">
+        <ellipse cy="40" rx="28" ry="9" fill="#0a0c24" opacity=".55"/>
+        <circle cy="-6" r="34" fill="#8b78ff" opacity=".16"/>
+        <path d="M-22-6c-2 4 2 8 6 10 2 6 4 12 6 14l-8 6h36c0-10-2-14-4-20 4-8 4-16 2-24l-6-14-6 10-4-8c-4 4-8 6-12 12-6 4-10 8-10 14z"
+          fill="url(#chDark)" stroke="#b3a4ff" stroke-width="1.7" stroke-linejoin="round"/>
+        <path d="M-2-28c-6 4-10 8-13 13 5-3 10-6 16-7z" fill="#c3b6ff" opacity=".6"/>
+        <circle cx="-6" cy="-12" r="3" fill="#ffffff"/>
+        <path d="M2-22c4 4 6 10 6 16" fill="none" stroke="#b3a4ff" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+        <rect x="-20" y="24" width="40" height="12" rx="6" fill="#6b57e8"/>
+      </g>
+      <!-- lance sugerido -->
+      <path d="M186 118C196 128 202 134 208 138" fill="none" stroke="#7ee6ff" stroke-width="2.2"
+        stroke-linecap="round" stroke-dasharray="5 6" opacity=".65"/>
+      <g fill="#dceaff">
+        <circle cx="70" cy="34" r="1.8" opacity=".7"/><circle cx="268" cy="44" r="1.5" opacity=".6"/>
+        <circle cx="46" cy="70" r="1.2" opacity=".45"/><circle cx="288" cy="86" r="1.3" opacity=".5"/>
       </g>
     </svg>`
   };
