@@ -1,5 +1,6 @@
 import { FIELD, FIGURE, SCALE, BONUS } from './config.js';
 import { createRng } from '../../core/rng.js';
+import { anatomy, transformPoint } from './anatomy.js';
 
 // Geometria da cena e detecção de acerto.
 //
@@ -33,8 +34,7 @@ export function targetAt(scene, phase, t, motion = 1) {
   };
 }
 
-// Corpo do alvo como uma cadeia de círculos: o teste de acerto vira uma única
-// equação de segundo grau por peça, exata e fácil de desenhar no modo debug.
+// Cabeça circular e membros em cápsulas usam a mesma anatomia do desenho.
 export function bodyOf(scene, phase, foot, mods = {}) {
   const assist = mods.assist ?? FIGURE.assist;
   const appleScale = (phase.apple ?? 1) * (mods.apple ?? 1);
@@ -48,16 +48,23 @@ export function bodyOf(scene, phase, foot, mods = {}) {
   const headCy = shoulderY - 0.04 * h - headR;
   const appleR = FIGURE.appleR * s * appleScale;
   const appleY = headCy - headR - FIGURE.appleGap * s - appleR;
+  const geometry = anatomy(s);
+  const bones = geometry.pieces.flatMap(piece => piece.points.slice(1).map((p,i) => ({
+    part: piece.name, limb: piece.id, a: transformPoint(piece.points[i],foot), b: transformPoint(p,foot), r:piece.r
+  })));
+  bones.push({part:'peito',a:transformPoint(geometry.shoulder,foot),b:{x:fx,y:fy-.58*h},r:torsoR},
+    {part:'abdômen',a:{x:fx,y:fy-.58*h},b:transformPoint(geometry.hip,foot),r:torsoR*.92},
+    {part:'pescoço',a:transformPoint(geometry.neck,foot),b:transformPoint(geometry.shoulder,foot),r:limbR*.8});
 
   return {
-    h, headR, torsoR, limbR, shoulderY, headCy, appleR, appleY,
+    h, headR, torsoR, limbR, shoulderY, headCy, appleR, appleY, geometry, bones,
     hipY: fy - 0.42 * h,
     apple: { x: fx, y: appleY, r: appleR },
     // Assistência menor quanto menor a maçã e quanto maior a dificuldade: nas
     // fases finais do modo difícil não sobra folga nenhuma.
     appleHit: { x: fx, y: appleY, r: appleR * (1 + (assist - 1) * appleScale) },
     parts: [
-      { part: 'cabeça', x: fx, y: headCy, r: headR },
+      { part: 'cabeça', limb: 'head', x: fx, y: headCy, r: headR },
       { part: 'ombro', x: fx, y: shoulderY, r: torsoR * 0.92 },
       { part: 'peito', x: fx, y: fy - 0.63 * h, r: torsoR },
       { part: 'abdômen', x: fx, y: fy - 0.52 * h, r: torsoR * 0.95 },
@@ -112,10 +119,35 @@ export function firstHit(ax, ay, bx, by, body) {
   let best = null;
   const apple = segmentCircle(ax, ay, bx, by, body.appleHit.x, body.appleHit.y, body.appleHit.r);
   if (apple >= 0) best = { kind: 'apple', t: apple, part: 'maçã' };
-  for (const p of body.parts) {
+  // Com a anatomia nova, os segmentos incluem braços e o espaço entre as
+  // juntas. Os círculos antigos ficam só para a sobreposição de diagnóstico.
+  for (const p of body.bones ? body.parts.slice(0,1) : body.parts) {
     const t = segmentCircle(ax, ay, bx, by, p.x, p.y, p.r);
     if (t < 0 || (best && t >= best.t)) continue;
-    best = { kind: 'body', t, part: p.part, circle: p };
+    best = { kind: 'body', t, part: p.part, limb:p.limb, circle: p };
+  }
+  for (const p of body.bones || []) {
+    const t=segmentCapsule(ax,ay,bx,by,p.a,p.b,p.r);
+    if(t>=0 && (!best || t<best.t)) best={kind:'body',t,part:p.part,limb:p.limb,bone:p};
   }
   return best;
+}
+
+// Primeiro contato com uma cápsula: duas pontas circulares e o retângulo
+// entre elas. A varredura contínua não deixa flechas rápidas atravessarem braços.
+export function segmentCapsule(ax,ay,bx,by,a,b,r) {
+  const length=Math.hypot(b.x-a.x,b.y-a.y);
+  if(length<1e-8) return segmentCircle(ax,ay,bx,by,a.x,a.y,r);
+  let first=Infinity;
+  for(const p of [a,b]) {const t=segmentCircle(ax,ay,bx,by,p.x,p.y,r);if(t>=0) first=Math.min(first,t);}
+  const ux=(b.x-a.x)/length,uy=(b.y-a.y)/length;
+  const x=(ax-a.x)*ux+(ay-a.y)*uy,y=-(ax-a.x)*uy+(ay-a.y)*ux;
+  const dx=(bx-ax)*ux+(by-ay)*uy,dy=-(bx-ax)*uy+(by-ay)*ux;
+  let enter=0,exit=1;
+  for(const [origin,delta,min,max] of [[x,dx,0,length],[y,dy,-r,r]]) {
+    if(Math.abs(delta)<1e-9) {if(origin<min || origin>max) return first===Infinity ? -1 : first;}
+    else {const t1=(min-origin)/delta,t2=(max-origin)/delta;enter=Math.max(enter,Math.min(t1,t2));exit=Math.min(exit,Math.max(t1,t2));}
+  }
+  if(enter<=exit && enter>=0 && enter<=1) first=Math.min(first,enter);
+  return first===Infinity ? -1 : first;
 }

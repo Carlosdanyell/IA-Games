@@ -37,6 +37,7 @@ function switchRow(title, description, checked, onChange, disabled = false) {
   const box = el('label', 'switch');
   const input = document.createElement('input');
   input.type = 'checkbox';
+  input.setAttribute('aria-label', title);
   input.checked = checked;
   input.disabled = disabled;
   input.addEventListener('change', () => onChange(input.checked));
@@ -46,7 +47,7 @@ function switchRow(title, description, checked, onChange, disabled = false) {
 }
 
 export function buildDialog({ settings, theme, audio, haptics, modes, records,
-                              onMode, onDifficulty, onGuide, onBlood }) {
+                              onMode, onDifficulty, onGuide, onBlood, onDismemberment }) {
   const root = el('div');
 
   root.appendChild(radioGroup('Modo', 'arrow-mode',
@@ -66,7 +67,11 @@ export function buildDialog({ settings, theme, audio, haptics, modes, records,
   root.appendChild(guideNote);
 
   root.appendChild(radioGroup('Sangue', 'arrow-blood',
-    Object.entries(BLOOD.levels).map(([key, level]) => [key, level.label]), settings.blood, onBlood));
+    Object.entries(BLOOD.levels).map(([key, level]) => [key, level.label]), settings.blood, value => {
+      onBlood(value);
+      const toggle = root.querySelector('[aria-label="Desmembramento"]');
+      if (toggle) toggle.disabled = value === 'off';
+    }));
 
   root.appendChild(radioGroup('Aparência', 'theme', [['dark', 'Escuro'], ['light', 'Claro']],
     theme.mode, value => theme.setMode(value)));
@@ -82,6 +87,9 @@ export function buildDialog({ settings, theme, audio, haptics, modes, records,
   prefs.appendChild(switchRow('Linha de tiro',
     'Mostra a trajetória prevista. O quanto dela aparece depende da dificuldade — no Mestre não aparece nada.',
     settings.guide, onGuide));
+  prefs.appendChild(switchRow('Desmembramento',
+    'Tiros fortes podem separar cabeça, braços e pernas. Sangue desligado também desativa este efeito.',
+    settings.dismemberment, onDismemberment, settings.blood === 'off'));
   prefs.appendChild(switchRow('Som', 'Corda, zunido da flecha, maçã, impacto e o grito de quem leva a flechada.',
     audio.enabled, value => audio.setEnabled(value)));
   prefs.appendChild(switchRow('Vibração',
@@ -95,10 +103,10 @@ export function buildDialog({ settings, theme, audio, haptics, modes, records,
     'Só na horizontal: em pé o jogo pausa e pede para girar o aparelho.',
     'Arraste em qualquer ponto do campo para puxar a corda: a flecha sai na direção oposta ao arrasto.',
     'Quanto mais longe você arrasta, mais força. Soltar quase no ponto de partida cancela o tiro.',
-    'No teclado: setas laterais ajustam o ângulo, setas verticais a força, espaço dispara.',
+    'No teclado: setas laterais ajustam o ângulo, setas verticais a força, espaço dispara; P ou Esc pausa.',
     'A trajetória sofre gravidade e vento. A bandeira e o placar mostram a direção e a força do vento.',
     'O alvo anda e a plataforma oscila nas fases avançadas: atire onde ele vai estar, não onde está.',
-    'Olhe para a cara dele: o susto enquanto você puxa a corda entrega o quanto a mira está apontada para a pessoa.'
+    'O indicador de força acompanha a corda. Impactos fortes podem desprender partes do corpo quando o efeito está ligado.'
   ].forEach(text => how.appendChild(el('li', null, text)));
   root.appendChild(how);
 

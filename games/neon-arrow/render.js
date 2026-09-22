@@ -1,9 +1,11 @@
 import { createSpriteCache } from '../../core/sprites.js';
 import { createRng } from '../../core/rng.js';
-import { FIELD, ARROW, FIGURE, FACE, BONUS } from './config.js';
+import { FIELD, ARROW, FIGURE, BONUS } from './config.js';
+
+import { drawCharacter, drawLimb } from './characters.js';
 
 // Identidade da biblioteca aplicada ao tiro ao alvo: fundo escuro, horizonte e
-// chão na cor de destaque, figuras em silhueta. O sangue e a maçã têm cor
+// chão na cor de destaque, personagens articulados. O sangue e a maçã têm cor
 // própria, fora da paleta — se acompanhassem o tema, deixariam de ser lidos
 // como sangue e como maçã.
 const APPLE = { skin: '#7fe06a', shade: '#3f8f34', stem: '#8a5a33', glow: '#a8ff8f', flesh: '#eaffd9' };
@@ -24,176 +26,119 @@ export function createRenderer(viewport, theme, debug) {
     c.closePath();
   };
 
-  // ------------------------------------------------------------- cenário
-  // Três camadas separadas para dar parallax na troca de fase: céu parado,
-  // morros distantes deslizando devagar e arvoredo perto deslizando o dobro.
+  // Camadas estáticas em cache; apenas plataformas e mira mudam por quadro.
   const groundY = () => Math.round(view.h * FIELD.groundRatio);
 
   function skySprite() {
-    const key = `ceu|${theme.mode}|${theme.tokens.accent}|${view.w}x${view.h}`;
-    return sprites.get(key, view.w, view.h, c => {
-      const dark = theme.dark;
-      const accent = theme.tokens.accent;
-      const gy = groundY();
-      const sky = c.createLinearGradient(0, 0, 0, gy);
-      sky.addColorStop(0, dark ? '#08060f' : '#f6f3fc');
-      sky.addColorStop(0.62, dark ? '#120c1f' : '#ece6f7');
-      sky.addColorStop(1, dark ? '#1b1230' : '#e2daf2');
-      c.fillStyle = sky;
-      c.fillRect(0, 0, view.w, gy);
-
-      // Estrelas: posição fixa por semente, para não cintilarem de lugar.
-      const rng = createRng(90210);
-      c.fillStyle = dark ? '#ffffff' : '#8f83a8';
-      for (let i = 0; i < 70; i++) {
-        const x = rng.next() * view.w;
-        const y = rng.next() * gy * 0.75;
-        const r = rng.next() * 0.9 + 0.25;
-        c.globalAlpha = (dark ? 0.5 : 0.25) * (0.3 + rng.next() * 0.7);
-        c.beginPath();
-        c.arc(x, y, r, 0, Math.PI * 2);
-        c.fill();
+    return sprites.get(`sky|${theme.mode}|${theme.tokens.accent}|${view.h}`,view.w,view.h,c=>{
+      const gy=groundY(),dark=theme.dark;
+      const sky=c.createLinearGradient(0,0,0,gy);
+      sky.addColorStop(0,dark?'#081524':'#c5deec');
+      sky.addColorStop(.6,dark?'#173a50':'#e0e7e5');
+      sky.addColorStop(1,dark?'#6b6664':'#eacbb1');
+      c.fillStyle=sky;c.fillRect(0,0,view.w,view.h);
+      const glow=c.createRadialGradient(view.w*.68,gy*.68,1,view.w*.68,gy*.68,gy*.9);
+      glow.addColorStop(0,dark?'#ecaa7940':'#fff6da88');glow.addColorStop(1,'#ecaa7900');
+      c.fillStyle=glow;c.fillRect(0,0,view.w,gy);
+      const rng=createRng(1704);
+      for(let i=0;i<58;i++) {
+        c.fillStyle=dark?'#d2efff':'#ffffff';c.globalAlpha=.15+rng.next()*.35;
+        c.fillRect(rng.next()*view.w,rng.next()*gy*.65,.45+rng.next()*.5,.8);
       }
-      c.globalAlpha = 1;
-
-      // Lua baixa, com halo na cor de destaque.
-      const mx = view.w * 0.78, my = gy * 0.24;
-      const halo = c.createRadialGradient(mx, my, 4, mx, my, gy * 0.7);
-      halo.addColorStop(0, accent + (dark ? '2e' : '20'));
-      halo.addColorStop(1, accent + '00');
-      c.fillStyle = halo;
-      c.fillRect(0, 0, view.w, gy);
-      c.fillStyle = dark ? '#e9e2f7' : '#fdfbff';
-      c.beginPath();
-      c.arc(mx, my, 13, 0, Math.PI * 2);
-      c.fill();
-      c.fillStyle = dark ? '#120c1f' : '#ece6f7';
-      c.beginPath();
-      c.arc(mx + 5.5, my - 3.5, 12, 0, Math.PI * 2);
-      c.fill();
-    });
-  }
-
-  // Uma crista de morros, desenhada com largura extra para poder deslizar.
-  function ridgeSprite(index, amp, seed, alpha) {
-    const w = view.w * 1.6;
-    const key = `morro${index}|${theme.mode}|${theme.tokens.accent}|${view.w}x${view.h}`;
-    return sprites.get(key, w, view.h, c => {
-      const gy = groundY();
-      const rng = createRng(seed);
-      const peaks = [];
-      for (let i = 0; i <= 14; i++) peaks.push(0.35 + rng.next() * 0.65);
-      c.beginPath();
-      c.moveTo(0, gy);
-      for (let x = 0; x <= w; x += 6) {
-        const t = (x / w) * 14;
-        const i = Math.floor(t);
-        const f = t - i;
-        const smooth = f * f * (3 - 2 * f);
-        const hgt = peaks[i] * (1 - smooth) + peaks[Math.min(14, i + 1)] * smooth;
-        c.lineTo(x, gy - hgt * view.h * amp);
-      }
-      c.lineTo(w, gy);
-      c.closePath();
-      c.fillStyle = theme.tokens.accent;
-      c.globalAlpha = alpha;
-      c.fill();
-      c.globalAlpha = 1;
-    });
-  }
-
-  // Arvoredo/pedras na linha do chão, também mais largo que a tela.
-  function treeSprite() {
-    const w = view.w * 1.6;
-    const key = `mato|${theme.mode}|${theme.tokens.accent}|${view.w}x${view.h}`;
-    return sprites.get(key, w, view.h, c => {
-      const gy = groundY();
-      const rng = createRng(4242);
-      c.fillStyle = theme.dark ? '#0b0716' : '#c9bee0';
-      c.strokeStyle = theme.dark ? '#0b0716' : '#c9bee0';
-      c.lineCap = 'round';
-      for (let i = 0; i < 26; i++) {
-        const x = rng.next() * w;
-        const s = 8 + rng.next() * 16;
-        if (rng.chance(0.55)) {                       // pinheiro
-          c.beginPath();
-          c.moveTo(x, gy);
-          c.lineTo(x - s * 0.38, gy);
-          c.lineTo(x, gy - s);
-          c.lineTo(x + s * 0.38, gy);
-          c.closePath();
-          c.fill();
-        } else if (rng.chance(0.6)) {                 // arbusto
-          c.beginPath();
-          c.arc(x, gy - s * 0.22, s * 0.3, Math.PI, 0);
-          c.fill();
-        } else {                                      // poste seco
-          c.lineWidth = 1.6;
-          c.beginPath();
-          c.moveTo(x, gy);
-          c.lineTo(x + 2, gy - s * 0.8);
-          c.moveTo(x + 1, gy - s * 0.45);
-          c.lineTo(x + 6, gy - s * 0.62);
-          c.stroke();
-        }
+      c.globalAlpha=1;
+      const x=view.w*.77,y=gy*.27,r=18;
+      c.fillStyle=dark?'#e2d8bd':'#fff7df';c.beginPath();c.arc(x,y,r,0,Math.PI*2);c.fill();
+      c.fillStyle=dark?'#bbc7ba55':'#e6cfa555';c.beginPath();c.arc(x+6,y-4,8,0,Math.PI*2);c.fill();
+      c.strokeStyle=dark?'#f2dbb333':'#788eaa44';c.lineWidth=.5;
+      c.beginPath();c.ellipse(x,y,r*2.1,r*.52,-.32,0,Math.PI*2);c.stroke();
+      // Filetes de nuvens étirados no horizonte.
+      for(let i=0;i<7;i++) {
+        c.fillStyle=dark?'#acd5d008':'#ffffff26';
+        c.fillRect(rng.next()*view.w,gy*(.35+rng.next()*.4),50+rng.next()*170,1+rng.next()*2);
       }
     });
   }
 
-  function groundSprite() {
-    const key = `chao|${theme.mode}|${theme.tokens.accent}|${view.w}x${view.h}`;
-    return sprites.get(key, view.w, view.h, c => {
-      const dark = theme.dark;
-      const accent = theme.tokens.accent;
-      const gy = groundY();
-      c.fillStyle = dark ? '#090512' : '#dcd2ee';
-      c.fillRect(0, gy, view.w, view.h - gy);
-      c.strokeStyle = accent + (dark ? 'aa' : 'bb');
-      c.lineWidth = 2;
-      c.beginPath();
-      c.moveTo(0, gy + 1);
-      c.lineTo(view.w, gy + 1);
-      c.stroke();
-
-      // Capim rente à linha do chão e cascalho espalhado: dá textura sem
-      // competir com as figuras.
-      const rng = createRng(7777);
-      c.strokeStyle = accent + (dark ? '55' : '66');
-      c.lineWidth = 1;
-      for (let i = 0; i < 130; i++) {
-        const x = rng.next() * view.w;
-        const hgt = 2 + rng.next() * 5;
-        c.beginPath();
-        c.moveTo(x, gy);
-        c.lineTo(x + (rng.next() * 2 - 1) * 2, gy - hgt);
-        c.stroke();
+  function skylineSprite() {
+    const w=view.w*1.6;
+    return sprites.get(`city|${theme.mode}|${view.h}`,w,view.h,c=>{
+      const gy=groundY(),dark=theme.dark,rng=createRng(8407);
+      // Montes distantes e uma cidade baixa atrás do campo.
+      for(let layer=0;layer<2;layer++) {
+        c.fillStyle=dark?(layer?'#244453':'#48606a'):(layer?'#93a9ad':'#a8b7b4');
+        c.beginPath();c.moveTo(0,gy);
+        for(let x=0;x<=w+40;x+=40)c.lineTo(x,gy-24-rng.next()*(layer?28:54));
+        c.lineTo(w,gy);c.closePath();c.fill();
       }
-      c.fillStyle = accent + (dark ? '22' : '33');
-      for (let i = 0; i < 60; i++) {
-        const x = rng.next() * view.w;
-        const y = gy + 6 + rng.next() * (view.h - gy - 8);
-        c.beginPath();
-        c.ellipse(x, y, 1 + rng.next() * 2.2, 0.7 + rng.next() * 1.2, 0, 0, Math.PI * 2);
-        c.fill();
-      }
-      c.strokeStyle = accent + (dark ? '14' : '1e');
-      for (let i = 1; i <= 4; i++) {
-        const y = gy + i * ((view.h - gy) / 4);
-        c.beginPath();
-        c.moveTo(0, y);
-        c.lineTo(view.w, y);
-        c.stroke();
+      for(let x=0;x<w;x+=11+rng.next()*16) {
+        const bw=7+rng.next()*15,bh=8+rng.next()*34;
+        c.fillStyle=dark?'#1b3545':'#829ba6';c.fillRect(x,gy-bh-7,bw,bh);
+        c.fillStyle=dark?'#d2c29b55':'#ebead955';
+        for(let y=gy-bh;y<gy-12;y+=7) for(let xx=x+3;xx<x+bw-2;xx+=5)
+          if(rng.next()>.55)c.fillRect(xx,y,1.3,1.6);
+        if(bh>34){c.fillStyle='#73c3c099';c.fillRect(x+bw*.6,gy-bh-15,.8,8);}
       }
     });
   }
 
-  function scenery(shift) {
-    const c = ctx();
-    c.drawImage(skySprite(), 0, 0);
-    c.drawImage(ridgeSprite(1, 0.13, 1357, theme.dark ? 0.1 : 0.07), -shift * 0.35, 0);
-    c.drawImage(ridgeSprite(2, 0.08, 9182, theme.dark ? 0.17 : 0.11), -shift * 0.7, 0);
-    c.drawImage(treeSprite(), -shift, 0);
-    c.drawImage(groundSprite(), 0, 0);
+  function deckSprite() {
+    return sprites.get(`deck|${theme.mode}|${theme.tokens.accent}|${view.h}`,view.w,view.h,c=>{
+      const gy=groundY(),dark=theme.dark,accent=theme.tokens.accent;
+      // Grade de proteção atrás dos atletas, sem cobrir a linha de tiro.
+      c.strokeStyle=dark?'#75b1b42c':'#33566738';c.lineWidth=.7;
+      for(let x=0;x<view.w;x+=32){c.beginPath();c.moveTo(x,gy-20);c.lineTo(x,gy);c.stroke();}
+      c.beginPath();c.moveTo(0,gy-20);c.lineTo(view.w,gy-20);c.stroke();
+      const fill=c.createLinearGradient(0,gy,0,view.h);
+      fill.addColorStop(0,dark?'#233c4a':'#c0d1d7');fill.addColorStop(.22,dark?'#152b39':'#aebfc6');fill.addColorStop(1,dark?'#081521':'#93a8b5');
+      c.fillStyle=fill;c.fillRect(0,gy,view.w,view.h-gy);
+      c.fillStyle=accent;c.globalAlpha=.65;c.fillRect(0,gy,view.w,1);c.globalAlpha=1;
+      c.strokeStyle=dark?'#7999b029':'#56718544';c.lineWidth=.7;
+      for(let x=-100;x<view.w+100;x+=65){c.beginPath();c.moveTo(x,gy+2);c.lineTo(x+(x-view.w/2)*.3,view.h);c.stroke();}
+      c.fillStyle=dark?'#07131dbb':'#7895a377';c.fillRect(0,gy+24,view.w,2);
+      for(let x=12;x<view.w;x+=42){c.fillStyle=dark?'#92c3c24d':'#47687888';c.fillRect(x,gy+28,2,1);}
+      for(const x of [12,view.w-16]) {
+        c.fillStyle=dark?'#243c48':'#8dabb6';c.fillRect(x,gy-49,4,49);
+        c.fillStyle=accent;c.fillRect(x+1,gy-46,2,19);
+        c.fillStyle=dark?'#ccd9d7':'#344f5f';c.fillRect(x-2,gy-50,8,3);
+      }
+    });
+  }
+
+  function scenery(s) {
+    const c=ctx();c.drawImage(skySprite(),0,0);
+    c.drawImage(skylineSprite(),-s.shift*.45,0);c.drawImage(deckSprite(),0,0);
+    for(const p of [{x:s.scene.x0,y:s.scene.groundY},s.target]) {
+      c.fillStyle=theme.dark?'#06111c55':'#34495833';c.beginPath();c.ellipse(p.x,s.scene.groundY+4,21*s.scene.scale,4,0,0,Math.PI*2);c.fill();
+      if(p.y<s.scene.groundY-1) {
+        c.fillStyle=theme.dark?'#263e4c':'#8aabb9';c.fillRect(p.x-3,p.y+4,6,s.scene.groundY-p.y-4);
+        c.strokeStyle=theme.tokens.accent+'88';c.lineWidth=1;c.beginPath();c.moveTo(p.x,p.y+5);c.lineTo(p.x,s.scene.groundY);c.stroke();
+      }
+      const w=22*s.scene.scale;
+      c.fillStyle=theme.dark?'#344e5b':'#d0dce0';rounded(c,p.x-w,p.y,w*2,5,2);c.fill();
+      c.fillStyle=theme.tokens.accent+'aa';c.fillRect(p.x-w*.76,p.y+1,w*1.52,1);
+    }
+    c.fillStyle=theme.dark?'#c3d5dcaa':'#315361';c.font='600 8px ui-monospace,monospace';
+    c.textAlign='left';c.fillText('CAMPO DE PRECISÃO',23,24);
+    c.fillStyle=theme.tokens.accent;c.fillRect(23,30,22,1.5);
+    c.textAlign='right';c.fillText(`${s.distance.toFixed(0)} m  /  ${s.phase.name.toUpperCase()}`,view.w-23,24);
+  }
+
+  function instruments(c,s) {
+    if(s.state==='intro') return;
+    const y=view.h-18,x=view.w/2-88,dark=theme.dark,accent=theme.tokens.accent;
+    c.save();c.fillStyle=dark?'#09202dd9':'#e3edefe8';rounded(c,x-12,y-12,200,25,5);c.fill();
+    c.fillStyle=dark?'#bcd2dc':'#375366';c.font='600 8px ui-monospace,monospace';c.textAlign='left';
+    c.fillText('FORÇA',x,y-1);c.fillStyle=accent;c.fillText(`${Math.round(s.aim.power*100)}%`,x+36,y-1);
+    c.fillStyle=dark?'#466073':'#adc1ce';rounded(c,x+66,y-6,62,4,2);c.fill();
+    c.fillStyle=accent;rounded(c,x+66,y-6,Math.max(1,62*s.aim.power),4,2);c.fill();
+    c.fillStyle=dark?'#d7e7e8':'#375366';c.fillText(`${Math.round(s.aim.angle*180/Math.PI)}°`,x+143,y-1);
+    c.restore();
+    if(s.showApple && !s.wounded) {
+      const a=s.body.apple,r=a.r+4;
+      c.save();c.strokeStyle=accent+'bb';c.lineWidth=.6;
+      for(const side of [-1,1]){c.beginPath();c.moveTo(a.x+side*(r+2),a.y-r*.5);c.lineTo(a.x+side*(r+2),a.y+r*.5);c.stroke();}
+      c.restore();
+    }
   }
 
   function marks(scene, distance) {
@@ -239,205 +184,6 @@ export function createRenderer(viewport, theme, debug) {
     c.closePath();
     c.fillStyle = wind === 0 ? theme.tokens.accent + '33' : theme.tokens.accent + 'cc';
     c.fill();
-    c.restore();
-  }
-
-  // ------------------------------------------------------------- figuras
-  // Silhueta com roupa, cinto, botas e mãos. Sem contorno na cabeça: o traço
-  // de destaque em volta do rosto tirava a leitura de silhueta.
-  function figure(c, opts) {
-    const { x, y, scale, ink, lean = 0, arms = 'down', aimAngle = 0, walk = 0, quiver = false } = opts;
-    const h = FIGURE.height * scale;
-    const torso = FIGURE.torsoR * scale;
-    const limb = FIGURE.limbR * scale;
-    const headR = FIGURE.headR * scale;
-    const shoulderY = -0.72 * h;
-    const headCy = -0.75 * h - 0.04 * h - headR;
-    const swing = Math.sin(walk) * 0.09 * h;
-
-    c.save();
-    c.translate(x, y);
-    c.rotate(lean);
-    c.lineCap = 'round';
-    c.lineJoin = 'round';
-    c.strokeStyle = ink;
-    c.fillStyle = ink;
-
-    // Pernas com passada e botas
-    c.lineWidth = limb * 2.1;
-    c.beginPath();
-    c.moveTo(-0.07 * h, -0.02 * h); c.lineTo(-0.03 * h - swing, -0.42 * h);
-    c.moveTo(0.07 * h, -0.02 * h); c.lineTo(0.03 * h + swing, -0.42 * h);
-    c.stroke();
-    c.lineWidth = limb * 2.6;
-    c.beginPath();
-    c.moveTo(-0.085 * h, 0); c.lineTo(-0.055 * h, 0);
-    c.moveTo(0.055 * h, 0); c.lineTo(0.085 * h, 0);
-    c.stroke();
-
-    // Aljava nas costas do arqueiro, com flechas aparecendo
-    if (quiver) {
-      c.save();
-      c.rotate(0.25);
-      c.lineWidth = limb * 1.7;
-      c.beginPath();
-      c.moveTo(-0.02 * h, -0.48 * h); c.lineTo(-0.02 * h, -0.72 * h);
-      c.stroke();
-      c.lineWidth = Math.max(0.8, 0.9 * scale);
-      for (const off of [-2.5, 0, 2.5]) {
-        c.beginPath();
-        c.moveTo(-0.02 * h + off * scale, -0.72 * h);
-        c.lineTo(-0.02 * h + off * scale, -0.86 * h);
-        c.stroke();
-      }
-      c.restore();
-    }
-
-    // Braços
-    c.lineWidth = limb * 1.8;
-    c.beginPath();
-    if (arms === 'bow') {
-      const reach = 0.3 * h;
-      c.moveTo(0, shoulderY);
-      c.lineTo(Math.cos(-aimAngle) * reach, shoulderY + Math.sin(-aimAngle) * reach);
-      c.moveTo(0, shoulderY);
-      c.lineTo(-0.14 * h, shoulderY + 0.11 * h);
-    } else if (arms === 'up') {
-      c.moveTo(-0.02 * h, shoulderY); c.lineTo(-0.16 * h, shoulderY - 0.1 * h);
-      c.moveTo(0.02 * h, shoulderY); c.lineTo(0.16 * h, shoulderY - 0.1 * h);
-    } else {
-      c.moveTo(-0.02 * h, shoulderY); c.lineTo(-0.11 * h + swing * 0.5, -0.4 * h);
-      c.moveTo(0.02 * h, shoulderY); c.lineTo(0.11 * h - swing * 0.5, -0.4 * h);
-    }
-    c.stroke();
-
-    // Tronco, com camisa um pouco mais larga que o quadril
-    c.lineWidth = torso * 2;
-    c.beginPath();
-    c.moveTo(0, -0.42 * h);
-    c.lineTo(0, -0.75 * h);
-    c.stroke();
-    c.lineWidth = torso * 2.3;
-    c.beginPath();
-    c.moveTo(0, -0.58 * h);
-    c.lineTo(0, -0.73 * h);
-    c.stroke();
-
-    // Cinto
-    c.strokeStyle = theme.dark ? '#2b2436' : '#b7abc9';
-    c.lineWidth = Math.max(1.1, 1.6 * scale);
-    c.beginPath();
-    c.moveTo(-torso, -0.44 * h);
-    c.lineTo(torso, -0.44 * h);
-    c.stroke();
-
-    // Cabeça, cabelo e rosto
-    c.fillStyle = ink;
-    c.beginPath();
-    c.arc(0, headCy, headR, 0, Math.PI * 2);
-    c.fill();
-    c.fillStyle = theme.dark ? '#2b2436' : '#b7abc9';
-    c.beginPath();
-    c.arc(0, headCy - headR * 0.25, headR * 0.92, Math.PI * 1.02, Math.PI * 2.02);
-    c.fill();
-    drawFace(c, 0, headCy, headR, opts);
-    c.restore();
-    return { headCy: y + headCy, headR };
-  }
-
-  // O rosto é o que dá clímax à cena: o alvo espera, sente medo enquanto a
-  // corda é puxada, se alivia quando a maçã estoura e grita quando é atingido.
-  function drawFace(c, cx, cy, R, opts) {
-    const face = opts.face || 'neutro';
-    const facing = opts.facing ?? -1;
-    const blink = opts.blink || 0;
-    const traço = theme.dark ? '#1b1526' : '#f2ecfa';
-    const lw = Math.max(0.7, R * 0.13);
-    const ex = facing * R * 0.1;
-    const e1 = ex - R * FACE.eyeGap * 0.5;
-    const e2 = ex + R * FACE.eyeGap * 0.5;
-    const ey = cy + R * FACE.eyeY;
-    const my = cy + R * FACE.mouthY;
-    const wide = face === 'medo' || face === 'dor';
-    const er = R * FACE.eye * (wide ? 1.3 : 1);
-
-    c.save();
-    c.strokeStyle = traço;
-    c.fillStyle = traço;
-    c.lineWidth = lw;
-    c.lineCap = 'round';
-
-    if (blink > 0 && face !== 'dor' && face !== 'alivio') {
-      for (const x of [e1, e2]) {
-        c.beginPath();
-        c.moveTo(cx + x - er, ey);
-        c.lineTo(cx + x + er, ey);
-        c.stroke();
-      }
-    } else if (face === 'alivio') {                 // olhos fechados, sorriso
-      for (const x of [e1, e2]) {
-        c.beginPath();
-        c.arc(cx + x, ey + er * 0.4, er, Math.PI * 1.15, Math.PI * 1.85);
-        c.stroke();
-      }
-    } else if (face === 'dor') {                    // olhos em X
-      for (const x of [e1, e2]) {
-        c.beginPath();
-        c.moveTo(cx + x - er, ey - er); c.lineTo(cx + x + er, ey + er);
-        c.moveTo(cx + x + er, ey - er); c.lineTo(cx + x - er, ey + er);
-        c.stroke();
-      }
-    } else if (face === 'mira') {                   // um olho apertado
-      c.beginPath();
-      c.moveTo(cx + e1 - er, ey); c.lineTo(cx + e1 + er, ey);
-      c.stroke();
-      c.beginPath();
-      c.arc(cx + e2, ey, er, 0, Math.PI * 2);
-      c.fill();
-    } else {
-      for (const x of [e1, e2]) {
-        c.beginPath();
-        c.arc(cx + x, ey, er, 0, Math.PI * 2);
-        c.fill();
-      }
-      if (face === 'medo') {                        // brilho de susto na pupila
-        c.fillStyle = theme.dark ? '#d9d2e8' : '#2a2138';
-        for (const x of [e1, e2]) {
-          c.beginPath();
-          c.arc(cx + x + er * 0.3, ey - er * 0.3, er * 0.35, 0, Math.PI * 2);
-          c.fill();
-        }
-        c.fillStyle = traço;
-      }
-    }
-
-    // Boca
-    if (face === 'dor') {
-      c.beginPath();
-      c.ellipse(cx + ex, my, R * 0.3, R * 0.36, 0, 0, Math.PI * 2);
-      c.fill();
-    } else if (face === 'medo') {
-      c.beginPath();
-      c.ellipse(cx + ex, my, R * 0.2, R * 0.26, 0, 0, Math.PI * 2);
-      c.fill();
-    } else if (face === 'alivio') {
-      c.beginPath();
-      c.arc(cx + ex, my - R * 0.14, R * 0.34, 0.25, Math.PI - 0.25);
-      c.stroke();
-    } else {
-      c.beginPath();
-      c.moveTo(cx + ex - R * 0.22, my);
-      c.lineTo(cx + ex + R * 0.22, my);
-      c.stroke();
-    }
-
-    // Gota de suor no medo
-    if (face === 'medo') {
-      c.fillStyle = '#8ecbff';
-      c.beginPath();
-      c.ellipse(cx - facing * R * 0.85, cy - R * 0.15, R * 0.16, R * 0.24, 0, 0, Math.PI * 2);
-      c.fill();
-    }
     c.restore();
   }
 
@@ -545,7 +291,7 @@ export function createRenderer(viewport, theme, debug) {
     c.translate(a.x, a.y);
     c.rotate(angle);
     c.lineCap = 'round';
-    c.strokeStyle = a.bloodied ? '#c4102b' : (theme.dark ? '#cdbfa6' : '#6b5a3e');
+    c.strokeStyle = a.bloodied ? '#c4102b' : (theme.dark ? '#d9e9ea' : '#344f60');
     c.lineWidth = Math.max(1.2, 1.6 * scale);
     c.beginPath();
     c.moveTo(-len, 0);
@@ -576,13 +322,19 @@ export function createRenderer(viewport, theme, debug) {
     c.save();
     c.translate(x + Math.cos(-aim.angle) * 0.3 * h, handY + Math.sin(-aim.angle) * 0.3 * h);
     c.rotate(-aim.angle);
-    c.strokeStyle = theme.dark ? '#cdbfa6' : '#6b5a3e';
-    c.lineWidth = Math.max(1.4, 2 * scale);
+    c.strokeStyle = theme.dark ? '#708e9e' : '#314c60';
+    c.lineWidth = Math.max(2, 3 * scale);
     c.lineCap = 'round';
     c.beginPath();
     c.arc(0, 0, r, -1.25, 1.25);
     c.stroke();
     const tipY = Math.sin(1.25) * r, tipX = Math.cos(1.25) * r;
+    c.strokeStyle=accent;c.lineWidth=scale;
+    c.beginPath();c.arc(0,0,r,-.8,.8);c.stroke();
+    for(const y of [-tipY,tipY]) {
+      c.fillStyle='#122938';c.beginPath();c.arc(tipX,y,2.7*scale,0,Math.PI*2);c.fill();
+      c.strokeStyle=accent;c.lineWidth=.7*scale;c.stroke();
+    }
     c.lineWidth = Math.max(0.7, 0.9 * scale);
     c.strokeStyle = theme.dark ? '#efe7d6' : '#4b3f2c';
     c.beginPath();
@@ -621,11 +373,11 @@ export function createRenderer(viewport, theme, debug) {
     if (!text) return;
     c.save();
     c.textAlign = 'center';
-    c.font = `800 ${Math.round(view.h * 0.062)}px system-ui, sans-serif`;
+    c.font = `750 ${Math.round(view.h * 0.046)}px system-ui, sans-serif`;
     c.fillStyle = tone === 'bad' ? '#ff5f6d' : theme.tokens.accent;
     c.shadowColor = tone === 'bad' ? '#ff5f6d88' : theme.tokens.accent + '88';
     c.shadowBlur = 14;
-    c.fillText(text, view.w / 2, view.h * 0.2);
+    c.fillText(text, view.w / 2, view.h * 0.22);
     c.restore();
   }
 
@@ -673,9 +425,10 @@ export function createRenderer(viewport, theme, debug) {
       debug.frame();
 
       c.save();
+      c.beginPath();c.rect(0,0,view.w,view.h);c.clip();
       if (s.shake > 0) c.translate((Math.random() - 0.5) * s.shake, (Math.random() - 0.5) * s.shake);
 
-      scenery(s.shift);
+      scenery(s);
       marks(s.scene, s.distance);
       flag(s.scene, s.wind, s.clock);
       s.blood.drawDecals(c);
@@ -684,12 +437,15 @@ export function createRenderer(viewport, theme, debug) {
       const ink = theme.dark ? '#d9d2e8' : '#2a2138';
 
       // Alvo
-      figure(c, {
+      drawCharacter(c, {
         x: s.target.x, y: s.target.y, scale: s.scene.scale,
         ink: s.wounded ? '#b9a9ae' : ink,
         lean: s.lean, arms: s.targetArms, walk: s.walk,
-        face: s.targetFace, facing: -1, blink: s.blink
+        face: s.targetFace, facing: -1, blink: s.blink, missing: s.detached?.id, dark: theme.dark
       });
+      if (s.detached) {
+        c.save();c.translate(s.detached.x,s.detached.y);c.rotate(s.detached.angle);drawLimb(c,s.detached,{cut:true});c.restore();
+      }
       if (s.showApple) apple(c, s.body, s.clock);
       if (s.bits.length) appleBits(c, s.bits);
       if (s.loose) {
@@ -702,14 +458,20 @@ export function createRenderer(viewport, theme, debug) {
       for (const a of s.stuck) drawArrow(c, a, s.scene.scale, accent);
 
       // Arqueiro
-      figure(c, {
+      drawCharacter(c, {
         x: s.archer.x, y: s.archer.y, scale: s.scene.scale,
         ink, arms: 'bow', aimAngle: s.aim.angle, quiver: true,
-        face: s.archerFace, facing: 1, blink: 0
+        face: s.archerFace, facing: 1, blink: 0, role: 'archer', dark: theme.dark
       });
       bow(c, s.archer.x, s.archer.y, s.scene.scale, s.aim, accent);
 
       if (s.guide) guide(c, s.guide, accent);
+      if (s.trail?.length > 1) {
+        c.save();c.lineWidth=1.2;c.lineCap='round';
+        s.trail.forEach((p,i)=>{if(!i)return;c.strokeStyle=accent;c.globalAlpha=i/s.trail.length*.35;
+          c.beginPath();c.moveTo(s.trail[i-1].x,s.trail[i-1].y);c.lineTo(p.x,p.y);c.stroke();});
+        c.restore();
+      }
       if (s.arrow) drawArrow(c, s.arrow, s.scene.scale, accent);
       s.blood.drawDrops(c);
 
@@ -720,11 +482,16 @@ export function createRenderer(viewport, theme, debug) {
         c.fillRect(0, 0, view.w, view.h);
         c.restore();
       }
+      instruments(c,s);
       banner(c, s.banner, s.bannerTone);
       c.restore();
 
       if (debug.active) {
-        for (const p of s.body.parts) debug.circle(p.x, p.y, p.r, '#ff5f6d');
+        const head=s.body.parts[0];debug.circle(head.x,head.y,head.r,'#ff5f6d');
+        for (const b of s.body.bones) {
+          c.save();c.strokeStyle='#ff5f6d55';c.lineWidth=b.r*2;c.lineCap='round';
+          c.beginPath();c.moveTo(b.a.x,b.a.y);c.lineTo(b.b.x,b.b.y);c.stroke();c.restore();
+        }
         debug.circle(s.body.appleHit.x, s.body.appleHit.y, s.body.appleHit.r, '#00ff9d');
         if (s.bonus) debug.circle(s.bonus.x, s.bonus.y, s.bonus.hitR, '#ffd166');
         debug.info(`dist ${s.distance.toFixed(1)}m  u/m ${s.scene.u.toFixed(2)}  escala ${s.scene.scale.toFixed(2)}`);

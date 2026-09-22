@@ -12,7 +12,7 @@
 
 export const FIELD = {
   w: 640,
-  hMin: 280,        // altura lógica mínima (celular deitado, tela baixa)
+  hMin: 200,        // altura lógica mínima (celular deitado, tela baixa)
   hMax: 420,        // máxima: acima disso só sobraria céu vazio
   hStep: 20,        // quantização: a barra de endereço do celular não muda o campo
   groundRatio: 0.82,
