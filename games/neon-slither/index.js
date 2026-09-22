@@ -1,5 +1,6 @@
 import { createWorld } from './model.js';
 import { ARENA, DIFFICULTIES, SKINS, skinFor, cleanProfile } from './config.js';
+import { PALETTE_OPTIONS } from '../../core/theme.js';
 import { createRenderer } from './render.js';
 import { drawSkinPreview } from './skins.js';
 
@@ -80,7 +81,7 @@ export function create({ viewport, input, hud, store, theme, audio, haptics }) {
       <section data-panel="skins"><div class="nl-collection-head"><span>${SKINS.filter(s => s.goal <= profile.best).length} de ${SKINS.length} disponíveis</span><span>Recorde <b>${Math.floor(profile.best)}</b></span></div>
       <div class="nl-inspect"><canvas width="720" height="320" aria-label="Prévia da skin"></canvas><div class="nl-inspect-copy"><div><h3></h3><p></p></div><button type="button" class="nl-equip"></button></div><p class="nl-unlock" role="status"></p><progress class="nl-unlock-progress" aria-label="Progresso para desbloquear a skin" max="1" value="0"></progress></div>
       <div class="nl-skins" role="group" aria-label="Escolha uma skin para visualizar"></div><p class="nl-cosmetic-note">Todas têm a mesma velocidade e força. O recorde libera novos visuais.</p></section>
-      <section data-panel="game" hidden><label class="nl-field">Dificuldade das IAs<select data-setting="difficulty">${Object.entries(DIFFICULTIES).map(([id,d]) => `<option value="${id}">${d.name} · ${d.bots} rivais</option>`).join('')}</select></label><p class="nl-difficulty"></p><label class="nl-field">Controle por toque<select data-setting="control"><option value="joystick">Joystick flutuante</option><option value="direct">Seguir o dedo na tela</option></select></label><label class="nl-field nl-check"><input type="checkbox">Pedir tela cheia ao jogar</label><p>A dificuldade vale na próxima partida. A skin e o controle mudam na hora.</p><h3>Como jogar</h3><ul class="nl-guide"><li>Arraste para guiar. Seu próprio corpo é passagem livre.</li><li>Evite tocar outros corpos ou a borda com a cabeça. Cabeça contra cabeça pode eliminar as duas.</li><li>Segure ↯ para acelerar, gastando massa. Rivais eliminados viram alimento.</li><li>O anel ao redor da cabeça protege por três segundos ao entrar.</li></ul><p>No computador: mouse ou setas/WASD para guiar; clique ou Espaço para acelerar; P ou Esc para pausar.</p><p class="nl-history">${profile.games} partidas · ${profile.kills} eliminações · ${Math.floor(profile.time / 60)} min jogados</p></section>`;
+      <section data-panel="game" hidden><label class="nl-field">Dificuldade das IAs<select data-setting="difficulty">${Object.entries(DIFFICULTIES).map(([id,d]) => `<option value="${id}">${d.name} · ${d.bots} rivais</option>`).join('')}</select></label><p class="nl-difficulty"></p><label class="nl-field">Cor neon<select data-setting="palette">${PALETTE_OPTIONS.map(o => `<option value="${o.value}">${o.label}</option>`).join('')}</select></label><label class="nl-field">Controle por toque<select data-setting="control"><option value="joystick">Joystick flutuante</option><option value="direct">Seguir o dedo na tela</option></select></label><label class="nl-field nl-check"><input type="checkbox">Pedir tela cheia ao jogar</label><p>A dificuldade vale na próxima partida. A skin e o controle mudam na hora.</p><h3>Como jogar</h3><ul class="nl-guide"><li>Arraste para guiar. Seu próprio corpo é passagem livre.</li><li>Evite tocar outros corpos ou a borda com a cabeça. Cabeça contra cabeça pode eliminar as duas.</li><li>Segure ↯ para acelerar, gastando massa. Rivais eliminados viram alimento.</li><li>O anel ao redor da cabeça protege por três segundos ao entrar.</li></ul><p>No computador: mouse ou setas/WASD para guiar; clique ou Espaço para acelerar; P ou Esc para pausar.</p><p class="nl-history">${profile.games} partidas · ${profile.kills} eliminações · ${Math.floor(profile.time / 60)} min jogados</p></section>`;
     const panels = body.querySelectorAll('[data-panel]');
     for (const button of body.querySelectorAll('[data-view]')) button.onclick = () => {
       for (const b of body.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b === button));
@@ -88,7 +89,15 @@ export function create({ viewport, input, hud, store, theme, audio, haptics }) {
       settingsPreview = button.dataset.view === 'skins' ? body.querySelector('.nl-inspect canvas') : null;
     };
     for (const field of body.querySelectorAll('select')) {
-      const key = field.dataset.setting; field.value = profile[key];
+      const key = field.dataset.setting;
+      // A cor neon mora no tema, que guarda a escolha sozinho para a biblioteca
+      // inteira; os outros campos são do perfil do jogo.
+      if (key === 'palette') {
+        field.value = theme.choice;
+        field.onchange = () => { release(); theme.setChoice(field.value); };
+        continue;
+      }
+      field.value = profile[key];
       field.onchange = () => { release(); profile[key] = field.value; body.querySelector('.nl-difficulty').textContent = DIFFICULTIES[profile.difficulty].note; save(); };
     }
     body.querySelector('.nl-difficulty').textContent = DIFFICULTIES[profile.difficulty].note;
