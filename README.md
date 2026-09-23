@@ -113,6 +113,13 @@ Instruções, limitações de rede, arquitetura e testes:
 
 ## Neon Shooter
 
+Visual com fuselagens facetadas, cabines de vidro e propulsores duplos. Os oito
+inimigos e os três chefes têm silhuetas e placas próprias. A cada cinco ondas, o
+cenário alterna suavemente entre Órbita de Nereida, Cinturão de Âmbar e Estaleiro
+Eclipse. Planetas, rochas e estruturas são decorativos; os tiros e avisos de
+ataque ficam em primeiro plano. A arte é gerada no próprio aparelho e mantida
+em cache, incluindo o modo de efeitos reduzidos, sem recursos externos.
+
 Arraste em qualquer lugar da tela para pilotar: a nave acompanha o dedo sem ficar
 embaixo dele. Nas configurações dá para trocar pelo joystick virtual. O tiro é
 automático enquanto houver inimigos. No computador, use **WASD** ou as **setas**
