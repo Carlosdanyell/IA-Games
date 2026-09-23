@@ -1,4 +1,6 @@
 import { createSpriteCache } from '../../core/sprites.js';
+import { paintPlayer, paintEnemy, paintBoss } from './art.js';
+import { createScenery } from './scenery.js';
 import { POWERUPS, ICONS, FX, TIMED_POWERUPS } from './config.js';
 
 // Toda a parte visual em Canvas 2D. O brilho (`shadowBlur`) é pago uma vez por
@@ -9,49 +11,16 @@ const TAU = Math.PI * 2;
 const SHIP = '#5ff4ff';
 const fmt = n => Math.round(n).toLocaleString('pt-BR');
 
-const SHAPES = {
-  drone(c, r) { poly(c, [[0, r], [r * 0.95, -r * 0.55], [r * 0.35, -r * 0.2], [0, -r * 0.75], [-r * 0.35, -r * 0.2], [-r * 0.95, -r * 0.55]]); },
-  dart(c, r) { poly(c, [[0, r * 1.1], [r * 0.6, -r], [0, -r * 0.4], [-r * 0.6, -r]]); },
-  weaver(c, r) { poly(c, [[0, r], [r * 0.45, 0], [r * 1.05, -r * 0.35], [r * 0.45, -r * 0.3], [0, -r], [-r * 0.45, -r * 0.3], [-r * 1.05, -r * 0.35], [-r * 0.45, 0]]); },
-  gunner(c, r) {
-    const k = r * 0.42;
-    poly(c, [[-k, -r], [k, -r], [r, -k], [r, k * 0.6], [k, r * 0.7], [k * 0.45, r * 1.1], [-k * 0.45, r * 1.1], [-k, r * 0.7], [-r, k * 0.6], [-r, -k]]);
-  },
-  tank(c, r) { ngon(c, 6, r, Math.PI / 6); ngon(c, 6, r * 0.55, Math.PI / 6); },
-  splitter(c, r) {
-    for (let i = 0; i < 3; i++) {
-      const a = -Math.PI / 2 + i * TAU / 3, x = Math.cos(a) * r * 0.45, y = Math.sin(a) * r * 0.45;
-      c.moveTo(x + r * 0.5, y); c.arc(x, y, r * 0.5, 0, TAU);
-    }
-  },
-  hunter(c, r) { poly(c, [[0, r * 1.15], [r * 0.8, -r * 0.5], [r * 0.3, -r * 0.25], [r * 0.45, -r], [0, -r * 0.55], [-r * 0.45, -r], [-r * 0.3, -r * 0.25], [-r * 0.8, -r * 0.5]]); },
-  spinner(c, r) {
-    c.moveTo(r, 0); c.arc(0, 0, r, 0, TAU);
-    c.moveTo(r * 0.45, 0); c.arc(0, 0, r * 0.45, 0, TAU);
-    for (let i = 0; i < 4; i++) {
-      const a = i * Math.PI / 2;
-      c.moveTo(Math.cos(a) * r * 0.45, Math.sin(a) * r * 0.45);
-      c.lineTo(Math.cos(a + 0.5) * r * 1.3, Math.sin(a + 0.5) * r * 1.3);
-    }
-  }
-};
-const BOSS_SHAPES = {
-  prisma(c, r) { ngon(c, 6, r, 0); ngon(c, 6, r * 0.6, Math.PI / 6); },
-  vespa(c, r) { poly(c, [[0, r * 0.95], [r * 0.5, r * 0.3], [r * 1.15, -r * 0.15], [r * 0.75, -r * 0.75], [r * 0.2, -r * 0.45], [0, -r * 0.8], [-r * 0.2, -r * 0.45], [-r * 0.75, -r * 0.75], [-r * 1.15, -r * 0.15], [-r * 0.5, r * 0.3]]); },
-  eclipse(c, r) { c.moveTo(r, 0); c.arc(0, 0, r, 0, TAU); c.moveTo(r * 0.62, 0); c.arc(0, 0, r * 0.62, 0, TAU); }
-};
-function poly(c, points) { points.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.closePath(); }
-function ngon(c, n, r, rot) { for (let i = 0; i < n; i++) { const a = rot + i * TAU / n; i ? c.lineTo(Math.cos(a) * r, Math.sin(a) * r) : c.moveTo(Math.cos(a) * r, Math.sin(a) * r); } c.closePath(); }
-
 export function createRenderer(viewport, debug) {
   const view = viewport.view;
   const ctx = view.ctx;
   const sprites = createSpriteCache();
+  const scenery = createScenery(view);
   const paths = {};
   const icon = name => paths[name] || (paths[name] = new Path2D(ICONS[name] || ICONS.star));
   const particles = [], rings = [], floats = [], flashes = [], delayed = [];
   const stars = Array.from({ length: 120 }, (_, i) => ({ x: Math.random(), y: Math.random(), layer: i % 3, tw: Math.random() * TAU }));
-  let rs = 1, low = false, shakeOn = true, clock = 0, grid = 0;
+  let rs = 1, low = false, shakeOn = true, clock = 0;
   let shake = 0, flash = 0, flashColor = '#ffffff', hurt = 0, strip = null;
   let vignette = null, vignetteKey = '';
 
@@ -77,57 +46,12 @@ export function createRenderer(viewport, debug) {
   }
 
   const enemySprite = (type, color, r, lit) => sprite(`e|${type}|${color}|${r}|${lit ? 1 : 0}`, Math.ceil(r * 2.8 + 20), c => {
-    glow(c, color, 12);
-    c.strokeStyle = lit ? '#ffffff' : color;
-    c.fillStyle = lit ? '#ffffffd0' : color + '30';
-    c.lineWidth = 2;
-    c.beginPath();
-    SHAPES[type](c, r);
-    c.fill();
-    c.stroke();
-    c.shadowBlur = 0;
-    c.fillStyle = '#ffffff';
-    c.beginPath();
-    c.arc(0, type === 'tank' || type === 'spinner' ? 0 : -r * 0.1, Math.max(1.8, r * 0.16), 0, TAU);
-    c.fill();
+    paintEnemy(c, type, r, color, lit);
   });
-
   const bossSprite = (b, lit) => sprite(`b|${b.def.id}|${b.r}|${lit ? 1 : 0}`, Math.ceil(b.r * 3.2), c => {
-    glow(c, b.def.color, 24);
-    c.strokeStyle = lit ? '#ffffff' : b.def.color;
-    c.fillStyle = lit ? '#ffffffb0' : b.def.color + '28';
-    c.lineWidth = 3;
-    c.beginPath();
-    BOSS_SHAPES[b.def.id](c, b.r);
-    c.fill();
-    c.stroke();
-    c.shadowBlur = 0;
-    c.fillStyle = '#ffffff';
-    c.beginPath();
-    c.arc(0, 0, b.r * 0.17, 0, TAU);
-    c.fill();
+    paintBoss(c, b.def.id, b.r, b.def.color, lit);
   });
-
-  const shipSprite = lit => sprite(`p|${lit ? 1 : 0}`, 60, c => {
-    glow(c, SHIP, 14);
-    c.fillStyle = lit ? '#ffffff' : '#0b2a33';
-    c.strokeStyle = lit ? '#ffffff' : SHIP;
-    c.lineWidth = 2;
-    c.beginPath();
-    poly(c, [[0, -18], [5, -6], [15, 6], [15, 11], [5, 8], [3, 12], [-3, 12], [-5, 8], [-15, 11], [-15, 6], [-5, -6]]);
-    c.fill();
-    c.stroke();
-    c.shadowBlur = 0;
-    c.fillStyle = '#e9feff';
-    c.beginPath();
-    poly(c, [[0, -12], [2.6, -3], [0, 1], [-2.6, -3]]);
-    c.fill();
-    c.strokeStyle = '#ff4fd8';
-    c.lineWidth = 1.5;
-    c.beginPath();
-    c.moveTo(-12, 8); c.lineTo(-6, 5); c.moveTo(12, 8); c.lineTo(6, 5);
-    c.stroke();
-  });
+  const shipSprite = lit => sprite(`p|${lit ? 1 : 0}`, 60, c => paintPlayer(c, lit));
 
   const orb = (color, r) => sprite(`o|${color}|${r}`, Math.ceil(r * 5), c => {
     if (!low) {
@@ -263,44 +187,11 @@ export function createRenderer(viewport, debug) {
   }
 
   // ------------------------------------------------------------- fundo
-  function background(dt, boost) {
+  function background(dt, boost, wave) {
     const w = view.w, h = view.h;
     ctx.fillStyle = '#04020a';
     ctx.fillRect(-view.ox / view.scale, -view.oy / view.scale, view.cssW / view.scale, view.cssH / view.scale);
-    const sky = ctx.createLinearGradient(0, 0, 0, h);
-    sky.addColorStop(0, '#07041a');
-    sky.addColorStop(0.62, '#12072a');
-    sky.addColorStop(1, '#1a0833');
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, w, h);
-
-    if (!low) {
-      ctx.globalAlpha = 0.5;
-      ctx.drawImage(glowSprite('#7a2cff'), w * 0.1 + Math.sin(clock * 0.05) * 30 - 150, h * 0.22 - 150, 300, 300);
-      ctx.drawImage(glowSprite('#ff2fb4'), w * 0.85 - 120, h * 0.5 + Math.cos(clock * 0.04) * 40 - 120, 240, 240);
-      ctx.globalAlpha = 1;
-    }
-
-    // Grade em perspectiva rolando no chão.
-    const horizon = h * 0.64;
-    grid = (grid + dt * 0.45 * boost) % 1;
-    ctx.strokeStyle = '#ff4fd8';
-    ctx.lineWidth = 1;
-    const lines = low ? 5 : 9;
-    for (let i = 0; i < lines; i++) {
-      const k = (i + grid) / lines, y = horizon + (h - horizon) * k * k;
-      ctx.globalAlpha = 0.03 + k * 0.2;
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-    }
-    ctx.globalAlpha = 0.12;
-    ctx.beginPath();
-    const spokes = low ? 4 : 7;
-    for (let i = -spokes; i <= spokes; i++) {
-      ctx.moveTo(w / 2 + i * w * 0.03, horizon);
-      ctx.lineTo(w / 2 + i * w * 0.22, h);
-    }
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+    scenery.draw(dt, wave, low);
 
     // Estrelas em três camadas de paralaxe.
     ctx.fillStyle = '#dff6ff';
@@ -319,19 +210,19 @@ export function createRenderer(viewport, debug) {
 
   // ------------------------------------------------------------- mundo
   function drawShip(x, y, tilt, lit, blink) {
-    const flame = 6 + Math.random() * 6;
-    ctx.fillStyle = '#ff4fd8';
-    ctx.globalAlpha = 0.85;
-    ctx.beginPath(); ctx.moveTo(x - 4.5, y + 10); ctx.lineTo(x + 4.5, y + 10); ctx.lineTo(x, y + 12 + flame); ctx.fill();
-    ctx.fillStyle = '#ffe45e';
-    ctx.beginPath(); ctx.moveTo(x - 2, y + 10); ctx.lineTo(x + 2, y + 10); ctx.lineTo(x, y + 10 + flame * 0.6); ctx.fill();
-    ctx.globalAlpha = 1;
     if (blink) return;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(1 - Math.abs(tilt) * 0.28, 1);
-    ctx.drawImage(shipSprite(lit), -30, -30, 60, 60);
-    ctx.restore();
+    ctx.save(); ctx.translate(x, y); ctx.rotate(tilt * .12);
+    ctx.scale(1 - Math.abs(tilt) * .22, 1);
+    const flame = 10 + Math.sin(clock * 43) * 2.5;
+    for (const side of [-1, 1]) {
+      const ex = side * 4.8;
+      if (!low) { ctx.globalAlpha = .35; ctx.drawImage(glowSprite(SHIP), ex - 12, 6, 24, flame * 2); }
+      ctx.globalAlpha = .85; ctx.fillStyle = '#42dfff';
+      ctx.beginPath(); ctx.moveTo(ex - 2.2, 11); ctx.quadraticCurveTo(ex - 2, 18, ex, 14 + flame);
+      ctx.quadraticCurveTo(ex + 2, 18, ex + 2.2, 11); ctx.fill();
+      ctx.fillStyle = '#ebffff'; ctx.fillRect(ex - .8, 11, 1.6, flame * .6);
+    }
+    ctx.globalAlpha = 1; ctx.drawImage(shipSprite(lit), -30, -30, 60, 60); ctx.restore();
   }
 
   function drawBoss(W, b) {
@@ -610,7 +501,7 @@ export function createRenderer(viewport, debug) {
     debug.frame();
     if (!ui.frozen) updateFx(dt);
     const boost = W && (W.stage === 'rest' || W.stage === 'warning') && !W.over ? 2.6 : 1;
-    background(ui.frozen ? 0 : dt, boost);
+    background(ui.frozen ? 0 : dt, boost, W?.wave || 1);
 
     ctx.save();
     if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
@@ -631,6 +522,7 @@ export function createRenderer(viewport, debug) {
     reset() {
       particles.length = rings.length = floats.length = flashes.length = delayed.length = 0;
       strip = null;
+      scenery.reset();
       shake = flash = hurt = 0;
     },
     invalidate: () => sprites.clear()
