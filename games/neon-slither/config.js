@@ -28,11 +28,26 @@ export const ARENA = {
   // Peso que a IA dá a desviar de um corpo. É autopreservação, não caça: mexer
   // aqui muda quanto tempo um rival sobrevive sem mudar o quanto ele persegue.
   avoidWeight: 520,
-  // Classe média: fração do maior rival vivo que serve de teto para quem
-  // renasce. Ancorar no maior rival, e não no jogador, evita o elástico que
-  // puniria você por crescer. Zero devolve o comportamento antigo, em que todo
-  // rival nascia no mínimo e a arena virava um gigante cercado de anões.
-  respawnShare: .18
+  // Classe média: fração da mediana dos rivais vivos que serve de teto para
+  // quem renasce, limitada por `respawnCap`. Ancorava no maior rival, e isso
+  // realimentava a si mesmo — nascer grande, morrer, virar luz, alguém comer e
+  // virar um líder maior ainda, que puxava o próximo nascimento para cima. Em
+  // vinte e cinco minutos a mediana de nascimento ia de 81 para 3214 e a maior
+  // chegava a 18568, com 3063 de comprimento: quase metade do diâmetro da
+  // arena, já formado. A mediana não tem esse efeito, porque um único gigante
+  // não a move. Ancorar no jogador seria pior: um elástico que pune crescer.
+  respawnShare: 1,
+  // Teto absoluto do nascimento. É o que fecha o laço: `respawnShare` cria
+  // massa do nada numa economia fechada (a luz ambiente para de repor em
+  // `food`), então sem teto a arena infla sozinha. O valor vem do que cabe na
+  // tela: com o zoom no piso o celular mostra cerca de 1400 unidades, e 900 de
+  // massa dá 725 de comprimento — meia tela. Ninguém nasce maior que isso.
+  respawnCap: 900,
+  // Folga mínima entre quem nasce e quem já está na arena. Valia só para a
+  // cabeça do recém-nascido; o corpo dele, criado depois esticado para trás,
+  // não era conferido, e aparecia a 49 unidades do jogador com 1945 de
+  // comprimento. Agora a folga vale para o corpo inteiro.
+  clearPlayer: 520, clearRival: 340
 };
 // `glow` acende um halo neon próprio da skin, somado por cima do corpo. Está
 // nas que pedem néon pela identidade e nas escuras, que ganham de quebra a

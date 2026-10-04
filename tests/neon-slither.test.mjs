@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createWorld, radiusOf, lengthOf, turnRadiusOf, turnsAround, angleDelta, segmentDistance, SpatialGrid } from '../games/neon-slither/model.js';
+import { createWorld, radiusOf, lengthOf, turnRadiusOf, turnsAround, angleDelta, segmentDistance, spawnFits, SpatialGrid } from '../games/neon-slither/model.js';
 import { ARENA, cleanProfile, SKINS, DIFFICULTIES } from '../games/neon-slither/config.js';
 import { zoomFor } from '../games/neon-slither/render.js';
 import { previewPath } from '../games/neon-slither/skins.js';
@@ -47,8 +47,10 @@ test('a curva é um arco de verdade, não um giro no lugar', () => {
   const largo = turnRadius(grande);
   assert.ok(largo > inicio, 'cobra maior vira mais largo');
   // Cobra grande vira largo de propósito, mas a curva tem de caber na tela
-  // dela, que também abriu com o zoom.
-  assert.ok(largo <= 60, `raio da cobra grande fora da faixa: ${largo.toFixed(1)}`);
+  // dela, que também abriu com o zoom. O limite sai do campo de visão daquela
+  // massa, não de um número solto: assim ele acompanha a espessura se ela mudar.
+  const campoGrande = campoPara(ARENA.maxMass);
+  assert.ok(largo / campoGrande <= .05, `a curva ocupa ${(largo / campoGrande * 100).toFixed(1)}% da tela da cobra grande`);
   assert.ok(largo / radiusOf(grande.player) <= 2, 'crescer não pode custar a precisão');
 });
 
@@ -283,17 +285,24 @@ test('quem renasce acompanha a arena, mas nunca o tamanho do jogador', () => {
     for (const s of gordo.snakes) {
       if (conhecidos.has(s)) continue;
       conhecidos.add(s); nascidos++;
-      assert.ok(s.mass <= level.mass[1],
+      assert.ok(s.mass <= ARENA.respawnCap,
         `rival nasceu com ${Math.round(s.mass)} tendo o jogador em ${Math.round(gordo.player.mass)}`);
     }
   }
   assert.ok(nascidos > 0, 'o teste precisa ver alguém renascer para valer');
 
-  // Com um rival grande vivo, o teto sobe: é daí que sai a classe média.
-  const teto = Math.max(level.mass[1], 20000 * ARENA.respawnShare);
-  assert.ok(teto > level.mass[1], 'a fração precisa levantar o teto de renascimento');
-  assert.ok(ARENA.respawnShare > 0 && ARENA.respawnShare < .4,
+  // Com rivais crescidos o teto sobe: é daí que sai a classe média. A âncora é
+  // a mediana dos vivos, então um gigante sozinho não a move.
+  const teto = m => Math.min(ARENA.respawnCap, Math.max(level.mass[1], m * ARENA.respawnShare));
+  assert.ok(teto(600) > level.mass[1], 'a fração precisa levantar o teto de renascimento');
+  assert.ok(teto(1e9) <= ARENA.respawnCap, 'o teto absoluto é o que fecha o laço');
+  assert.ok(ARENA.respawnShare > 0 && ARENA.respawnShare <= 1.2,
     `fração de renascimento fora da faixa medida como saudável: ${ARENA.respawnShare}`);
+  // Nascer com massa cria massa: a luz ambiente para de repor em `food`, então
+  // o único jeito de a arena ganhar massa nova é o nascimento. O teto precisa
+  // caber na tela, senão o rival aparece já atravessando o campo de visão.
+  assert.ok(lengthOf({ mass: ARENA.respawnCap }) < 800,
+    `quem nasce no teto tem ${Math.round(lengthOf({ mass: ARENA.respawnCap }))} de comprimento, mais que meia tela`);
 });
 
 test('rival só caça quem está em desvantagem e o jogador não é o alvo preferido', () => {
@@ -363,7 +372,7 @@ test('a borda encerra a partida', () => {
 test('medidas de corpo e utilitários de geometria', () => {
   const pequena = { mass: ARENA.startMass }, grande = { mass: ARENA.maxMass };
   assert.ok(radiusOf(pequena) < radiusOf(grande));
-  assert.ok(radiusOf(grande) <= 32, 'o corpo tem teto de espessura');
+  assert.ok(radiusOf(grande) <= 49, 'o corpo tem teto de espessura');
   assert.ok(lengthOf(grande) > lengthOf(pequena));
   assert.ok(turnRadiusOf(pequena) < turnRadiusOf(grande));
   assert.equal(Math.round(segmentDistance({ x: 0, y: 10 }, { x: -10, y: 0 }, { x: 10, y: 0 })), 10);
@@ -496,4 +505,116 @@ test('a prévia anda no ritmo do jogo', () => {
   // O corpo inteiro passa em poucos segundos, não em dez: era o que fazia a
   // prévia antiga parecer travada.
   assert.ok(66 / andou < 4, 'a cobra demora demais para passar o corpo todo');
+});
+
+// O corpo de quem nasce é criado esticado para trás da cabeça. A folga valia só
+// para o ponto da cabeça, então um corpo de 1945 de comprimento apareceu a 49
+// unidades do jogador — morte sem aviso, 23 vezes em 2010 nascimentos medidos.
+// O caso é montado à mão porque sorteado ele é raro: 2 em 309 nascimentos, o
+// que não dá um teste que reprove a regra antiga de forma confiável.
+test('a folga de nascimento vale para o corpo, não só para a cabeça', () => {
+  // Jogador deitado sobre o eixo x, da origem para a esquerda.
+  const jogador = { alive: true, player: true, x: 0, y: 0, mass: 1000,
+    path: Array.from({ length: 167 }, (_, i) => ({ x: -i * ARENA.spacing, y: 0, n: -i })) };
+  const corpo = lengthOf({ mass: ARENA.respawnCap });
+  // Cabeça longe do jogador em qualquer leitura: 849 da cabeça dele e 600 do
+  // ponto mais próximo do corpo, contra folgas de 520 e 374. Pela regra antiga
+  // este nascimento passava. O corpo, porém, atravessa o jogador na origem.
+  const cabeca = { x: -600, y: 600 };
+  const atravessa = { x: -600, y: 600 - corpo };
+  assert.ok(Math.hypot(cabeca.x, cabeca.y) > ARENA.clearPlayer, 'a cabeça precisa estar fora da folga');
+  assert.ok(Math.min(...jogador.path.map(v => Math.hypot(v.x - cabeca.x, v.y - cabeca.y))) > ARENA.clearPlayer * .72,
+    'a cabeça precisa estar fora da folga do corpo do jogador');
+  assert.equal(spawnFits(cabeca, atravessa, [jogador]), false, 'corpo atravessando o jogador foi aceito');
+  // Mesma cabeça, corpo para o outro lado: tem de caber, senão a regra só
+  // estaria recusando tudo.
+  assert.equal(spawnFits(cabeca, { x: -600, y: 600 + corpo }, [jogador]), true, 'corpo longe do jogador foi recusado');
+  // E a folga de rival é menor que a do jogador: um corpo a 300 do corpo alheio
+  // cabe ao lado de um rival (folga 245) e não cabe ao lado do jogador (375).
+  const rival = { ...jogador, player: false };
+  assert.ok(ARENA.clearRival < ARENA.clearPlayer);
+  const raso = [{ x: -600, y: 300 }, { x: -600, y: 300 + corpo }];
+  assert.equal(spawnFits(raso[0], raso[1], [rival]), true, 'rival tem folga menor que o jogador');
+  assert.equal(spawnFits(raso[0], raso[1], [jogador]), false, 'a folga do jogador é a maior');
+});
+
+// E a regra chega ao jogo. Aqui a cobertura é de ligação, não de geometria: um
+// nascimento dentro da folga é raro de sortear (2 em 309 medidos com a regra
+// antiga), então quem reprova a regra antiga é o teste acima.
+test('na partida nenhum corpo nasce dentro da folga do jogador', () => {
+  let nascidos = 0, pior = Infinity, piorComprimento = 0;
+  for (const seed of [11, 29, 47]) {
+    const world = createWorld({ difficulty: 'hard', seed });
+    world.started = true;
+    // Rivais no teto para o nascimento sair comprido: é com corpo longo que a
+    // falha aparecia, porque a cabeça entrava longe e a cauda caía em cima.
+    for (const s of world.snakes) if (!s.player) s.mass = ARENA.respawnCap;
+    const conhecidos = new Set(world.snakes);
+    for (let i = 0; i < 60 * 120; i++) {
+      // Imortal por invulnerabilidade, não por ressurreição: assim o jogador
+      // não vira parede nem alvo, e o que se mede é só o nascimento.
+      world.player.invulnerable = 1e9;
+      world.update(1 / 60, { angle: Math.sin(i / 150) * 3 });
+      for (const s of world.snakes) {
+        if (conhecidos.has(s)) continue;
+        conhecidos.add(s); nascidos++;
+        for (const q of s.path) {
+          const d = Math.hypot(q.x - world.player.x, q.y - world.player.y);
+          if (d < pior) { pior = d; piorComprimento = Math.round(lengthOf(s)); }
+        }
+      }
+    }
+  }
+  assert.ok(nascidos > 30, `o teste precisa ver rivais nascendo para valer (${nascidos})`);
+  // Os pontos do corpo caem sobre o segmento conferido, e o último pode passar
+  // até um espaçamento da ponta.
+  assert.ok(pior >= ARENA.clearPlayer - ARENA.spacing * 2,
+    `corpo de ${piorComprimento} nasceu a ${Math.round(pior)} do jogador, abaixo da folga de ${ARENA.clearPlayer}`);
+});
+
+// Nascer com massa cria massa, e a luz ambiente para de repor em `ARENA.food`:
+// a arena é uma economia fechada. Ancorado no maior rival vivo, o nascimento
+// realimentava a si mesmo — nascer grande, morrer, virar luz, alguém comer e
+// virar um líder maior, que puxava o próximo nascimento. Em 25 minutos medidos
+// a mediana de nascimento ia de 81 a 3214 e a maior chegava a 18568.
+test('a massa de nascimento não acompanha o líder', () => {
+  const level = DIFFICULTIES.normal;
+  const world = createWorld({ difficulty: 'normal', seed: 31 });
+  world.started = true;
+  // Um gigante sozinho não pode mover a âncora: é para isso que ela é mediana.
+  const campo = world.snakes.filter(s => !s.player);
+  for (const s of campo) s.mass = level.mass[0];
+  campo[0].mass = 90000;
+  const conhecidos = new Set(world.snakes);
+  let nascidos = 0, maior = 0;
+  for (let i = 0; i < 60 * 60; i++) {
+    world.player.invulnerable = 1e9;
+    world.update(1 / 60, { angle: Math.sin(i / 300) * 2 });
+    for (const s of world.snakes) {
+      if (conhecidos.has(s)) continue;
+      conhecidos.add(s); nascidos++; maior = Math.max(maior, s.mass);
+    }
+  }
+  assert.ok(nascidos > 10, `o teste precisa ver rivais nascendo para valer (${nascidos})`);
+  assert.ok(maior <= ARENA.respawnCap, `nasceu com ${Math.round(maior)}, acima do teto`);
+  // Pela regra antiga o gigante sozinho já bastaria para um nascimento enorme.
+  assert.ok(maior < 90000 * .18, `o líder ainda puxa o nascimento: ${Math.round(maior)}`);
+});
+
+// Crescer tem de aparecer na tela. O raio travava na massa 21626 e o zoom só
+// parava de encolher na 59975: no meio, crescer *diminuía* a cobra — 12,6 px de
+// cabeça aos 21626 contra 9 px aos 60000. O jogador parou de crescer aos 24919,
+// logo depois do pico, e sentiu um limite que não estava na massa.
+test('crescer nunca diminui a cobra na tela', () => {
+  const naTela = m => radiusOf({ mass: m }) * zoomFor(m);
+  let anterior = 0, quedas = 0, ondeCaiu = 0;
+  for (let m = ARENA.minMass; m <= ARENA.maxMass; m += 13) {
+    const v = naTela(m);
+    if (v < anterior - 1e-12 && !quedas++) ondeCaiu = m;
+    anterior = v;
+  }
+  assert.equal(quedas, 0, `a cabeça começa a encolher na massa ${ondeCaiu}`);
+  // E o ganho precisa ser visível, não um platô disfarçado.
+  assert.ok(naTela(ARENA.maxMass) / naTela(ARENA.startMass) >= 1.7,
+    'crescer da menor à maior massa quase não muda o tamanho na tela');
 });
