@@ -21,6 +21,32 @@ export function logicalSize(aspect) {
   return { w: FIELD.w, h: Math.round(h / FIELD.step) * FIELD.step };
 }
 
+// ------------------------------------------------------------------- 3D
+// O campo deixa de ser um retângulo e vira um tronco de pirâmide: a nave anda
+// num plano em z = 0 e os inimigos vêm de `spawnZ` em direção a ela.
+//
+// A largura jogável sai da projeção, não de um número solto. Um ponto a `d` da
+// câmera aparece a `fov/d` da linha central, então metade do plano de jogo é
+// `(metade da tela lógica) * camBack / fov`. Escolher `fov` e `camBack` e
+// derivar a largura mantém desenho e jogabilidade presos um ao outro: mudar a
+// lente não desalinha a área onde a nave pode andar.
+export const SPACE = {
+  fov: 460,
+  near: 18,
+  camBack: 300,      // distância da câmera ao plano da nave
+  camLift: 26,       // câmera um pouco acima, para ver o chão do túnel
+  camLook: .08,      // quanto a câmera acompanha o desvio lateral da nave
+  spawnZ: 1900,      // onde o inimigo aparece
+  killZ: -180,       // passou daqui para trás, saiu da partida
+  fogStart: 520,
+  fogEnd: 2300,
+  fogFloor: .45,
+  // Meia altura do plano de jogo; a meia largura vem da tela lógica, que muda
+  // com a orientação do aparelho.
+  halfH: 150,
+  halfW: aspectW => aspectW / 2 * 300 / 460
+};
+
 export const PLAYER = {
   radius: 7,            // hitbox menor que o desenho, de propósito
   size: 17,
@@ -31,7 +57,12 @@ export const PLAYER = {
   invuln: 1.3,          // segundos intocável depois de levar dano
   grace: 0.9,           // depois de escolher melhoria
   fireInterval: 0.16,
-  bulletSpeed: 640,
+  // O tiro cruza profundidade, não altura de tela. O combate vai até 1900
+  // unidades, contra os ~640 do campo antigo: manter a velocidade de lá
+  // triplicava o tempo de voo, e um tiro que demora quase um segundo para
+  // chegar não acerta nada que se mexe. Medido: com 640 o primeiro chefe
+  // terminava com 68% de vida em quatro de seis partidas.
+  bulletSpeed: 1100,
   bulletRadius: 3,
   critMult: 2.5,
   pickupRadius: 24,     // generoso: dedo no celular não é mira de precisão
@@ -58,36 +89,64 @@ export const DIFFICULTIES = {
 export const DIFFICULTY_KEYS = Object.keys(DIFFICULTIES);
 
 // `drop` é a chance de soltar power-up; `xp` alimenta a barra de nível.
+// `speed` agora é avanço em profundidade (unidades por segundo em z); o que
+// cada tipo faz em x/y está em `enemies.js`. `radius` é raio de colisão em
+// unidades do mundo, e a malha é desenhada no mesmo raio — malha maior que a
+// hitbox é tiro passando por dentro do desenho.
 export const ENEMIES = {
-  drone:    { name: 'Drone', role: 'Comum', hp: 2, speed: 72, radius: 13, score: 100, xp: 1,
-              drop: 0.05, color: '#ff4fd8', minWave: 1, contact: 1 },
-  dart:     { name: 'Dardo', role: 'Rápido', hp: 1, speed: 215, radius: 10, score: 150, xp: 1,
-              drop: 0.04, color: '#ffe45e', minWave: 2, contact: 1 },
-  weaver:   { name: 'Ziguezague', role: 'Lateral', hp: 3, speed: 58, radius: 13, score: 200, xp: 2,
-              drop: 0.06, color: '#7dff6a', minWave: 4, contact: 1, amp: 0.3, freq: 1.5 },
-  // O Atirador entra antes do Ziguezague: é ele quem ensina a desviar, e até a
-  // onda em que estreia nada no campo consegue acertar quem se mexe.
-  gunner:   { name: 'Atirador', role: 'Dispara', hp: 4, speed: 95, radius: 15, score: 300, xp: 2,
-              drop: 0.09, color: '#ff5a5a', minWave: 3, contact: 1, fireEvery: 1.9, bulletSpeed: 175, stay: 8 },
-  tank:     { name: 'Blindado', role: 'Resistente', hp: 10, speed: 36, radius: 21, score: 450, xp: 4,
+  drone:    { name: 'Drone', role: 'Comum', hp: 2, speed: 150, radius: 15, score: 100, xp: 1,
+              drop: 0.05, color: '#ff4fd8', minWave: 1, contact: 1, amp: 16, freq: 1.1 },
+  dart:     { name: 'Dardo', role: 'Rápido', hp: 1, speed: 430, radius: 11, score: 150, xp: 1,
+              drop: 0.04, color: '#ffe45e', minWave: 2, contact: 1, aim: .55 },
+  weaver:   { name: 'Ziguezague', role: 'Lateral', hp: 3, speed: 125, radius: 15, score: 200, xp: 2,
+              drop: 0.06, color: '#7dff6a', minWave: 4, contact: 1, amp: 78, freq: 1.3 },
+  gunner:   { name: 'Atirador', role: 'Dispara', hp: 4, speed: 190, radius: 16, score: 300, xp: 2,
+              drop: 0.09, color: '#ff5a5a', minWave: 3, contact: 1, holdZ: 620, fireEvery: 1.9,
+              bulletSpeed: 380, stay: 9 },
+  tank:     { name: 'Blindado', role: 'Resistente', hp: 10, speed: 82, radius: 24, score: 450, xp: 4,
               drop: 0.22, color: '#ff9b3d', minWave: 5, contact: 2 },
-  splitter: { name: 'Divisor', role: 'Especial', hp: 5, speed: 55, radius: 16, score: 350, xp: 3,
+  splitter: { name: 'Divisor', role: 'Especial', hp: 5, speed: 118, radius: 18, score: 350, xp: 3,
               drop: 0.1, color: '#5ff4ff', minWave: 6, contact: 1, splits: 3 },
-  hunter:   { name: 'Caçador', role: 'Especial', hp: 3, speed: 370, radius: 12, score: 280, xp: 2,
-              drop: 0.08, color: '#ff7ab8', minWave: 7, contact: 1, lock: 0.8 },
-  spinner:  { name: 'Sentinela', role: 'Especial', hp: 8, speed: 80, radius: 17, score: 520, xp: 4,
-              drop: 0.16, color: '#a47bff', minWave: 8, contact: 1, fireEvery: 2.7, ring: 10, bulletSpeed: 120, stay: 10 }
+  hunter:   { name: 'Caçador', role: 'Especial', hp: 3, speed: 700, radius: 13, score: 280, xp: 2,
+              drop: 0.08, color: '#ff7ab8', minWave: 7, contact: 1, lock: 0.8, cruise: 120 },
+  spinner:  { name: 'Sentinela', role: 'Especial', hp: 8, speed: 150, radius: 19, score: 520, xp: 4,
+              drop: 0.16, color: '#a47bff', minWave: 8, contact: 1, holdZ: 780, fireEvery: 2.7,
+              ring: 10, bulletSpeed: 300, stay: 11 },
+
+  // ----------------------------------------------- nascidos da profundidade
+  // Estes seis não teriam sentido no plano: todos usam o eixo z como parte da
+  // ameaça, seja na rota, no alinhamento ou no tempo até chegar.
+  diver:    { name: 'Mergulhador', role: 'Arco', hp: 3, speed: 260, radius: 15, score: 320, xp: 2,
+              drop: 0.08, color: '#ffa94d', minWave: 9, contact: 1, swing: 210, arc: 1.5 },
+  wall:     { name: 'Muralha', role: 'Barreira', hp: 6, speed: 95, radius: 26, score: 260, xp: 2,
+              drop: 0.07, color: '#ff6b6b', minWave: 10, contact: 2, slab: true },
+  orbiter:  { name: 'Orbital', role: 'Circula', hp: 5, speed: 230, radius: 16, score: 380, xp: 3,
+              drop: 0.11, color: '#9dff6a', minWave: 11, contact: 1, holdZ: 420, orbit: 150,
+              spin: 1.25, stay: 12 },
+  mirror:   { name: 'Espelho', role: 'Reflete', hp: 4, speed: 110, radius: 18, score: 440, xp: 3,
+              drop: 0.14, color: '#7ad7ff', minWave: 12, contact: 1, reflect: .62, turn: 2.6 },
+  swarm:    { name: 'Enxame', role: 'Grupo', hp: 2, speed: 205, radius: 11, score: 120, xp: 1,
+              drop: 0.03, color: '#ffd166', minWave: 13, contact: 1, cohesion: 46, jitter: 1.9 },
+  lancer:   { name: 'Perfurador', role: 'Feixe', hp: 7, speed: 130, radius: 17, score: 560, xp: 4,
+              drop: 0.18, color: '#c77bff', minWave: 14, contact: 1, holdZ: 1050, charge: 1.5,
+              beam: .9, beamEvery: 3.4, beamR: 34, stay: 14 }
 };
 
 export const ENEMY_DESCRIPTIONS = {
-  drone: 'Desce em linha e oscila de leve.',
-  dart: 'Mergulha na sua direção em alta velocidade.',
-  weaver: 'Varre a tela de um lado para o outro.',
-  gunner: 'Para no alto e dispara tiros mirados.',
+  drone: 'Vem reto da profundidade, oscilando de leve.',
+  dart: 'Mira uma vez e mergulha em alta velocidade.',
+  weaver: 'Varre de um lado ao outro enquanto se aproxima.',
+  gunner: 'Para a meia distância e dispara mirado.',
   tank: 'Lento, muito resistente e causa 2 de dano na colisão.',
-  splitter: 'Ao ser destruído, se divide em dardos.',
-  hunter: 'Pisca antes de avançar em linha reta até você.',
-  spinner: 'Gira no alto e solta anéis de tiros.'
+  splitter: 'Ao ser destruído, se abre em dardos para os lados.',
+  hunter: 'Pisca, trava o rumo e avança em linha reta até você.',
+  spinner: 'Gira ao longe e solta anéis que se abrem ao vir.',
+  diver: 'Abre em arco para fora e volta cortando o seu plano.',
+  wall: 'Vem em barreira com uma brecha. Alinhe-se ou abra caminho.',
+  orbiter: 'Para perto e circula o seu eixo: tem de girar a mira.',
+  mirror: 'A face da frente devolve o seu tiro. Acerte de lado.',
+  swarm: 'Nuvem que se move como um corpo só e se abre ao ser tocada.',
+  lancer: 'Carrega ao longe e varre a coluna onde você está.'
 };
 
 export const POWERUPS = {
@@ -168,20 +227,25 @@ export const PATTERNS = {
 // de mira certeira no meio da partida, e na prática o jogador passa a maior
 // parte do tempo desviando. Vida alta demais não deixa a luta difícil, deixa
 // longa — e o desgaste cobra a vida do jogador antes da perícia.
+// A vida dos chefes foi reduzida a 60% na passagem para 3D. Ela tinha sido
+// calibrada contra um alvo no topo da tela, acertado por tiro que subia pela
+// coluna; contra um chefe que varre lateralmente a quinhentas unidades de
+// distância, a taxa de acerto sustentada é bem menor. Medido com seis
+// sementes: sem o corte, seis de seis partidas terminavam na onda 5.
 export const BOSSES = [
-  { id: 'prisma', name: 'Guardião Prisma', color: '#5ff4ff', radius: 42, hp: 92,
+  { id: 'prisma', name: 'Guardião Prisma', color: '#5ff4ff', radius: 42, hp: 55,
     phases: [
       { speed: 40, rest: 1, patterns: ['aimed3', 'ring12', 'aimed3'] },
       { speed: 55, rest: 0.8, patterns: ['spiral', 'aimed5', 'ring16'] },
       { speed: 72, rest: 0.55, patterns: ['curtain', 'spiral2', 'aimed5', 'drones'] }
     ] },
-  { id: 'vespa', name: 'Vespa Ômega', color: '#ffb13d', radius: 44, hp: 186,
+  { id: 'vespa', name: 'Vespa Ômega', color: '#ffb13d', radius: 44, hp: 112,
     phases: [
       { speed: 60, rest: 1, patterns: ['fan7', 'aimed3', 'fan7'] },
       { speed: 75, rest: 0.8, patterns: ['charge', 'fan9', 'darts'] },
       { speed: 95, rest: 0.55, patterns: ['charge', 'burst', 'ring16', 'fan9'] }
     ] },
-  { id: 'eclipse', name: 'Núcleo Eclipse', color: '#c07bff', radius: 40, hp: 268,
+  { id: 'eclipse', name: 'Núcleo Eclipse', color: '#c07bff', radius: 40, hp: 161,
     phases: [
       { speed: 30, rest: 1, patterns: ['ring12', 'aimed3', 'ring12twist'] },
       { speed: 40, rest: 0.8, patterns: ['spiral3', 'hunters', 'ring16'] },

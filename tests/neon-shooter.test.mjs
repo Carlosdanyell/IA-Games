@@ -12,19 +12,28 @@ const idle = { dx: 0, dy: 0, vx: 0, vy: 0, firing: false, autofire: true };
 const finite = (...values) => values.every(Number.isFinite);
 
 // Piloto simples: segue na horizontal o chefe ou o inimigo mais próximo da nave.
+// Piloto automático em três eixos. O tiro viaja em profundidade e só acerta
+// quem está alinhado em x e em y, então mirar passou a ser as duas coisas: o
+// piloto antigo só acompanhava x e não acertava quase nada.
 function autopilot(W) {
   const p = W.player;
   let target = W.boss && W.boss.state === 'fight' ? W.boss : null;
   let best = Infinity;
   if (!target) {
     for (const e of W.enemies) {
-      if (e.y < 0) continue;
-      const score = Math.abs(e.x - p.x) + (W.h - e.y) * 0.2;
+      if (e.z <= p.z) continue;
+      // Prefere quem está perto do eixo de tiro e chegando: é o alvo que o
+      // tiro de fato alcança antes de o inimigo passar.
+      const score = Math.hypot(e.x - p.x, e.y - p.y) + e.z * 0.25;
       if (score < best) { best = score; target = e; }
     }
   }
-  const tx = target ? target.x : W.w / 2;
-  return { ...idle, vx: Math.max(-1, Math.min(1, (tx - p.x) / 30)) };
+  const tx = target ? target.x : 0, ty = target ? target.y : 0;
+  return {
+    ...idle,
+    vx: Math.max(-1, Math.min(1, (tx - p.x) / 22)),
+    vy: Math.max(-1, Math.min(1, (p.y - ty) / 22))
+  };
 }
 
 function play(W, seconds, controls = () => idle) {
@@ -42,35 +51,45 @@ function play(W, seconds, controls = () => idle) {
 // Piloto que desvia: campo de repulsão das ameaças mais atração pelo alvo. Sem
 // ele a medição da dificuldade só mede quem não sabe jogar — e a curva que
 // interessa é a de quem se mexe.
+// Piloto que desvia, em três eixos. Uma ameaça só importa quando está perto em
+// profundidade E alinhada com a nave: o que empurra é o desvio em x/y, pesado
+// pelo quanto falta em z. O piloto antigo pensava em altura de tela e, num jogo
+// com profundidade, fugia de coisas que ainda estavam a dois mil de distância.
 function dodger(W) {
   const p = W.player;
   let fx = 0, fy = 0;
-  const push = (x, y, weight, range) => {
+  const push = (x, y, z, weight, range) => {
+    const dz = z - p.z;
+    if (dz < -40 || dz > 900) return;
     const dx = p.x - x, dy = p.y - y, d = Math.hypot(dx, dy) || 1;
     if (d > range) return;
-    const f = weight * (1 - d / range) / d;
+    // Quanto menos falta em z, mais urgente é sair da frente.
+    const urgencia = 1 - Math.min(1, dz / 900);
+    const f = weight * urgencia * (1 - d / range) / d;
     fx += dx * f; fy += dy * f;
   };
-  for (const s of W.shots) {
-    const t = ((p.x - s.x) * s.vx + (p.y - s.y) * s.vy) / (s.vx * s.vx + s.vy * s.vy || 1);
-    if (t >= 0 && t <= 1.2) push(s.x + s.vx * t * 0.6, s.y + s.vy * t * 0.6, 260, 120);
+  for (const s of W.shots) push(s.x, s.y, s.z, 220, 90);
+  for (const e of W.enemies) push(e.x, e.y, e.z, 190, 70 + e.r * 2);
+  // Do chefe só se foge quando ele está perto de encostar. Fugir dele de longe
+  // é fugir do próprio eixo de tiro: em 3D sair de x/y é perder a mira, e um
+  // piloto que faz isso nunca derruba o chefe — foi o que travou a onda 5.
+  if (W.boss && W.boss.state === 'fight' && W.boss.z - p.z < 220) {
+    push(W.boss.x, W.boss.y, W.boss.z, 300, 150);
   }
-  for (const e of W.enemies) if (e.y > -20) push(e.x, e.y, 200, 90 + e.r * 2);
-  if (W.boss && W.boss.state === 'fight') push(W.boss.x, W.boss.y, 300, 120);
+  // Mira: o alvo que o tiro alcança antes de passar.
   let target = W.boss && W.boss.state === 'fight' ? W.boss : null, best = Infinity;
   if (!target) for (const e of W.enemies) {
-    if (e.y < 0) continue;
-    const s = Math.abs(e.x - p.x) + (W.h - e.y) * 0.25;
+    if (e.z <= p.z) continue;
+    const s = Math.hypot(e.x - p.x, e.y - p.y) + e.z * 0.25;
     if (s < best) { best = s; target = e; }
   }
-  fx += Math.max(-1, Math.min(1, ((target ? target.x : W.w / 2) - p.x) / 40)) * 0.55;
-  fy += (W.h - PLAYER.bottom - p.y) / 400 * 0.4;
+  fx += Math.max(-1, Math.min(1, ((target ? target.x : 0) - p.x) / 30)) * 0.6;
+  fy += Math.max(-1, Math.min(1, ((target ? target.y : 0) - p.y) / 30)) * 0.6;
   const m = Math.max(1, Math.hypot(fx, fy));
-  return { ...idle, vx: Math.max(-1, Math.min(1, fx / m)), vy: Math.max(-1, Math.min(1, fy / m)) };
+  // `vy` positivo desce na tela, e o mundo cresce para cima: o sinal inverte.
+  return { ...idle, vx: Math.max(-1, Math.min(1, fx / m)), vy: Math.max(-1, Math.min(1, -fy / m)) };
 }
 
-// Partida completa no compasso do jogo: a melhoria só sai no intervalo, uma por
-// onda, e tudo o que está guardado é gasto no intervalo que antecede o chefe.
 function simulate(difficulty, seed, seconds) {
   const W = createWorld({ w: 360, h: 640, difficulty, seed });
   let upgradeWave = 0;
@@ -191,8 +210,8 @@ test('chefe surge na onda 5, muda de fase pela vida e rende melhoria ao cair', (
 
 test('bomba fere todos os inimigos e limpa os tiros inimigos', () => {
   const W = createWorld({ w: 360, h: 640, seed: 4 });
-  for (let i = 0; i < 5; i++) W.enemies.push(makeEnemy(W, 'drone', 40 + i * 60, 120));
-  W.shots.push({ x: 100, y: 300, vx: 0, vy: 100, r: 4, color: '#fff', t: 0 });
+  for (let i = 0; i < 5; i++) W.enemies.push(makeEnemy(W, 'drone', (i - 2) * 40, 0, 600));
+  W.shots.push({ x: 0, y: 0, z: 400, vx: 0, vy: 0, vz: -100, r: 4, color: '#fff', t: 0 });
   W.collect('bomb');
   assert.ok(W.enemies.every(e => e.dead));
   assert.equal(W.shots.length, 0);
