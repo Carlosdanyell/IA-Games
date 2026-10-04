@@ -2,9 +2,16 @@ export const ARENA = {
   // A arena acompanha o teto de crescimento: com o raio antigo de 1800 uma
   // cobra grande enxergava quase o mapa inteiro e não sobrava para onde fugir.
   radius: 3600, food: 3400, maxFood: 8000, speed: 175, boost: 300,
-  // O teto de massa é alto de propósito: no ritmo real de uma partida ele nunca
-  // é alcançado, então crescer não esbarra em parede como acontecia com 6000.
-  startMass: 32, minMass: 26, maxMass: 120000, spacing: 6,
+  // O teto de massa era 120000 e a justificativa era que ninguém o alcançaria.
+  // Alcançaram: numa partida real o jogador passou de cem mil e crescer parou.
+  // Pior, o `Math.min` que aplica o teto puxava de volta quem estivesse acima.
+  // O valor novo é medido, não estimado. Com a CPU seis vezes mais lenta, o
+  // desenho satura perto da massa 60000, onde o zoom chega ao piso e o corpo
+  // além de uma tela passa a ser recortado: 19,7 ms de mediana lá, 18,5 ms em
+  // 120000 e 21,5 ms em 250000. Em 500000 salta para 33,3 ms, e a simulação
+  // acompanha (1,08 ms em 120000, 1,20 em 250000, 1,29 em 500000). 250000 é o
+  // último degrau que cabe no quadro com folga.
+  startMass: 32, minMass: 26, maxMass: 250000, spacing: 6,
   // Luz reposta por ciclo de 0,25 s. Acompanha o tamanho da arena, senão uma
   // cobra grande limpa a região e o mapa demora a repor.
   refill: 40,

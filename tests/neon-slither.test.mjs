@@ -98,8 +98,13 @@ test('crescer continua visível muito além do teto antigo', () => {
   for (const m of [ARENA.startMass, 1000, 10000, ARENA.maxMass])
     assert.ok(fatia(m) > .015 && fatia(m) < .06, `na massa ${m} a cabeça ocupa ${(fatia(m) * 100).toFixed(1)}% da tela`);
 
-  // A arena tem de comportar a maior cobra e ainda sobrar mapa para fugir.
-  assert.ok(lengthOf({ mass: ARENA.maxMass }) < ARENA.radius * 2 * 1.2, 'a cobra máxima não pode ser maior que a arena');
+  // A arena tem de comportar a maior cobra e ainda sobrar mapa para fugir. A
+  // conta é de área ocupada, não de comprimento contra diâmetro: uma cobra mais
+  // comprida que a arena cabe enrolada sem atrapalhar ninguém, e era o
+  // comprimento que fazia este teste reprovar um teto de massa saudável.
+  const areaCobra = m => lengthOf({ mass: m }) * radiusOf({ mass: m }) * 2;
+  const ocupa = areaCobra(ARENA.maxMass) / (Math.PI * ARENA.radius ** 2);
+  assert.ok(ocupa < .05, `a maior cobra ocupa ${(ocupa * 100).toFixed(1)}% da arena`);
   assert.ok(campoPara(ARENA.maxMass) / (ARENA.radius * 2) < .4, 'no tamanho máximo ainda tem de sobrar mapa fora da tela');
 });
 
@@ -617,4 +622,23 @@ test('crescer nunca diminui a cobra na tela', () => {
   // E o ganho precisa ser visível, não um platô disfarçado.
   assert.ok(naTela(ARENA.maxMass) / naTela(ARENA.startMass) >= 1.7,
     'crescer da menor à maior massa quase não muda o tamanho na tela');
+});
+
+// O teto de massa era alcançável, e um teto alcançável é uma parede. Acima dele
+// comer deixava de somar — e o `Math.min` ainda puxava de volta quem estivesse
+// acima, o que inutilizou uma bancada antes de eu perceber. O valor novo vem da
+// medição de desenho com a CPU seis vezes mais lenta.
+test('o teto de massa fica longe do que o quadro aguenta', () => {
+  const pontos = m => Math.ceil(lengthOf({ mass: m }) / ARENA.spacing) + 1;
+  assert.ok(ARENA.maxMass >= 250000, `teto em ${ARENA.maxMass}, abaixo do medido como folgado`);
+  // 500000 dá 2605 pontos e 33,3 ms de desenho; 250000 dá 1846 e 21,5 ms. O
+  // limite de pontos é o que separa os dois, então é ele que o teste tranca.
+  assert.ok(pontos(ARENA.maxMass) <= 1900,
+    `corpo de ${pontos(ARENA.maxMass)} pontos no teto, acima dos 1846 medidos como folgados`);
+  // E o teto não pode ser confundido com o limite visual: raio, zoom e campo de
+  // visão saturam perto de 60000, muito antes. Daí para cima o que sobe é o
+  // número e o comprimento do corpo, que continua valendo como obstáculo.
+  assert.ok(ARENA.maxMass > 60000 * 3, 'o teto precisa ficar bem acima da saturação visual');
+  assert.equal(radiusOf({ mass: ARENA.maxMass / 2 }), radiusOf({ mass: ARENA.maxMass }),
+    'a espessura precisa saturar bem antes do teto, senão o teto vira o limite visual');
 });
