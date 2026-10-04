@@ -1,5 +1,5 @@
 import { createRng } from '../../core/rng.js';
-import { PLAYER, POWERUPS, POWER, TIMED_POWERUPS, UPGRADES, WAVES, SCORE, BOSS, DIFFICULTIES,
+import { PLAYER, POWERUPS, POWER, TIMED_POWERUPS, UPGRADES, WAVES, SCORE, BOSS, DIFFICULTIES, SPACE,
   xpForLevel, comboMultiplier } from './config.js';
 import { buildWave, spawnGroup, updateEnemy, splitEnemy, makeBoss, updateBoss, weightedPick, clamp }
   from './enemies.js';
@@ -8,10 +8,16 @@ import { buildWave, spawnGroup, updateEnemy, splitEnemy, makeBoss, updateBoss, w
 // melhorias e pontuação. Não desenha nem toca som: registra `events`, que o
 // jogo consome a cada quadro para efeitos visuais, áudio e HUD.
 
-const hit = (ax, ay, bx, by, r) => {
-  const dx = ax - bx, dy = ay - by;
-  return dx * dx + dy * dy < r * r;
+// Colisão por esfera no espaço. O `z` entra na conta como qualquer outro eixo:
+// um inimigo alinhado em x e y mas ainda longe não encosta em ninguém, e é
+// isso que faz a profundidade ser ameaça de verdade e não enfeite.
+const hit = (a, b, r) => {
+  const dx = a.x - b.x, dy = a.y - b.y, dz = (a.z || 0) - (b.z || 0);
+  return dx * dx + dy * dy + dz * dz < r * r;
 };
+// Tela para mundo no plano da nave. O dedo arrasta em pixels lógicos; a nave
+// anda em unidades do mundo, e o fator é o mesmo da projeção.
+export const screenToWorld = SPACE.camBack / SPACE.fov;
 
 export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) {
   const diff = DIFFICULTIES[difficulty] || DIFFICULTIES.normal;
@@ -19,8 +25,11 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
   const W = {
     w, h, difficulty: DIFFICULTIES[difficulty] ? difficulty : 'normal', diff, rng: createRng(seed >>> 0),
     time: 0, over: false, slowmo: 0,
-    player: { x: w / 2, y: h - PLAYER.bottom, hp: PLAYER.maxHp, maxHp: PLAYER.maxHp,
-              invuln: 0, fire: 0, aegis: 0, tilt: 0, alive: true, hitFlash: 0 },
+    // A nave vive no plano z = 0, com a origem no centro: `y` cresce para cima,
+    // como no mundo, e só a projeção inverte para a tela.
+    halfW: SPACE.halfW(w), halfH: SPACE.halfH,
+    player: { x: 0, y: -SPACE.halfH * .52, z: 0, hp: PLAYER.maxHp, maxHp: PLAYER.maxHp,
+              invuln: 0, fire: 0, aegis: 0, tilt: 0, pitch: 0, alive: true, hitFlash: 0 },
     bullets: [], enemies: [], shots: [], drops: [], boss: null,
     wave: 0, stage: 'intro', stageTimer: 0, queue: [], queueTimer: 0, waveDamaged: false, bossCount: 0,
     score: 0, kills: 0, combo: 0, maxCombo: 0, bosses: 0, powerups: 0, flawless: 0,
@@ -161,13 +170,17 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
     const triple = W.up.spread > 0 || W.effects.triple > 0;
     const r = PLAYER.bulletRadius * (1 + W.up.bigshot * 0.35);
     const pierce = W.up.pierce + (W.effects.pierce > 0 ? 3 : 0);
-    const guns = double ? [[-7, 0], [7, 0]] : [[0, 0]];
-    if (triple) guns.push([-5, -0.17], [5, 0.17]);
+    // O tiro viaja em +z, para dentro da tela. A abertura do leque abre em x:
+    // alinhar o alvo em x e y continua sendo a mira, e a profundidade vira o
+    // tempo até acertar.
+    const guns = double ? [[-9, 0], [9, 0]] : [[0, 0]];
+    if (triple) guns.push([-7, -0.17], [7, 0.17]);
     for (const [ox, angle] of guns) {
       if (W.bullets.length >= PLAYER.maxBullets) break;
       const crit = W.up.crit > 0 && W.rng.chance(W.up.crit * 0.1);
       W.bullets.push({
-        x: p.x + ox, y: p.y - 16, vx: Math.sin(angle) * PLAYER.bulletSpeed, vy: -Math.cos(angle) * PLAYER.bulletSpeed,
+        x: p.x + ox, y: p.y, z: p.z + 22,
+        vx: Math.sin(angle) * PLAYER.bulletSpeed, vy: 0, vz: Math.cos(angle) * PLAYER.bulletSpeed,
         r: crit ? r * 1.35 : r, damage: damageFactor() * (crit ? PLAYER.critMult : 1), pierce, crit, hits: null
       });
     }
@@ -176,10 +189,16 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
 
   function updatePlayer(dt, c) {
     const speed = PLAYER.speed * (1 + W.up.speed * 0.15);
-    const oldX = p.x;
-    p.x = clamp(p.x + (c.dx || 0) + (c.vx || 0) * speed * dt, 14, W.w - 14);
-    p.y = clamp(p.y + (c.dy || 0) + (c.vy || 0) * speed * dt, W.h * PLAYER.topLimit, W.h - 26);
-    p.tilt += (clamp((p.x - oldX) / dt / 520, -1, 1) - p.tilt) * Math.min(1, dt * 10);
+    const oldX = p.x, oldY = p.y;
+    // `dx`/`dy` vêm do dedo, em pixels lógicos: convertidos para o mundo pelo
+    // mesmo fator da projeção. `dy` troca de sinal porque a tela cresce para
+    // baixo e o mundo para cima.
+    p.x = clamp(p.x + (c.dx || 0) * screenToWorld + (c.vx || 0) * speed * dt, -W.halfW, W.halfW);
+    p.y = clamp(p.y - (c.dy || 0) * screenToWorld - (c.vy || 0) * speed * dt, -W.halfH, W.halfH);
+    // Inclinação e arfagem saem do movimento: é o que dá volume à manobra sem
+    // custar nada, agora que a nave é um sólido de verdade.
+    p.tilt += (clamp((p.x - oldX) / dt / 260, -1, 1) - p.tilt) * Math.min(1, dt * 10);
+    p.pitch += (clamp((p.y - oldY) / dt / 260, -1, 1) - p.pitch) * Math.min(1, dt * 10);
     if (p.invuln > 0) p.invuln -= dt;
     if (p.hitFlash > 0) p.hitFlash -= dt;
     if (W.up.aegis) {
@@ -191,7 +210,7 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
         emit({ type: 'aegis', x: p.x, y: p.y });
       }
     }
-    const targets = (W.boss && W.boss.state === 'fight') || W.enemies.some(e => e.y > 0 && e.y < W.h);
+    const targets = (W.boss && W.boss.state === 'fight') || W.enemies.some(e => e.z > p.z && e.z < SPACE.spawnZ);
     p.fire -= dt;
     if ((c.autofire && targets) || c.firing) {
       if (p.fire <= 0) { fire(); p.fire = fireInterval(); }
@@ -210,10 +229,10 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
     gainXp(e.xp);
     W.dropPity++;
     if (e.drop && (W.rng.chance(e.drop * diff.drops * (p.hp <= 2 ? 1.3 : 1)) || W.dropPity >= 28)) {
-      spawnDrop(e.x, e.y);
+      spawnDrop(e.x, e.y, e.z);
     }
     if (e.type === 'splitter') splitEnemy(W, e);
-    emit({ type: 'kill', x: e.x, y: e.y, color: e.color, r: e.r, kind: e.type, points, combo: W.combo });
+    emit({ type: 'kill', x: e.x, y: e.y, z: e.z, color: e.color, r: e.r, kind: e.type, points, combo: W.combo });
   }
 
   function damageEnemy(e, amount, crit = false) {
@@ -221,7 +240,7 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
     e.hp -= amount;
     e.flash = 0.07;
     if (e.hp <= 0) killEnemy(e);
-    else emit({ type: 'hit', x: e.x, y: e.y, color: e.color, crit });
+    else emit({ type: 'hit', x: e.x, y: e.y, z: e.z, color: e.color, crit });
   }
 
   function damageBoss(amount, crit = false) {
@@ -236,8 +255,8 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
     W.score += points;
     W.shots.length = 0;
     for (const e of W.enemies) killEnemy(e);
-    spawnDrop(b.x - 26, b.y);
-    spawnDrop(b.x + 26, b.y, p.hp < p.maxHp ? 'heal' : null);
+    spawnDrop(b.x - 40, b.y, b.z);
+    spawnDrop(b.x + 40, b.y, b.z, p.hp < p.maxHp ? 'heal' : null);
     gainXp(W.xpNext - W.xp);
     W.slowmo = 0.9;
     emit({ type: 'bossDown', x: b.x, y: b.y, r: b.r, color: b.def.color, name: b.name, points });
@@ -253,20 +272,21 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
     return weightedPick(W.rng, list).k;
   }
 
-  function spawnDrop(x, y, kind = null) {
+  function spawnDrop(x, y, z = 0, kind = null) {
     if (W.drops.length >= 6) return;
     W.dropPity = 0;
-    W.drops.push({ x: clamp(x, 20, W.w - 20), y, kind: kind || pickPowerup(), t: 0 });
+    W.drops.push({ x: clamp(x, -W.halfW, W.halfW), y: clamp(y, -W.halfH, W.halfH), z,
+                   kind: kind || pickPowerup(), t: 0 });
   }
 
-  function collect(kind, x = p.x, y = p.y) {
+  function collect(kind, x = p.x, y = p.y, z = p.z) {
     W.powerups++;
     W.score += Math.round(SCORE.pickup * diff.score);
     const def = POWERUPS[kind];
     if (kind === 'heal') p.hp = Math.min(p.maxHp, p.hp + 1);
     else if (kind === 'bomb') {
       const damage = POWER.bombDamage * damageFactor();
-      for (const e of W.enemies) if (e.y > -e.r) damageEnemy(e, damage);
+      for (const e of W.enemies) if (e.z > SPACE.killZ) damageEnemy(e, damage);
       if (W.boss) damageBoss(W.boss.maxHp * POWER.bombBossDamage);
       W.shots.length = 0;
     } else {
@@ -274,7 +294,7 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
       W.effects[kind] = Math.max(W.effects[kind], time);
       W.effectMax[kind] = W.effects[kind];
     }
-    emit({ type: kind === 'bomb' ? 'bomb' : 'pickup', kind, x, y, color: def.color });
+    emit({ type: kind === 'bomb' ? 'bomb' : 'pickup', kind, x, y, z, color: def.color });
   }
 
   // ------------------------------------------------------------- passo
@@ -298,20 +318,33 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
       const b = W.bullets[i];
       b.x += b.vx * dt;
       b.y += b.vy * dt;
-      let remove = b.y < -20 || b.x < -20 || b.x > W.w + 20;
-      if (!remove && boss && boss.state === 'fight' && hit(b.x, b.y, boss.x, boss.y, boss.r * 0.85 + b.r)) {
+      b.z += b.vz * dt;
+      // Some ao passar do ponto mais distante onde nasce inimigo: além disso o
+      // tiro não tem mais nada para acertar.
+      let remove = b.z > SPACE.spawnZ + 120 || Math.abs(b.x) > W.halfW * 6;
+      if (!remove && boss && boss.state === 'fight' && hit(b, boss, boss.r * 0.85 + b.r)) {
         damageBoss(b.damage, b.crit);
         remove = true;
       }
       if (!remove) {
         for (const e of W.enemies) {
-          if (e.dead || e.y < -e.r || (e.small && e.t < 0.12) || (b.hits && b.hits.includes(e))) continue;
-          if (!hit(b.x, b.y, e.x, e.y, e.r + b.r)) continue;
+          if (e.dead || e.z < SPACE.killZ || (e.small && e.t < 0.12) || (b.hits && b.hits.includes(e))) continue;
+          if (!hit(b, e, e.r + b.r)) continue;
+          // O Espelho devolve o que bate de frente. Só a face voltada para a
+          // nave reflete, então acertá-lo exige esperar ele virar ou pegá-lo
+          // de lado — é a razão de ele existir num jogo com profundidade.
+          if (e.reflect && b.vz > 0 && Math.cos(e.face || 0) > e.reflect) {
+            b.vz = -Math.abs(b.vz); b.damage *= .8; b.mirrored = true;
+            W.events.push({ type: 'reflect', x: e.x, y: e.y, z: e.z, color: e.color });
+            break;
+          }
           damageEnemy(e, b.damage, b.crit);
           if (b.pierce > 0) { b.pierce--; (b.hits ||= []).push(e); } else remove = true;
           break;
         }
       }
+      if (!remove && b.mirrored && p.alive && hit(b, p, PLAYER.radius + b.r) && hurtPlayer(1)) remove = true;
+      if (!remove && b.vz < 0 && b.z < SPACE.killZ) remove = true;
       if (remove) { W.bullets[i] = W.bullets[W.bullets.length - 1]; W.bullets.pop(); }
     }
 
@@ -319,7 +352,7 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
     for (let i = W.enemies.length - 1; i >= 0; i--) {
       const e = W.enemies[i];
       const keep = !e.dead && updateEnemy(W, e, edt);
-      if (keep && p.alive && hit(e.x, e.y, p.x, p.y, e.r * 0.8 + PLAYER.radius) && hurtPlayer(e.contact)) {
+      if (keep && p.alive && hit(e, p, e.r * 0.8 + PLAYER.radius) && hurtPlayer(e.contact)) {
         damageEnemy(e, e.type === 'tank' ? 4 : 99);
       }
       if (!keep || e.dead) { W.enemies[i] = W.enemies[W.enemies.length - 1]; W.enemies.pop(); }
@@ -332,10 +365,10 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
       // em vez de desgaste, e quem tira vida do chefe ganha fôlego de volta.
       for (let i = before; i < W.events.length; i++) {
         if (W.events[i].type !== 'bossPhase') continue;
-        spawnDrop(W.boss.x, W.boss.y + W.boss.r * 0.8, p.hp < p.maxHp ? 'heal' : null);
+        spawnDrop(W.boss.x, W.boss.y - W.boss.r * 0.8, W.boss.z, p.hp < p.maxHp ? 'heal' : null);
       }
       const b = W.boss;
-      if (p.alive && b.state === 'fight' && hit(b.x, b.y, p.x, p.y, b.r * 0.8 + PLAYER.radius)) hurtPlayer(BOSS.contact);
+      if (p.alive && b.state === 'fight' && hit(b, p, b.r * 0.8 + PLAYER.radius)) hurtPlayer(BOSS.contact);
     }
 
     // Tiros inimigos.
@@ -343,9 +376,10 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
       const s = W.shots[i];
       s.x += s.vx * edt;
       s.y += s.vy * edt;
+      s.z += s.vz * edt;
       s.t += edt;
-      let remove = s.y > W.h + 20 || s.y < -30 || s.x < -20 || s.x > W.w + 20;
-      if (!remove && p.alive && hit(s.x, s.y, p.x, p.y, s.r * 0.8 + PLAYER.radius) && hurtPlayer(1)) remove = true;
+      let remove = s.z < SPACE.killZ || s.z > SPACE.spawnZ + 200 || Math.abs(s.x) > W.halfW * 7;
+      if (!remove && p.alive && hit(s, p, s.r * 0.8 + PLAYER.radius) && hurtPlayer(1)) remove = true;
       if (remove) { W.shots[i] = W.shots[W.shots.length - 1]; W.shots.pop(); }
     }
 
@@ -354,26 +388,33 @@ export function createWorld({ w, h, difficulty = 'normal', seed = Date.now() }) 
     for (let i = W.drops.length - 1; i >= 0; i--) {
       const d = W.drops[i];
       d.t += dt;
-      const dx = p.x - d.x, dy = p.y - d.y, dist = Math.hypot(dx, dy) || 1;
-      if (p.alive && dist < magnet) { d.x += dx / dist * 280 * dt; d.y += dy / dist * 280 * dt; }
-      else d.y += POWER.fall * dt;
-      let remove = d.y > W.h + 30;
-      if (p.alive && dist < PLAYER.pickupRadius + 12) { collect(d.kind, d.x, d.y); remove = true; }
+      // O power-up vem vindo pela profundidade como todo o resto; o ímã puxa
+      // nos três eixos, senão ele passa ao lado e some atrás da nave.
+      const dx = p.x - d.x, dy = p.y - d.y, dz = p.z - d.z;
+      const dist = Math.hypot(dx, dy, dz) || 1;
+      if (p.alive && dist < magnet) {
+        d.x += dx / dist * 280 * dt; d.y += dy / dist * 280 * dt; d.z += dz / dist * 280 * dt;
+      } else d.z -= POWER.fall * dt;
+      let remove = d.z < SPACE.killZ;
+      if (p.alive && dist < PLAYER.pickupRadius + 12) { collect(d.kind, d.x, d.y, d.z); remove = true; }
       if (remove) { W.drops[i] = W.drops[W.drops.length - 1]; W.drops.pop(); }
     }
   }
 
   function resize(nw, nh) {
     if (nw === W.w && nh === W.h) return;
-    const sx = nw / W.w;
+    // Virar o aparelho muda a largura do plano jogável. Tudo que está no mundo
+    // acompanha na mesma proporção, senão quem estava na borda fica fora dela.
+    const novaMeia = SPACE.halfW(nw), sx = novaMeia / W.halfW;
     for (const list of [W.enemies, W.bullets, W.shots, W.drops]) {
       for (const o of list) { o.x *= sx; if (o.baseX !== undefined) o.baseX *= sx; }
     }
     if (W.boss) W.boss.x *= sx;
-    p.x = clamp(p.x * sx, 14, nw - 14);
+    W.halfW = novaMeia;
     W.w = nw;
     W.h = nh;
-    p.y = clamp(p.y, nh * PLAYER.topLimit, nh - 26);
+    p.x = clamp(p.x * sx, -novaMeia, novaMeia);
+    p.y = clamp(p.y, -W.halfH, W.halfH);
   }
 
   function summary() {

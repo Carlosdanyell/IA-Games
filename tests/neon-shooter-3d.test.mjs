@@ -138,3 +138,69 @@ test('nada no núcleo aloca por ponto transformado', () => {
 });
 
 test('o ângulo cheio é uma volta', () => assert.ok(perto(TAU, Math.PI * 2)));
+
+// -------------------------------------------------------------- simulação
+import { createWorld } from '../games/neon-shooter/world.js';
+import { makeEnemy } from '../games/neon-shooter/enemies.js';
+import { ENEMIES, SPACE } from '../games/neon-shooter/config.js';
+
+// Roda a partida com um piloto simples e imortal, para o teste medir o
+// comportamento dos inimigos e não a sobrevivência de um piloto de mentira.
+function rodar({ seed = 7, segundos = 120, wave = 1, difficulty = 'normal' } = {}) {
+  const W = createWorld({ w: 360, h: 640, difficulty, seed });
+  W.beginWave(wave);
+  const dt = 1 / 60;
+  const vistos = new Set();
+  let maxZ = -Infinity, minZ = Infinity, tiros = 0;
+  for (let i = 0; i < segundos / dt; i++) {
+    W.player.invuln = 9e9;
+    // Vai e volta no plano, para encostar nos comportamentos que seguem a nave.
+    W.update(dt, { dx: Math.sin(i / 40) * 2.4, dy: Math.cos(i / 65) * 1.6, autofire: true });
+    for (const e of W.enemies) {
+      vistos.add(e.type);
+      if (e.z > maxZ) maxZ = e.z;
+      if (e.z < minZ) minZ = e.z;
+      assert.ok(Number.isFinite(e.x) && Number.isFinite(e.y) && Number.isFinite(e.z),
+        `${e.type} saiu do mundo: ${e.x},${e.y},${e.z}`);
+    }
+    tiros = Math.max(tiros, W.shots.length);
+  }
+  return { W, vistos, maxZ, minZ, tiros };
+}
+
+test('a partida 3D roda sem quebrar e todo tipo se mexe no espaço', () => {
+  const { W, vistos, maxZ, minZ } = rodar({ segundos: 90 });
+  assert.ok(W.kills > 0, 'o piloto precisa abater alguém para o teste valer');
+  assert.ok(vistos.size >= 3, `só ${vistos.size} tipos apareceram`);
+  // Ninguém escapa do tronco: nascem longe e somem atrás da nave.
+  assert.ok(maxZ <= SPACE.spawnZ + 700, `alguém nasceu longe demais (${maxZ.toFixed(0)})`);
+  assert.ok(minZ >= SPACE.killZ - 60, `alguém passou do limite de trás (${minZ.toFixed(0)})`);
+});
+
+test('todo tipo de inimigo se comporta sem travar nem escapar', () => {
+  // Cada espécie sozinha, nascida à mão, para nenhuma se esconder atrás da
+  // curva de ondas — um tipo que só estreia na onda 13 nunca apareceria.
+  for (const tipo of Object.keys(ENEMIES)) {
+    const W = createWorld({ w: 360, h: 640, seed: 3 });
+    W.stage = 'fight'; W.queue.length = 0;
+    W.enemies.length = 0;
+    const grupo = { x: 0, y: 0 };
+    for (let k = 0; k < 4; k++) {
+      W.enemies.push(makeEnemy(W, tipo, (k - 1.5) * 40, 0, SPACE.spawnZ, { group: grupo, slot: k }));
+    }
+    let vivos = 4, passos = 0;
+    for (let i = 0; i < 60 * 40 && vivos; i++) {
+      W.player.invuln = 9e9;
+      W.update(1 / 60, { dx: Math.sin(i / 30) * 2, autofire: false });
+      vivos = W.enemies.length;
+      passos = i;
+      for (const e of W.enemies) {
+        assert.ok(Number.isFinite(e.x + e.y + e.z), `${tipo} virou NaN`);
+        assert.ok(Math.abs(e.x) < 40000 && Math.abs(e.y) < 40000, `${tipo} fugiu para ${e.x},${e.y}`);
+      }
+    }
+    // Todo tipo tem de sair de cena sozinho: quem fica para sempre trava a onda.
+    assert.equal(vivos, 0, `${tipo} não saiu de cena em 40 s (restaram ${vivos})`);
+    assert.ok(passos > 30, `${tipo} sumiu rápido demais`);
+  }
+});
