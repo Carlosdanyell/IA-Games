@@ -411,9 +411,33 @@ const sobrepor = (fundo, cor, alfa) => '#' + [1, 3, 5].map(i => {
   const f = parseInt(fundo.slice(i, i + 2), 16), c = parseInt(cor.slice(i, i + 2), 16);
   return Math.round(f * (1 - alfa) + c * alfa).toString(16).padStart(2, '0');
 }).join('');
-// A silhueta que o olho acha é o melhor entre o corpo e o halo da cor `detail`.
-const visibilidade = (skin, fundo) =>
-  Math.max(contraste(skin.colors[0], fundo), contraste(sobrepor(fundo, skin.detail, .4), fundo));
+// A silhueta que o olho acha é a camada mais visível da skin. São três:
+// o corpo (translúcido se a skin for de vidro), o halo da cor `detail`, e as
+// listras longitudinais, que são pintadas por cima em alfa cheio.
+const visibilidade = (skin, fundo) => Math.max(
+  contraste(skin.glass ? sobrepor(fundo, skin.colors[0], skin.glass) : skin.colors[0], fundo),
+  contraste(sobrepor(fundo, skin.detail, .4), fundo),
+  ...(skin.stripes ?? []).map(([, cor]) => contraste(cor, fundo)));
+
+// Toda skin precisa ser achável contra o fundo da arena. Quem carrega a
+// silhueta varia: nas claras é o corpo, nas escuras é o halo, e na Quimera são
+// as listras. Este teste já existiu e sumiu numa reescrita minha — a régua
+// ficou no arquivo sem ninguém chamando, e nesse meio-tempo Magma e
+// Singularidade entraram abaixo do limite sem ninguém notar.
+test('nenhuma skin some contra o fundo da arena', () => {
+  // O fundo é o da folha de estilo do jogo, onde a arena é pintada.
+  const fundo = '#0b1927';
+  for (const skin of SKINS) {
+    const v = visibilidade(skin, fundo);
+    assert.ok(v >= 3, `${skin.id} tem contraste ${v.toFixed(2)}, abaixo dos 3,0 da WCAG para objeto gráfico`);
+  }
+  // Vidro não pode chegar perto de zero: skin é sorteada para os rivais também,
+  // e um rival que mal se vê é injusto. A borda acesa é o que o salva.
+  for (const skin of SKINS.filter(s => s.glass)) {
+    assert.ok(skin.glass >= .35, `${skin.id} é transparente demais (${skin.glass})`);
+    assert.ok(contraste(skin.detail, fundo) >= 3, `${skin.id} precisa de borda acesa para carregar a silhueta`);
+  }
+});
 
 test('perfil saneia dados corrompidos e trava skin não liberada', () => {
   for (const value of [null, [], 'oi', 42]) {
@@ -630,11 +654,13 @@ test('crescer nunca diminui a cobra na tela', () => {
 // medição de desenho com a CPU seis vezes mais lenta.
 test('o teto de massa fica longe do que o quadro aguenta', () => {
   const pontos = m => Math.ceil(lengthOf({ mass: m }) / ARENA.spacing) + 1;
-  assert.ok(ARENA.maxMass >= 250000, `teto em ${ARENA.maxMass}, abaixo do medido como folgado`);
-  // 500000 dá 2605 pontos e 33,3 ms de desenho; 250000 dá 1846 e 21,5 ms. O
-  // limite de pontos é o que separa os dois, então é ele que o teste tranca.
-  assert.ok(pontos(ARENA.maxMass) <= 1900,
-    `corpo de ${pontos(ARENA.maxMass)} pontos no teto, acima dos 1846 medidos como folgados`);
+  assert.ok(ARENA.maxMass >= 500000, `teto em ${ARENA.maxMass}, abaixo do medido como suportável`);
+  // O que o quadro paga é o número de pontos do corpo, não a massa. 2605
+  // pontos custam 28,4 ms de desenho com a CPU seis vezes mais lenta; é o
+  // degrau medido e é ele que o teste tranca, para o teto não subir sem medir
+  // de novo.
+  assert.ok(pontos(ARENA.maxMass) <= 2700,
+    `corpo de ${pontos(ARENA.maxMass)} pontos no teto, acima dos 2605 medidos`);
   // E o teto não pode ser confundido com o limite visual: raio, zoom e campo de
   // visão saturam perto de 60000, muito antes. Daí para cima o que sobe é o
   // número e o comprimento do corpo, que continua valendo como obstáculo.

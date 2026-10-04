@@ -5,13 +5,13 @@ export const ARENA = {
   // O teto de massa era 120000 e a justificativa era que ninguém o alcançaria.
   // Alcançaram: numa partida real o jogador passou de cem mil e crescer parou.
   // Pior, o `Math.min` que aplica o teto puxava de volta quem estivesse acima.
-  // O valor novo é medido, não estimado. Com a CPU seis vezes mais lenta, o
-  // desenho satura perto da massa 60000, onde o zoom chega ao piso e o corpo
-  // além de uma tela passa a ser recortado: 19,7 ms de mediana lá, 18,5 ms em
-  // 120000 e 21,5 ms em 250000. Em 500000 salta para 33,3 ms, e a simulação
-  // acompanha (1,08 ms em 120000, 1,20 em 250000, 1,29 em 500000). 250000 é o
-  // último degrau que cabe no quadro com folga.
-  startMass: 32, minMass: 26, maxMass: 250000, spacing: 6,
+  // O valor é medido. Com a CPU seis vezes mais lenta e a amostragem do corpo
+  // ligada, o desenho custa 17,4 ms de mediana na massa 60000, 18,2 ms em
+  // 250000 e 28,4 ms em 500000 (p95 de 42,2); a simulação vai de 1,08 ms a
+  // 1,29 ms no mesmo intervalo. O topo é o degrau caro — 56% acima de 250000 —
+  // e ele existe porque crescer não pode esbarrar em parede. Chegar lá leva
+  // horas: o ritmo medido de um coletor atento é de uns 800 por minuto.
+  startMass: 32, minMass: 26, maxMass: 500000, spacing: 6,
   // Luz reposta por ciclo de 0,25 s. Acompanha o tamanho da arena, senão uma
   // cobra grande limpa a região e o mapa demora a repor.
   refill: 40,
@@ -83,7 +83,10 @@ export const SKINS = [
   { id: 'koi', name: 'Koi', colors: ['#fff5e8', '#e8dbd1'], pattern: 'spots', detail: '#f45859', note: 'Manchas vermelhas sobre pérola.', goal: 0 },
   { id: 'circuito', name: 'Circuito', colors: ['#163e45', '#102b35'], pattern: 'circuit', detail: '#60ffe2', note: 'Trilhas elétricas e visor neon.', glow: .85, goal: 0 },
   { id: 'pixel', name: 'Pixel', colors: ['#8060f2', '#5543be'], pattern: 'pixels', detail: '#9eff65', note: 'Blocos verdes. Alma de arcade.', glow: .6, goal: 0 },
-  { id: 'magma', name: 'Magma', colors: ['#74352e', '#35232b'], pattern: 'cracks', detail: '#ff9958', note: 'Fendas acesas como lava.', glow: .75, goal: 250 },
+  // Magma e Singularidade tiveram o corpo clareado: mediam 2,32 e 2,53 de
+  // contraste contra o fundo da arena, abaixo dos 3,0 que a WCAG pede para
+  // objeto gráfico. Era defeito antigo, achado ao medir as skins novas.
+  { id: 'magma', name: 'Magma', colors: ['#9f543b', '#35232b'], pattern: 'cracks', detail: '#ff9958', note: 'Fendas acesas como lava.', glow: .75, goal: 250 },
   { id: 'draco', name: 'Draco', colors: ['#4fb589', '#24604e'], pattern: 'scales', detail: '#d4ef8a', note: 'Escamas de jade e ouro.', goal: 600 },
   { id: 'galaxia', name: 'Galáxia', colors: ['#7545b4', '#353262'], pattern: 'stars', detail: '#aff1ff', note: 'Uma constelação para guiar.', glow: .6, goal: 1100 },
   { id: 'imperial', name: 'Imperial', colors: ['#efd078', '#bd8844'], pattern: 'diamonds', detail: '#433048', note: 'Diamantes sobre ouro polido.', goal: 2000 },
@@ -97,8 +100,26 @@ export const SKINS = [
     note: 'A aurora presa no corpo.', glow: .7, goal: 12000, legend: true },
   { id: 'ouroboros', name: 'Ouroboros', colors: ['#f2c65a', '#2b2119'], pattern: 'scales', detail: '#fff0b8',
     note: 'A serpente que come a própria cauda.', goal: 25000, legend: true },
-  { id: 'singularidade', name: 'Singularidade', colors: ['#6a2fd6', '#141126'], pattern: 'rings', detail: '#c9a6ff',
-    note: 'Luz curvando no horizonte.', glow: .9, goal: 50000, legend: true }
+  { id: 'singularidade', name: 'Singularidade', colors: ['#7c46de', '#141126'], pattern: 'rings', detail: '#c9a6ff',
+    note: 'Luz curvando no horizonte.', glow: .9, goal: 50000, legend: true },
+  // Lendárias do fim da escala. As metas saem do ritmo medido: um coletor
+  // atento que não caça ninguém faz uns 800 de massa por minuto depois dos
+  // primeiros minutos, e chegou a 32000 em quarenta. Quem caça faz várias
+  // vezes isso. O espaçamento aqui é menor que o das anteriores — elas dobram a
+  // cada degrau, estas sobem 1,75x e 1,57x — porque dobrar a partir de 50000
+  // levaria a 400000 e viraria parede em vez de alvo. Estas não reaproveitam estampa nenhuma: cada
+  // uma estreia um mecanismo que a coleção não tinha. `stripes` corre ao longo
+  // do corpo, da cabeça à cauda, enquanto toda estampa antiga atravessa a cobra
+  // ou divide o comprimento em faixas. `glass` deixa a arena aparecer através
+  // do corpo. `pulse` faz o brilho respirar, a única coisa aqui que muda
+  // sozinha com o tempo.
+  { id: 'quimera', name: 'Quimera', colors: ['#2a566c', '#1d3b4e'], detail: '#5ef2ff', glow: .8,
+    stripes: [[-.52, '#ff5d9e', .2], [0, '#5ef2ff', .15], [.52, '#ffcf5d', .2]],
+    note: 'Três faixas correndo da cabeça à cauda.', goal: 80000, legend: true },
+  { id: 'miragem', name: 'Miragem', colors: ['#9fe8ff', '#5aa8d8'], pattern: 'favo', detail: '#eafcff',
+    glass: .42, glow: .5, note: 'Corpo de vidro: a arena aparece através dela.', goal: 140000, legend: true },
+  { id: 'pulsar', name: 'Pulsar', colors: ['#3d1b63', '#1a0e33'], pattern: 'runas', detail: '#a8f0ff',
+    glow: .95, pulse: .55, note: 'O feixe respira sobre o vazio.', goal: 220000, legend: true }
 ];
 export const NAMES = ['Órbita', 'Cometa', 'Íon', 'Vórtice', 'Quasar', 'Nébula', 'Pulso', 'Fóton', 'Vega', 'Nova', 'Cosmo', 'Prisma', 'Lúmen', 'Eclipse'];
 export const skinFor = id => SKINS.find(s => s.id === id) || SKINS[0];
