@@ -9,7 +9,7 @@
 // HTTP cache do navegador.
 //
 // Ao adicionar um jogo, inclua os arquivos dele em ASSETS e suba VERSION.
-const VERSION = 'ia-games-v66';
+const VERSION = 'ia-games-v67';
 const DOC_TIMEOUT = 3500;   // HTML: vale esperar um pouco mais
 const ASSET_TIMEOUT = 1200; // módulos e CSS: rédea curta, cache logo atrás
 const ASSETS = [
@@ -101,8 +101,6 @@ const ASSETS = [
   './games/neon-shooter/models.js',
   './games/neon-shooter/scene3d.js',
   './games/neon-shooter/render.js',
-  './games/neon-shooter/art.js',
-  './games/neon-shooter/scenery.js',
   './games/neon-shooter/audio.js',
   './games/neon-shooter/ui.js',
   './games/neon-shooter/style.css',
