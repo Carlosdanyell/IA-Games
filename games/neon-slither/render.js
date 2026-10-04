@@ -14,6 +14,8 @@ export function createRenderer(viewport, theme) {
   const camera = { x: 0, y: 0, zoom: 1 };
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   const sparks = []; let eventTime = -1, backdrop = null, backdropKey = '';
+  // Relógio do renderizador: só a skin de pulso o usa, para o brilho respirar.
+  let clock = 0;
 
   const sprites = COLORS.map(color => {
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = 32;
@@ -23,6 +25,7 @@ export function createRenderer(viewport, theme) {
   });
   function draw(world, dt = 0, joy = null, alpha = 1) {
     const p = world.player;
+    clock += Math.min(dt, .1);
     const factor = 1 - Math.exp(-Math.min(dt, .1) * 9);
     camera.x += (p.x - camera.x) * factor; camera.y += (p.y - camera.y) * factor;
     const targetZoom = zoomFor(p.mass);
@@ -63,7 +66,7 @@ export function createRenderer(viewport, theme) {
       if (!s.alive) continue;
       const r = radiusOf(s);
       const hx = s.px + (s.x - s.px) * alpha, hy = s.py + (s.y - s.py) * alpha;
-      drawSnake(c,s,{radius:r,alpha,bounds:{left,top,right,bottom},scale:camera.zoom});
+      drawSnake(c,s,{radius:r,alpha,bounds:{left,top,right,bottom},scale:camera.zoom,time:clock});
       if (s.player) {
         c.save(); c.translate(hx, hy); c.rotate(s.target); c.strokeStyle = theme.dark ? '#ffffffaa' : '#263449aa'; c.lineWidth = 2;
         const arrow = Math.max(33, r + 14); c.beginPath(); c.moveTo(arrow, -5); c.lineTo(arrow + 7, 0); c.lineTo(arrow, 5); c.stroke(); c.restore();

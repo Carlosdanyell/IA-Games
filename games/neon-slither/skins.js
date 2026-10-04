@@ -39,6 +39,28 @@ function stampFor(skin) {
     case 'diamonds':
       g.beginPath(); g.moveTo(0,-11); g.lineTo(8,0); g.lineTo(0,11); g.lineTo(-8,0); g.closePath(); g.fill();
       dot(0,-21,2); dot(0,21,2); break;
+    case 'runas':
+      g.lineWidth = 2.5;
+      line([[-10,-20],[-10,-4],[-2,-12]]); line([[-10,-12],[-18,-20]]);
+      line([[6,20],[6,2],[14,10]]); line([[6,10],[-2,2]]);
+      dot(-14,10,2.6); break;
+    case 'favo':
+      g.lineWidth = 2; g.globalAlpha = .8;
+      for (const [cx,cy] of [[0,-14],[0,14],[-14,0],[14,0]]) {
+        g.beginPath();
+        for (let k = 0; k < 6; k++) {
+          const a = k * TAU / 6 + Math.PI / 6, x = cx + Math.cos(a) * 9, y = cy + Math.sin(a) * 9;
+          k ? g.lineTo(x,y) : g.moveTo(x,y);
+        }
+        g.closePath(); g.stroke();
+      } break;
+    case 'olhos':
+      // Ocelo: o desenho de olho que serpente de verdade usa para assustar.
+      for (const [cx,cy] of [[-3,-13],[5,13]]) {
+        g.globalAlpha = .85; dot(cx,cy,10);
+        g.globalAlpha = 1; g.fillStyle = '#0d1420'; dot(cx,cy,5.2);
+        g.fillStyle = skin.detail;
+      } break;
   }
   stamps.set(skin.id, canvas); return canvas;
 }
@@ -48,6 +70,18 @@ function stampFor(skin) {
 // isso a escama acompanha a curva em vez de ficar chapada. As fileiras vêm
 // alternadas, como na pele de uma cobra de verdade, e o passo é escolhido pelo
 // número de série do ponto para a textura não escorregar quando a cauda anda.
+// Passo de amostragem do corpo, ancorado no número de série. Os números são
+// consecutivos ao longo do corpo, então `i ≡ base (mod passo)` escolhe sempre
+// os mesmos pontos da carne: a amostragem anda junto com o corpo em vez de
+// deslizar sobre ele. Ancorar no índice faria a borda das faixas saltar a cada
+// ponto novo na cabeça — o mesmo tremor que a prévia da skin tinha.
+function primeiro(path, passo, minimo) {
+  const base = path[0]?.n ?? 0;
+  let i = (((base % passo) + passo) % passo);
+  while (i < minimo) i += passo;
+  return i;
+}
+
 const SCALE_ROWS = [-.62, 0, .62];
 function scales(c, path, { r, hx, hy, seen, pointSpacing, scale }) {
   // Escama menor que uns poucos pixels na tela não aparece, só custa. Uma cobra
@@ -62,9 +96,8 @@ function scales(c, path, { r, hx, hy, seen, pointSpacing, scale }) {
   if (naTela >= 11) camadas.push(['#ffffff20', Math.max(.6, r * .09), -r * .1]);
   for (const [tom, espessura, recuo] of camadas) {
     c.strokeStyle = tom; c.lineWidth = espessura; c.beginPath();
-    for (let i = 1; i < path.length - 1; i++) {
+    for (let i = primeiro(path, step, 1); i < path.length - 1; i += step) {
       const p = path[i], serie = p.n ?? -i;
-      if ((((serie % step) + step) % step) !== 0) continue;
       const anterior = i === 1 ? { x: hx, y: hy } : path[i - 1];
       if (!seen(p, p)) continue;
       let tx = anterior.x - path[i + 1].x, ty = anterior.y - path[i + 1].y;
@@ -87,11 +120,34 @@ function scales(c, path, { r, hx, hy, seen, pointSpacing, scale }) {
   }
 }
 
+// Traço que corre ao longo do corpo, deslocado para o lado. Toda estampa da
+// coleção ou atravessa a cobra (escama, galão, anel) ou divide o comprimento em
+// faixas de cor; nenhuma corria da cabeça à cauda. O deslocamento sai da normal
+// de cada trecho, então a listra acompanha a curva em vez de ficar reta. Não
+// forma bico nas curvas fechadas porque o deslocamento é no máximo o raio e o
+// raio de curva é sempre `24 + raio`, maior que ele.
+function longitudinal(c, path, { hx, hy, seen, passo, offset }) {
+  c.beginPath();
+  let anterior = { x: hx, y: hy }, pen = false;
+  for (let i = primeiro(path, passo, 1); i < path.length; i += passo) {
+    const b = path[i];
+    let tx = b.x - anterior.x, ty = b.y - anterior.y;
+    const comp = Math.hypot(tx, ty) || 1; tx /= comp; ty /= comp;
+    const nx = -ty * offset, ny = tx * offset;
+    if (seen(anterior, b)) {
+      if (!pen) c.moveTo(anterior.x + nx, anterior.y + ny);
+      c.lineTo(b.x + nx, b.y + ny); pen = true;
+    } else pen = false;
+    anterior = b;
+  }
+  c.stroke();
+}
+
 // Halo neon somado por cima do corpo. `shadowBlur` daria o borrão de graça mas
 // custa caro demais por quadro, então o brilho sai de traços largos e fracos em
 // modo `lighter`: cada camada soma luz e o degrau entre elas lê como difusão.
 // Duas camadas bastam; a terceira não muda nada que o olho note.
-function halo(c, path, { r, hx, hy, seen, cor, forca, boost }) {
+function halo(c, path, { r, hx, hy, seen, cor, forca, boost, passo }) {
   const camadas = boost
     ? [[r * 2 + 26, .1 * forca], [r * 2 + 12, .17 * forca]]
     : [[r * 2 + 13, .07 * forca], [r * 2 + 6, .12 * forca]];
@@ -100,7 +156,7 @@ function halo(c, path, { r, hx, hy, seen, cor, forca, boost }) {
     c.globalAlpha = alfa; c.lineWidth = largura;
     c.beginPath();
     let a = { x: hx, y: hy }, pen = false;
-    for (let i = 1; i < path.length; i++) {
+    for (let i = primeiro(path, passo, 1); i < path.length; i += passo) {
       const b = path[i];
       if (seen(a, b, largura)) { if (!pen) c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); pen = true; } else pen = false;
       a = b;
@@ -131,7 +187,7 @@ function rastro(c, path, { r, hx, hy, seen, cor }) {
   c.restore();
 }
 
-export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, details = true, pointSpacing = ARENA.spacing, scale = 1 } = {}) {
+export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, details = true, pointSpacing = ARENA.spacing, scale = 1, time = 0 } = {}) {
   const skin = skinFor(snake.skin), path = snake.path;
   if (!path?.length) return;
   const hx = (snake.px ?? snake.x) + (snake.x - (snake.px ?? snake.x)) * alpha;
@@ -140,27 +196,43 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
   const seen = (a,b,margin=r+8) => !bounds || Math.max(a.x,b.x) >= bounds.left-margin && Math.min(a.x,b.x) <= bounds.right+margin
     && Math.max(a.y,b.y) >= bounds.top-margin && Math.min(a.y,b.y) <= bounds.bottom+margin;
   c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+  // Quantos pontos do corpo o traço precisa de fato. No piso do zoom os pontos
+  // ficam a 1,7 px um do outro, e vértice mais junto que isso não muda a
+  // silhueta: o desvio de uma corda de `d` px num arco de raio `R` é d²/8R, o
+  // que aqui dá fração de pixel. É o que mantém a cobra gigante dentro do
+  // quadro — o corpo dela tem milhares de pontos e o traço passa por ele
+  // várias vezes, uma por faixa de cor.
+  const passo = Math.max(1, Math.round(5 / Math.max(.001, pointSpacing * scale)));
   // Brilho abaixo de uns poucos pixels na tela não aparece, só custa.
   const aceso = details && r * scale >= 4;
   if (aceso && (skin.glow || snake.boost)) {
     // Acelerar acende qualquer skin; as de identidade neon já vêm acesas.
-    const forca = Math.max(skin.glow ?? 0, snake.boost ? .85 : 0);
-    halo(c, path, { r, hx, hy, seen, cor: skin.detail, forca, boost: snake.boost });
+    let forca = Math.max(skin.glow ?? 0, snake.boost ? .85 : 0);
+    // Pulso: o brilho respira. É a única coisa na coleção que muda sozinha com
+    // o tempo — as estampas são todas presas à carne e ficam paradas nela.
+    if (skin.pulse) forca *= 1 - skin.pulse + skin.pulse * (.5 + .5 * Math.sin(time * 2.4));
+    halo(c, path, { r, hx, hy, seen, cor: skin.detail, forca, boost: snake.boost, passo });
   }
   // Proteção mantém a skin legível; o anel na cabeça explica seu estado.
-  c.globalAlpha = snake.invulnerable > 0 ? .8 : 1;
+  const opaco = snake.invulnerable > 0 ? .8 : 1;
+  // Vidro: o corpo fica translúcido e a arena aparece através dele. Nenhuma
+  // outra skin faz isso. O valor nunca chega perto de zero de propósito: skin
+  // é sorteada para os rivais também, e um rival que mal se vê é injusto.
+  const vidro = details && skin.glass ? skin.glass : 1;
+  c.globalAlpha = opaco * vidro;
   // Largura das faixas e distância das estampas acompanham o crescimento.
   const bandLength = Math.max(3, Math.round(r * (colors.length > 3 ? 2.5 : 4) / pointSpacing));
   // A estampa é pintada na carne, então segue o número de série do ponto. Pelo
   // índice do array ela escorregaria um espaçamento a cada ponto novo na
   // cabeça — trinta saltos por segundo, que é o corpo tremendo.
   const bandOf = (b, i) => ((Math.floor((b.n ?? -i) / bandLength) % colors.length) + colors.length) % colors.length;
+  const inicio = primeiro(path, passo, 1);
   for (let band=-2; band<colors.length; band++) {
     if (band === -2) { c.strokeStyle = skin.detail+'66'; c.lineWidth=r*2+(snake.boost ? 10 : 2); }
     else if (band === -1) { c.strokeStyle=colors[1]; c.lineWidth=r*2; }
     else { c.strokeStyle=colors[band]; c.lineWidth=r*1.82; }
     c.beginPath(); let a={x:hx,y:hy}, pen=false;
-    for (let i=1;i<path.length;i++) {
+    for (let i=inicio;i<path.length;i+=passo) {
       const b=path[i], mine=band<0 || bandOf(b,i)===band;
       if (mine && seen(a,b)) { if (!pen) c.moveTo(a.x,a.y); c.lineTo(b.x,b.y); pen=true; } else pen=false;
       a=b;
@@ -168,28 +240,45 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
     c.stroke();
   }
   if (details) scales(c, path, { r, hx, hy, seen, pointSpacing, scale });
-  if (details) {
+  if (details && skin.pattern) {
     const stamp=stampFor(skin), gap=Math.max(3,Math.round(r * (skin.pattern==='ribbon' ? 1.4 : 2) / pointSpacing));
-    for (let i=3;i<path.length-2;i++) {
+    // Cada estampa nasce num ponto da carne e fica ali até a cauda passar, e os
+    // números de série são consecutivos: dá para pular de estampa em estampa.
+    for (let i=primeiro(path,gap,3);i<path.length-2;i+=gap) {
       const p=path[i];
-      // Cada estampa nasce num ponto da carne e fica ali até a cauda passar.
-      if ((((p.n ?? i) % gap) + gap) % gap !== 0) continue;
       const next=path[i+1]; if (!seen(p,p)) continue;
       c.save(); c.translate(p.x,p.y); c.rotate(Math.atan2(p.y-next.y,p.x-next.x));
       c.drawImage(stamp,-r*1.2,-r*1.2,r*2.4,r*2.4); c.restore();
     }
   }
+  // Listras ao longo do corpo e bordas acesas do vidro, as duas do mesmo traço
+  // longitudinal. Vêm depois de escama e estampa de propósito: no vidro essas
+  // camadas também são translúcidas, senão elas tapam a transparência e o corpo
+  // volta a parecer sólido. A borda é o que carrega a silhueta ali.
+  c.globalAlpha = opaco;
+  if (details && (skin.stripes || skin.glass)) {
+    const faixas = skin.stripes ? skin.stripes.slice() : [];
+    if (skin.glass) for (const lado of [-1, 1]) faixas.push([lado * .86, skin.detail, .17]);
+    for (const [frac, cor, largura] of faixas) {
+      c.strokeStyle = cor; c.lineWidth = Math.max(1, r * largura);
+      longitudinal(c, path, { hx, hy, seen, passo, offset: r * frac });
+    }
+  }
   if (aceso && snake.boost) rastro(c, path, { r, hx, hy, seen, cor: skin.detail });
   // Reflexo dorsal em um traço só, para o corpo ter volume sem borrar a borda.
+  c.globalAlpha = opaco * vidro;
   c.strokeStyle='#ffffff24'; c.lineWidth=Math.max(1,r*.3); c.beginPath();
   let a={x:hx,y:hy}, pen=false;
-  for (let i=1;i<path.length;i++) {
+  for (let i=inicio;i<path.length;i+=passo) {
     const b=path[i];
     if (seen(a,b)) { if (!pen) c.moveTo(a.x,a.y-r*.38); c.lineTo(b.x,b.y-r*.38); pen=true; } else pen=false;
     a=b;
   }
   c.stroke();
   if (seen({x:hx,y:hy},{x:hx,y:hy},r*3)) {
+    // A cabeça nunca é translúcida: é por ela que se lê para onde a cobra vai,
+    // e é ela que mata. Mesmo no vidro, ela fica cheia.
+    c.globalAlpha = opaco;
     c.save(); c.translate(hx,hy); c.rotate(snake.angle);
     const shine=c.createLinearGradient(0,-r,0,r);
     shine.addColorStop(0,skin.detail); shine.addColorStop(.33,colors[0]); shine.addColorStop(1,colors[1]);

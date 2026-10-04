@@ -3,9 +3,13 @@ import { createRng } from '../../core/rng.js';
 
 const TAU = Math.PI * 2;
 export const angleDelta = a => Math.atan2(Math.sin(a), Math.cos(a));
-// Espessura: cresce até quatro vezes a inicial e só então para, como no
-// slither.io, onde engordar é o sinal visível de que a cobra está grande.
-export const radiusOf = s => 7 + Math.min(25, Math.sqrt(s.mass) * .17);
+// Espessura: engordar é o sinal visível de que a cobra está grande, como no
+// slither.io. O limite tem de cair depois do piso do zoom, não antes: com o
+// antigo (25, massa 21626) a espessura travava enquanto o mundo continuava
+// encolhendo, e a partir dali crescer *diminuía* a cobra na tela — 12,6 px de
+// cabeça na massa 21626 contra 9 px na 60000. 42 faz os dois saturarem juntos,
+// na massa 61038, então o tamanho na tela nunca anda para trás.
+export const radiusOf = s => 7 + Math.min(42, Math.sqrt(s.mass) * .17);
 export const lengthOf = s => 65 + Math.sqrt(s.mass) * 22;
 // Raio da curva em unidades do mundo. Não depende da velocidade: acelerar não
 // abre a curva e, quanto mais rápida a cobra, menos tempo leva a meia-volta.
@@ -45,6 +49,26 @@ export class SpatialGrid {
     return out;
   }
   near(x, y, r) { return new Set(this.collect(x, y, r, [])); }
+}
+
+// Rival nenhum nasce em cima do jogador: quem volta à arena entra longe. A
+// conta é entre o corpo inteiro de quem nasce — o segmento da cabeça à cauda —
+// e todo mundo que já está na arena. Era só o ponto da cabeça, e o corpo, que é
+// criado depois esticado para trás, não era conferido: um corpo de 1945 de
+// comprimento chegou a nascer a 49 unidades do jogador, sem aviso nenhum.
+export function spawnFits(head, tail, snakes) {
+  const corpo = distance(head, tail);
+  return snakes.every(s => {
+    if (!s.alive) return true;
+    const clear = s.player ? ARENA.clearPlayer : ARENA.clearRival;
+    if (segmentDistance(s, head, tail) <= clear) return false;
+    // Os dois corpos longe demais: não vale varrer ponto a ponto, o que ficou
+    // caro depois que uma cobra grande passou a ter mais de mil pontos. O
+    // alcance soma os dois comprimentos porque o que entra na conta agora é um
+    // segmento, não um ponto.
+    if (distance(head, s) > clear + lengthOf(s) + corpo) return true;
+    return s.path.every(v => segmentDistance(v, head, tail) > clear * .72);
+  });
 }
 
 // Leque de rumos que a IA considera, de -90° a +90° em passos de 18°.
@@ -89,32 +113,35 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
   }
   function foodIndex() { world.foodGrid.clear(); for (const f of world.foods) if (!f.eaten) world.foodGrid.insert(f, f.x, f.y); }
   function spawn(player = false) {
-    let p = { x: 0, y: 0 }, safe = player;
-    for (let i = 0; !safe && i < 80; i++) {
-      p = point(320);
-      // Rival nenhum nasce em cima do jogador: quem volta à arena entra longe.
-      safe = world.snakes.every(s => {
-        if (!s.alive) return true;
-        const clear = s.player ? 520 : 340;
-        if (distance(p, s) <= clear) return false;
-        // Corpo inteiro longe demais: não vale varrer ponto a ponto, o que ficou
-        // caro depois que uma cobra grande passou a ter mais de mil pontos.
-        if (distance(p, s) > clear + lengthOf(s)) return true;
-        return s.path.every(v => distance(p, v) > clear * .72);
-      });
-    }
-    if (!safe) return null;
-    const a = Math.atan2(-p.y, -p.x) + (rng.next() - .5), id = world.nextId++;
     // No começo todo rival nasce pequeno, a arena é uma disputa desde o início.
-    // Depois, quem renasce entra numa escala puxada pelo maior rival vivo: sem
-    // isso o rival mediano, que vive só 43 s, nunca alcança ninguém e o placar
-    // vira um gigante cercado de anões. O teto ignora o jogador de propósito,
-    // para crescer não convocar rivais maiores contra você.
-    let lider = 0;
-    for (const v of world.snakes) if (v.alive && !v.player && v.mass > lider) lider = v.mass;
-    const teto = Math.max(level.mass[1], lider * ARENA.respawnShare);
+    // Depois, quem renasce entra numa escala puxada pela mediana dos rivais
+    // vivos: sem isso o rival mediano, que vive só 43 s, nunca alcança ninguém e
+    // o placar vira um gigante cercado de anões. A mediana substituiu o maior
+    // rival, que realimentava a si mesmo. O teto absoluto fecha o laço, porque
+    // nascer com massa cria massa numa economia fechada. Nada disso olha para o
+    // jogador, de propósito: seria um elástico que pune crescer.
+    const vivos = [];
+    for (const v of world.snakes) if (v.alive && !v.player) vivos.push(v.mass);
+    vivos.sort((x, y) => x - y);
+    const meio = vivos.length ? vivos[vivos.length >> 1] : 0;
+    const teto = Math.min(ARENA.respawnCap, Math.max(level.mass[1], meio * ARENA.respawnShare));
     const mass = player ? ARENA.startMass
       : Math.round(level.mass[0] + rng.next() ** 2.2 * (teto - level.mass[0]));
+    // O corpo nasce esticado para trás da cabeça, então a folga tem de valer
+    // para ele inteiro. Conferir só o ponto da cabeça deixava passar um corpo
+    // de 1945 de comprimento a 49 unidades do jogador — morte sem aviso.
+    const corpo = lengthOf({ mass });
+    let p = { x: 0, y: 0 }, a = 0, safe = player;
+    // O jogador entra no centro; o rumo dele sai da mesma conta, só sem busca.
+    if (player) a = Math.atan2(-p.y, -p.x) + (rng.next() - .5);
+    for (let i = 0; !safe && i < 80; i++) {
+      p = point(320);
+      a = Math.atan2(-p.y, -p.x) + (rng.next() - .5);
+      const cauda = { x: p.x - Math.cos(a) * corpo, y: p.y - Math.sin(a) * corpo };
+      safe = spawnFits(p, cauda, world.snakes);
+    }
+    if (!safe) return null;
+    const id = world.nextId++;
     const s = { id, name: player ? 'Você' : `${NAMES[id % NAMES.length]} ${id}`, player, x: p.x, y: p.y, px: p.x, py: p.y,
       angle: a, target: a, mass, skin: player ? skin : SKINS[id % SKINS.length].id, alive: true, boost: false,
       think: rng.next() * level.reaction, boostClock: 0, path: [], segments: [], invulnerable: 3, deaths: 0, headSeq: 0,
