@@ -9,7 +9,7 @@
 // HTTP cache do navegador.
 //
 // Ao adicionar um jogo, inclua os arquivos dele em ASSETS e suba VERSION.
-const VERSION = 'ia-games-v68';
+const VERSION = 'ia-games-v69';
 const DOC_TIMEOUT = 3500;   // HTML: vale esperar um pouco mais
 const ASSET_TIMEOUT = 1200; // módulos e CSS: rédea curta, cache logo atrás
 const ASSETS = [
@@ -94,16 +94,12 @@ const ASSETS = [
   './games/neon-drop/style.css',
   './games/neon-shooter/index.js',
   './games/neon-shooter/config.js',
-  './games/neon-shooter/combat.js',
-  './games/neon-shooter/capital-ships.js',
-  './games/neon-shooter/space-background.js',
   './games/neon-shooter/progress.js',
   './games/neon-shooter/enemies.js',
   './games/neon-shooter/world.js',
-  './games/neon-shooter/mesh3d.js',
-  './games/neon-shooter/models.js',
-  './games/neon-shooter/scene3d.js',
   './games/neon-shooter/render.js',
+  './games/neon-shooter/art.js',
+  './games/neon-shooter/scenery.js',
   './games/neon-shooter/audio.js',
   './games/neon-shooter/ui.js',
   './games/neon-shooter/style.css',
@@ -225,4 +221,3 @@ self.addEventListener('fetch', event => {
   const doc = isDocument(request, url);
   event.respondWith(networkFirst(event, request, url, doc ? DOC_TIMEOUT : ASSET_TIMEOUT));
 });
-
