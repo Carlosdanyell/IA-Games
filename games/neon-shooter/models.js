@@ -33,7 +33,7 @@ function ring(radius, thickness, depth, sides, color, opts = {}) {
     faces.push({ idx: [a, b, b + 2, a + 2], color, ...opts });         // tampa de trás
     faces.push({ idx: [a + 1, a + 3, b + 3, b + 1], color, ...opts }); // tampa da frente
   }
-  return createMesh(verts, faces);
+  return createMesh(verts, faces.map(f => ({ ...f, idx: f.idx.slice().reverse() })));
 }
 
 // Bipirâmide: dois cones costas com costas. Cristal, mina, núcleo.
@@ -46,8 +46,8 @@ function spindle(radius, length, sides, color, opts = {}) {
   const faces = [];
   for (let i = 0; i < sides; i++) {
     const b = 2 + i, c = 2 + (i + 1) % sides;
-    faces.push({ idx: [0, c, b], color, ...opts });
-    faces.push({ idx: [1, b, c], color, ...opts });
+    faces.push({ idx: [0, b, c], color, ...opts });
+    faces.push({ idx: [1, c, b], color, ...opts });
   }
   return createMesh(verts, faces);
 }
@@ -57,13 +57,13 @@ function spindle(radius, length, sides, color, opts = {}) {
 // atrás e avançam, e os dois motores ficam na traseira, acesos. A asa invertida
 // é o que dá silhueta própria — a forma mais comum em jogo do gênero é a asa
 // em delta, e de longe toda delta parece igual.
-const CASCO = '#20425c', PLACA = '#2f6283', BORDA = '#7fe4ff', VISOR = '#8ff6ff', MOTOR = '#53d9ff';
+const CASCO = '#8d9fae', PLACA = '#526d84', BORDA = '#b5c9d7', VISOR = '#36788d', MOTOR = '#79dafa';
 
 export const SHIP = (() => {
   const meiaAsa = [
     .16, 0, -.5,   .9, -.04, -1.1,   1.12, -.04, -.62,   .26, 0, .1
   ];
-  const asa = mirrorX(meiaAsa, [{ idx: [0, 1, 2, 3], color: PLACA }], {});
+  const asa = mirrorX(meiaAsa, [{ idx: [0, 1, 2, 3], color: PLACA }, { idx: [3, 2, 1, 0], color: CASCO }], {});
   const pontaMeia = [.9, -.04, -1.1, 1.12, -.04, -.62, 1.16, .16, -.78];
   const ponta = mirrorX(pontaMeia, [{ idx: [0, 1, 2], color: BORDA, glow: .55 }], {});
   return merge([
@@ -74,7 +74,12 @@ export const SHIP = (() => {
     { mesh: spindle(.19, .72, 6, VISOR, { glow: .9 }), y: .2, z: .18 }, // cabine acesa
     { mesh: ring(.3, .1, .36, 8, MOTOR, { glow: 1 }), x: -.42, z: -.92 },
     { mesh: ring(.3, .1, .36, 8, MOTOR, { glow: 1 }), x: .42, z: -.92 },
-    { mesh: slab(.16, .5, .5, PLACA), y: .3, z: -.85 }                // deriva
+    { mesh: slab(.16, .5, .5, PLACA), y: .3, z: -.85 },
+    { mesh: slab(.1, .12, 1.1, '#b0bfca'), x: -.72, z: -.2 },
+    { mesh: slab(.1, .12, 1.1, '#b0bfca'), x: .72, z: -.2 },
+    { mesh: slab(.12, .03, .6, '#d7a870'), x: -.46, y: .035, z: -.48 },
+    { mesh: slab(.12, .03, .6, '#d7a870'), x: .46, y: .035, z: -.48 },
+    { mesh: slab(.64, .06, .14, '#d1dce2'), y: .2, z: -.45 }                // deriva
   ]);
 })();
 export const SHIP_MESH = normalize(SHIP);
@@ -201,10 +206,13 @@ export function enemyMesh(type, color) {
     // Tipo desconhecido não pode derrubar o quadro: cai no comum.
     // Normalizada: o renderizador escala pelo raio de colisão, então malha e
     // hitbox precisam ter o mesmo tamanho.
-    m = normalize((fabrica ?? porCor(color).drone)());
+    const body = (fabrica ?? porCor(color).drone)();
+    m = normalize(['gunner', 'tank', 'lancer', 'mirror'].includes(type)
+      ? merge([{ mesh: body, yaw: Math.PI }]) : body);
     cache.set(key, m);
   }
   return m;
 }
 
 export const ENEMY_SHAPES = Object.keys(porCor('#fff'));
+

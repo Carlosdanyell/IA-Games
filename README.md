@@ -22,7 +22,7 @@ Sem framework, sem build, sem dependências: HTML, CSS e JavaScript com módulos
 | **Neon Pool** | Sinuca 8-ball com regras completas, máquina de três níveis, dois jogadores no mesmo aparelho ou multiplayer em aparelhos no mesmo Wi-Fi. Mesa na horizontal. |
 | **Neon Slither** | Arena aberta com rivais controlados por IA: colete luz, cresça e cerque os outros. Minimapa, ranking ao vivo, 16 skins com padrões próprios, prévias e oito opções iniciais; as demais abrem pelo recorde e três níveis de rival, tudo offline. |
 | **Neon Memo** | Jogo da memória com 65 figuras reais (bichos, frutas, transporte, música, natureza, casa, esportes e mar) em 25 fases. Sete regras diferentes — trinca, par por tema, camaleão coringa, troca-troca e relâmpago —, espiada inicial, combos, dicas, estrelas por fase e desafio do dia. |
-| **Neon Shooter** | Tiro espacial vertical feito para o dedo: oito tipos de inimigo, chefe com três fases a cada cinco ondas, nove power-ups, melhorias a cada nível, combos, conquistas e trilha synthwave gerada no aparelho. |
+| **Neon Shooter** | Combate espacial 3D em tela horizontal: pilotagem por arrasto ou joystick, 14 tipos de inimigo, três naves capitais com fases e ataques anunciados, assistência de mira, power-ups e progressão offline. |
 | **Neon Chess** | Xadrez com regras completas — roque, en passant, promoção, afogamento, tripla repetição, regra dos 50 lances e material insuficiente. Cinco níveis de máquina (busca alfa-beta com prazo por lance), dois jogadores no mesmo aparelho ou multiplayer em aparelhos no mesmo Wi-Fi, histórico em notação algébrica, voltar lance e partida salva no aparelho. |
 
 ---
@@ -113,27 +113,35 @@ Instruções, limitações de rede, arquitetura e testes:
 
 ## Neon Shooter
 
-Visual com fuselagens facetadas, cabines de vidro e propulsores duplos. Os oito
-inimigos e os três chefes têm silhuetas e placas próprias. A cada cinco ondas, o
-cenário alterna suavemente entre Órbita de Nereida, Cinturão de Âmbar e Estaleiro
-Eclipse. Planetas, rochas e estruturas são decorativos; os tiros e avisos de
-ataque ficam em primeiro plano. A arte é gerada no próprio aparelho e mantida
-em cache, incluindo o modo de efeitos reduzidos, sem recursos externos.
+Arena em tela cheia horizontal, sem faixas laterais em celulares largos. O HUD
+fica nas bordas e o centro fica livre para combate. Ao girar para retrato, a
+partida pausa; volte à horizontal e toque em **Continuar**. O botão de tela cheia
+usa a API do navegador quando disponível; a arena também preenche a janela sem ela.
+
+Cascos metálicos 3D iluminados, cabines, canhões e propulsores. Guardião Prisma,
+Vespa Ômega e Núcleo Eclipse têm modelos próprios de naves capitais, com ponte,
+hangares, placas e baterias. Vida, fase e preparação do ataque aparecem no HUD.
+Planetas, estrelas e esquadras distantes dão profundidade ao cenário espacial.
+A renderização continua em Canvas, sem recursos externos nem dependências.
 
 Arraste em qualquer lugar da tela para pilotar: a nave acompanha o dedo sem ficar
-embaixo dele. Nas configurações dá para trocar pelo joystick virtual. O tiro é
+embaixo dele. A resposta é amortecida e a velocidade limitada, com inclinação
+acompanhando a manobra. Nas configurações dá para trocar pelo joystick virtual,
+com zona morta e indicador de toque. O tiro é
 automático enquanto houver inimigos. No computador, use **WASD** ou as **setas**
 para mover, **Espaço** ou clique para atirar com o tiro automático desligado e
-**Esc** para pausar.
+**Esc** para pausar. Alinhe a mira com o alvo: uma assistência curta
+compensa parte do tempo de voo, sem apontar para inimigos fora da coluna.
+Projéteis usam colisão contínua para não atravessar o casco entre passos.
 
 - **Ondas:** drones, dardos, atiradores, ziguezagues, blindados, divisores,
-  caçadores e sentinelas entram aos poucos, um tipo novo por onda. Quanto mais
+  caçadores, sentinelas e seis tipos que exploram a profundidade entram aos poucos. Quanto mais
   tarde a onda, mais inimigos que atiram ela traz. A cada cinco ondas surge um
   chefe com três fases, e todo ataque dele é anunciado antes; cada fase que cai
   solta um power-up.
 - **Power-ups:** reparo, escudo, cadência, tiro duplo, tiro triplo, perfurante,
   dano, câmera lenta e bomba.
-- **Melhorias:** a barra verde no topo enche com os abates. No intervalo entre
+- **Melhorias:** a barra verde na borda inferior enche com os abates. No intervalo entre
   ondas a ação pausa e você escolhe um entre três cartões, um por onda — menos
   no intervalo que antecede o chefe, em que saem todas as guardadas.
 - **Dificuldade:** Fácil, Normal e Difícil mudam a pressão da onda (quantidade
@@ -187,3 +195,4 @@ na `main` por PR, depois que o CI passa.
 
 O shell cuida de tela, entrada, som, tema, HUD e persistência: o jogo só
 implementa a própria lógica e desenha no canvas que recebe.
+

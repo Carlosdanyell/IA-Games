@@ -68,3 +68,65 @@
   .sh-card-text{align-items:center}
 }
 @media (prefers-reduced-motion:reduce){.sh-card,.sh-flash{animation:none}}
+
+
+/* Arena de ponta a ponta. O HUD flutua sobre as bordas sem reduzir o canvas. */
+.sh-body{overflow:hidden;background:#050b16;color:#e7edf5}
+.sh-app{position:fixed;inset:0;width:100%;height:100%;height:100dvh;min-height:0;max-height:none;
+  padding:0;margin:0;display:block;--surface:#0d1828;--text:#e7edf5;--muted:#a0b4c9;--line:#304353;
+  --accent:#83cfdd;--button:#aedee7;--button-text:#091b2a;--overlay:#07121deb}
+.sh-app .arena{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:0;aspect-ratio:auto}
+.sh-app .topbar{position:absolute;z-index:5;top:calc(8px + env(safe-area-inset-top));
+  left:calc(12px + env(safe-area-inset-left));right:calc(12px + env(safe-area-inset-right));pointer-events:none}
+.sh-app .topbar button,.sh-app .topbar a{pointer-events:auto}
+.sh-app .brand{gap:10px;text-shadow:0 2px 8px #000}
+.sh-app .brand h1{font-size:.85rem;letter-spacing:.12em}
+.sh-app .edition{font-size:.6rem}
+.sh-app .mark{width:44px;height:44px;background:#091522b8;border-color:#53708270}
+.sh-app .icon-button{width:44px;height:44px;background:#091522b8;border-color:#53708270;border-radius:10px}
+.sh-app #hudTheme{display:none}
+.sh-app .scorebar{position:absolute;z-index:4;bottom:calc(10px + env(safe-area-inset-bottom));
+  left:calc(14px + env(safe-area-inset-left));width:290px;padding:7px 0;background:#07121ca8;
+  border-color:#52748750;border-radius:8px;pointer-events:none}
+.sh-app .stat{padding:0 12px}
+.sh-app .stat .label{font-size:.57rem;margin-bottom:2px}
+.sh-app .stat .value{font-size:1rem}
+.sh-app .hearts{height:20px;gap:3px}
+.sh-app .heart{font-size:.85rem}
+.sh-app .chipbar,.sh-app #hudHint{display:none}
+.sh-app .footer{position:absolute;z-index:5;bottom:calc(10px + env(safe-area-inset-bottom));
+  right:calc(14px + env(safe-area-inset-right));padding:0}
+.sh-app #hudSettings{min-height:44px;padding:0 12px;border:1px solid #52748750;border-radius:8px;background:#07121ca8;font-size:.75rem}
+.sh-app .overlay{padding:68px max(22px,env(safe-area-inset-right)) 66px max(22px,env(safe-area-inset-left));
+  background:linear-gradient(90deg,#07121dcc,#07121d70,#07121dcc)}
+.sh-app .panel{width:min(100%,450px)}
+.sh-app .panel h2{font-size:clamp(1.6rem,5vh,2.8rem);letter-spacing:-.025em}
+.sh-app .panel p{max-width:400px;font-size:.88rem;margin-bottom:12px}
+.sh-app .eyebrow{font-size:.64rem;margin-bottom:8px}
+.sh-app .primary{min-height:46px;border-radius:8px;box-shadow:none}
+.sh-app .secondary{min-height:38px;margin-top:3px;padding:5px 14px}
+.sh-app .panel-note{margin-top:5px;font-size:.65rem}
+.sh-app .sh-upgrade .panel{width:min(100%,760px)}
+.sh-app .sh-cards{grid-template-columns:repeat(3,1fr)}
+.sh-app .sh-card{min-height:100px;grid-template-columns:auto 1fr;padding:12px;gap:10px}
+.sh-app .sh-card-text b{font-size:.85rem}
+.sh-app .sh-card-text small{font-size:.72rem}
+.sh-app .sh-rotate{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;text-align:center;padding:28px;background:#07111e;color:#e7edf5}
+.sh-app .sh-rotate[hidden]{display:none}
+.sh-rotate>span{font-size:5rem;color:#83cfdd}
+.sh-rotate h2{font-size:1.6rem;margin:15px 0 8px}
+.sh-rotate p{max-width:280px;line-height:1.6;color:#a0b4c9}
+.sh-rotate a{margin-top:24px;padding:14px 20px;border:1px solid #537082;border-radius:8px}
+@media(max-height:420px){
+  .sh-app .overlay{padding-top:60px;padding-bottom:58px}
+  .sh-app .panel h2{font-size:1.6rem;margin-bottom:6px}
+  .sh-app .panel-note{display:none}
+  .sh-app .sh-card{grid-template-columns:1fr;justify-items:center;text-align:center;padding:8px}
+  .sh-app .sh-card-icon{width:30px;height:30px}
+}
+@media(max-width:700px) and (orientation:landscape){
+  .sh-app .brand h1{font-size:.72rem}.sh-app .edition{display:none}
+  .sh-app .scorebar{width:260px}.sh-app .tools{gap:4px}
+}
+.sh-app .sh-fullscreen[hidden]{display:none}

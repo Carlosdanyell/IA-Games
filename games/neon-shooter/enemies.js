@@ -90,7 +90,7 @@ function hold(W, e, dt, lateral) {
     return;
   }
   if (e.state === 'leave') { e.z += e.speed * 1.4 * dt; return; }
-  lateral(e.t - e.t0);
+  if (!(e.charge > 0) && !(e.beam > 0)) lateral(e.t - e.t0);
   e.stay -= dt;
   if (e.charge > 0) { e.charge -= dt; if (e.charge <= 0) fireHeld(W, e); return; }
   if (e.stay <= 0) { e.state = 'leave'; return; }
@@ -125,6 +125,7 @@ function fireHeld(W, e) {
 
 // Devolve false quando o inimigo saiu do campo e deve ser descartado.
 export function updateEnemy(W, e, dt) {
+  const oldX = e.x, oldY = e.y;
   e.t += dt;
   if (e.flash > 0) e.flash -= dt;
   const def = e.def, p = W.player;
@@ -201,7 +202,7 @@ export function updateEnemy(W, e, dt) {
       // nave: o mundo lê isso para decidir se o tiro volta.
       e.z -= e.speed * dt;
       e.yaw += def.turn * dt * .35;
-      e.face = Math.sin(e.yaw);
+      e.face = e.yaw;
       break;
     case 'swarm': {
       // Nuvem: cada um persegue o centro do próprio grupo e treme em volta.
@@ -211,8 +212,12 @@ export function updateEnemy(W, e, dt) {
       if (g) {
         e.x += ((g.x + Math.cos(e.phase + e.t * def.jitter) * def.cohesion) - e.x) * Math.min(1, dt * 3);
         e.y += ((g.y + Math.sin(e.phase + e.t * def.jitter * 1.3) * def.cohesion) - e.y) * Math.min(1, dt * 3);
-        g.x += clamp(p.x - g.x, -1, 1) * 42 * dt;
-        g.y += clamp(p.y - g.y, -1, 1) * 30 * dt;
+        // Centro compartilhado avança uma vez por passo, não uma por membro.
+        if (g.updatedAt !== W.time) {
+          g.x += clamp(p.x - g.x, -1, 1) * 42 * dt;
+          g.y += clamp(p.y - g.y, -1, 1) * 30 * dt;
+          g.updatedAt = W.time;
+        }
       }
       break;
     }
@@ -224,6 +229,13 @@ export function updateEnemy(W, e, dt) {
         if (Math.hypot(p.x - e.x, p.y - e.y) < def.beamR && p.z < e.z) W.hurtPlayer(1);
       }
       break;
+  }
+  e.motionX = (e.x - oldX) / dt; e.motionY = (e.y - oldY) / dt;
+  if (!['spinner', 'mirror', 'orbiter', 'diver'].includes(e.type)) {
+    const turn = 1 - Math.exp(-7 * dt);
+    e.yaw += (clamp(-e.motionX / 420, -.5, .5) - e.yaw) * turn;
+    e.roll += (clamp(e.motionX / 320, -.55, .55) - e.roll) * turn;
+    e.pitch += (clamp(e.motionY / 400, -.3, .3) - e.pitch) * turn;
   }
   if (e.z < SPAWN) e.entered = true;
   // Fora dos limites: passou da nave, ficou longe demais ou saiu pelos lados.
@@ -294,6 +306,19 @@ function formation(W, wave, available) {
     ? group([spawn('hunter', 0.2), spawn('hunter', 0.8, 20)])
     : group([spawn('hunter', 0.2 + r.next() * 0.6)])) });
   if (has('spinner')) list.push({ w: 1.1 + wave * 0.09, make: () => group([spawn('spinner', 0.3 + r.next() * 0.4)]) });
+  if (has('diver')) list.push({ w: 1.7, make: () => group([
+    spawn('diver', .2, 0, { phase: 0 }), spawn('diver', .8, 40, { phase: Math.PI * 1.5 })]) });
+  if (has('wall')) list.push({ w: 1.1, make: () => {
+    const hole = 1 + Math.floor(r.next() * 3);
+    return group([0, 1, 2, 3, 4].filter(i => i !== hole).map(i => ({ ...spawn('wall', .12 + i * .19), fy: .5 })));
+  } });
+  if (has('orbiter')) list.push({ w: 1.2, make: () => group([spawn('orbiter', .5)]) });
+  if (has('mirror')) list.push({ w: 1.2, make: () => group([spawn('mirror', .3), spawn('drone', .7, 30)]) });
+  if (has('swarm')) list.push({ w: 1.8, make: () => {
+    const x = .25 + r.next() * .5;
+    return group([0, 1, 2, 3].map(i => spawn('swarm', x + (i - 1.5) * .06, i * 12, { slot: i })));
+  } });
+  if (has('lancer')) list.push({ w: 1.1, make: () => group([spawn('lancer', .25 + r.next() * .5)]) });
   return weightedPick(r, list).make();
 }
 
@@ -341,7 +366,7 @@ export function makeBoss(W, index) {
   const hp = Math.round(def.hp * (1 + cycle * BOSS.hpPerCycle) * W.diff.bossHp);
   return {
     def, index, cycle, name: def.name + (NUMERALS[cycle] ?? ` ${cycle + 1}`),
-    x: 0, y: 0, z: SPACE.spawnZ * .9, r: def.radius * 2.4, homeZ: SPACE.spawnZ * .28,
+    x: 0, y: 0, z: SPACE.spawnZ * .9, r: def.radius * 3.6, homeZ: SPACE.spawnZ * .28,
     yaw: 0, pitch: 0, roll: 0,
     hp, maxHp: hp, phase: 0, state: 'enter', t: 0, flash: 0, dir: 1,
     queue: 0, key: '', pattern: null, telegraph: 0, rest: 1.4, repeat: 0, gapTimer: 0,
@@ -367,7 +392,9 @@ export function updateBoss(W, b, dt) {
     W.events.push({ type: 'bossPhase', phase: want, x: b.x, y: b.y, z: b.z });
   }
   const def = b.def.phases[b.phase];
+  const oldX = b.x, oldY = b.y;
   move(W, b, def, dt);
+  b.motionX = (b.x - oldX) / dt; b.motionY = (b.y - oldY) / dt;
   if (b.rest > 0) { b.rest -= dt; return; }
   if (!b.pattern) {
     b.key = def.patterns[b.queue % def.patterns.length];
@@ -387,13 +414,16 @@ export function updateBoss(W, b, dt) {
 function move(W, b, def, dt) {
   if (b.charge) {
     // Mirando a investida: acompanha o jogador devagar, depois trava.
-    if (b.charge.stage === 'aim') b.x += clamp(W.player.x - b.x, -1, 1) * def.speed * 1.6 * dt;
+    if (b.charge.stage === 'aim') {
+      b.x += clamp(W.player.x - b.x, -1, 1) * def.speed * 1.6 * dt;
+      b.y += clamp(W.player.y - b.y, -1, 1) * def.speed * dt;
+    }
     return;
   }
   // Varre o plano de um lado ao outro e flutua em y, mantendo a profundidade.
   // A guinada acompanha o sentido da varredura, que é o que dá a leitura de
   // para onde ele está indo agora que o corpo tem volume.
-  const limite = W.halfW * 1.15 - b.r * .4;
+  const limite = Math.max(12, W.halfW * 1.15 - b.r * .4);
   b.x += b.dir * def.speed * Math.sqrt(W.diff.speed) * dt;
   if (b.x < -limite) { b.x = -limite; b.dir = 1; }
   if (b.x > limite) { b.x = limite; b.dir = -1; }
@@ -489,7 +519,7 @@ function runPattern(W, b, def, dt) {
         // A investida agora é em profundidade: ele vem para cima da nave e
         // recua. É a manobra que a câmera atrás da nave torna assustadora.
         c.stage = 'dash';
-        c.targetZ = W.player.z + b.r * 1.5;
+        c.targetZ = W.player.z + b.r * .55;
         W.events.push({ type: 'dash', x: b.x, y: b.y, z: b.z });
       }
       if (c.stage === 'dash') {
@@ -517,3 +547,4 @@ function runPattern(W, b, def, dt) {
     }
   }
 }
+
