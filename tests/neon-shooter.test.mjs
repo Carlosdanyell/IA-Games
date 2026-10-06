@@ -12,28 +12,19 @@ const idle = { dx: 0, dy: 0, vx: 0, vy: 0, firing: false, autofire: true };
 const finite = (...values) => values.every(Number.isFinite);
 
 // Piloto simples: segue na horizontal o chefe ou o inimigo mais próximo da nave.
-// Piloto automático em três eixos. O tiro viaja em profundidade e só acerta
-// quem está alinhado em x e em y, então mirar passou a ser as duas coisas: o
-// piloto antigo só acompanhava x e não acertava quase nada.
 function autopilot(W) {
   const p = W.player;
   let target = W.boss && W.boss.state === 'fight' ? W.boss : null;
   let best = Infinity;
   if (!target) {
     for (const e of W.enemies) {
-      if (e.z <= p.z) continue;
-      // Prefere quem está perto do eixo de tiro e chegando: é o alvo que o
-      // tiro de fato alcança antes de o inimigo passar.
-      const score = Math.hypot(e.x - p.x, e.y - p.y) + e.z * 0.25;
+      if (e.y < 0) continue;
+      const score = Math.abs(e.x - p.x) + (W.h - e.y) * 0.2;
       if (score < best) { best = score; target = e; }
     }
   }
-  const tx = target ? target.x : 0, ty = target ? target.y : 0;
-  return {
-    ...idle,
-    vx: Math.max(-1, Math.min(1, (tx - p.x) / 22)),
-    vy: Math.max(-1, Math.min(1, (p.y - ty) / 22))
-  };
+  const tx = target ? target.x : W.w / 2;
+  return { ...idle, vx: Math.max(-1, Math.min(1, (tx - p.x) / 30)) };
 }
 
 function play(W, seconds, controls = () => idle) {
@@ -51,47 +42,37 @@ function play(W, seconds, controls = () => idle) {
 // Piloto que desvia: campo de repulsão das ameaças mais atração pelo alvo. Sem
 // ele a medição da dificuldade só mede quem não sabe jogar — e a curva que
 // interessa é a de quem se mexe.
-// Piloto que desvia, em três eixos. Uma ameaça só importa quando está perto em
-// profundidade E alinhada com a nave: o que empurra é o desvio em x/y, pesado
-// pelo quanto falta em z. O piloto antigo pensava em altura de tela e, num jogo
-// com profundidade, fugia de coisas que ainda estavam a dois mil de distância.
 function dodger(W) {
   const p = W.player;
   let fx = 0, fy = 0;
-  const push = (x, y, z, weight, range) => {
-    const dz = z - p.z;
-    if (dz < -40 || dz > 900) return;
+  const push = (x, y, weight, range) => {
     const dx = p.x - x, dy = p.y - y, d = Math.hypot(dx, dy) || 1;
     if (d > range) return;
-    // Quanto menos falta em z, mais urgente é sair da frente.
-    const urgencia = 1 - Math.min(1, dz / 900);
-    const f = weight * urgencia * (1 - d / range) / d;
+    const f = weight * (1 - d / range) / d;
     fx += dx * f; fy += dy * f;
   };
-  for (const s of W.shots) push(s.x, s.y, s.z, 220, 90);
-  for (const e of W.enemies) push(e.x, e.y, e.z, 190, 70 + e.r * 2);
-  // Do chefe só se foge quando ele está perto de encostar. Fugir dele de longe
-  // é fugir do próprio eixo de tiro: em 3D sair de x/y é perder a mira, e um
-  // piloto que faz isso nunca derruba o chefe — foi o que travou a onda 5.
-  if (W.boss && W.boss.state === 'fight' && W.boss.z - p.z < 220) {
-    push(W.boss.x, W.boss.y, W.boss.z, 300, 150);
+  for (const s of W.shots) {
+    const t = ((p.x - s.x) * s.vx + (p.y - s.y) * s.vy) / (s.vx * s.vx + s.vy * s.vy || 1);
+    if (t >= 0 && t <= 1.2) push(s.x + s.vx * t * 0.6, s.y + s.vy * t * 0.6, 260, 120);
   }
-  // Mira: o alvo que o tiro alcança antes de passar.
+  for (const e of W.enemies) if (e.y > -20) push(e.x, e.y, 200, 90 + e.r * 2);
+  if (W.boss && W.boss.state === 'fight') push(W.boss.x, W.boss.y, 300, 120);
   let target = W.boss && W.boss.state === 'fight' ? W.boss : null, best = Infinity;
   if (!target) for (const e of W.enemies) {
-    if (e.z <= p.z) continue;
-    const s = Math.hypot(e.x - p.x, e.y - p.y) + e.z * 0.25;
+    if (e.y < 0) continue;
+    const s = Math.abs(e.x - p.x) + (W.h - e.y) * 0.25;
     if (s < best) { best = s; target = e; }
   }
-  fx += Math.max(-1, Math.min(1, ((target ? target.x : 0) - p.x) / 30)) * 0.6;
-  fy += Math.max(-1, Math.min(1, ((target ? target.y : 0) - p.y) / 30)) * 0.6;
+  fx += Math.max(-1, Math.min(1, ((target ? target.x : W.w / 2) - p.x) / 40)) * 0.55;
+  fy += (W.h - PLAYER.bottom - p.y) / 400 * 0.4;
   const m = Math.max(1, Math.hypot(fx, fy));
-  // `vy` positivo desce na tela, e o mundo cresce para cima: o sinal inverte.
-  return { ...idle, vx: Math.max(-1, Math.min(1, fx / m)), vy: Math.max(-1, Math.min(1, -fy / m)) };
+  return { ...idle, vx: Math.max(-1, Math.min(1, fx / m)), vy: Math.max(-1, Math.min(1, fy / m)) };
 }
 
+// Partida completa no compasso do jogo: a melhoria só sai no intervalo, uma por
+// onda, e tudo o que está guardado é gasto no intervalo que antecede o chefe.
 function simulate(difficulty, seed, seconds) {
-  const W = createWorld({ ...logicalSize(16 / 9), difficulty, seed });
+  const W = createWorld({ w: 360, h: 640, difficulty, seed });
   let upgradeWave = 0;
   for (let t = 0; t < seconds && !W.over; t += STEP) {
     W.update(STEP, dodger(W));
@@ -112,7 +93,7 @@ function simulate(difficulty, seed, seconds) {
 function survival(difficulty, seeds, seconds) {
   let alive = 0, total = 0;
   for (const seed of seeds) {
-    const W = createWorld({ ...logicalSize(16 / 9), difficulty, seed });
+    const W = createWorld({ w: 360, h: 640, difficulty, seed });
     let upgradeWave = 0, t = 0;
     for (; t < seconds && !W.over; t += STEP) {
       W.update(STEP, dodger(W));
@@ -131,17 +112,16 @@ function survival(difficulty, seeds, seconds) {
   return { time: total / seeds.length, alive };
 }
 
-test('campo horizontal ocupa a proporção exata sem faixas laterais', () => {
-  for (const aspect of [4 / 3, 16 / 9, 844 / 390, 932 / 430, 21 / 9]) {
-    const size = logicalSize(aspect);
-    assert.equal(size.h, FIELD.landscapeH);
-    assert.ok(Math.abs(size.w / size.h - aspect) < 1e-12);
-  }
-  assert.ok(Number.isFinite(logicalSize(NaN).w));
+test('campo lógico: retrato com largura fixa e paisagem com altura fixa', () => {
+  assert.deepEqual(logicalSize(0.5), { w: FIELD.w, h: 720 });
+  assert.equal(logicalSize(0.1).h, FIELD.hMax);
+  const wide = logicalSize(16 / 9);
+  assert.equal(wide.h, FIELD.landscapeH);
+  assert.ok(wide.w > FIELD.w && wide.w <= FIELD.wMax && wide.w % FIELD.step === 0);
 });
 
 test('três minutos de partida com tiro automático: sem NaN, limites respeitados e ondas avançando', () => {
-  const W = createWorld({ ...logicalSize(16 / 9), difficulty: 'dificil', seed: 7 });
+  const W = createWorld({ w: 360, h: 640, difficulty: 'dificil', seed: 7 });
   W.player.maxHp = W.player.hp = 1e6;
   let maxShots = 0, maxBullets = 0, bossSeen = false;
   const check = () => {
@@ -165,7 +145,7 @@ test('três minutos de partida com tiro automático: sem NaN, limites respeitado
 });
 
 test('dano deixa a nave invulnerável por um tempo e zera o combo', () => {
-  const W = createWorld({ ...logicalSize(16 / 9), seed: 1 });
+  const W = createWorld({ w: 360, h: 640, seed: 1 });
   W.combo = 12;
   assert.equal(W.hurtPlayer(1), true);
   assert.equal(W.player.hp, PLAYER.maxHp - 1);
@@ -178,7 +158,7 @@ test('dano deixa a nave invulnerável por um tempo e zera o combo', () => {
 });
 
 test('escudo bloqueia o dano e preserva o combo', () => {
-  const W = createWorld({ ...logicalSize(16 / 9), seed: 2 });
+  const W = createWorld({ w: 360, h: 640, seed: 2 });
   W.collect('shield');
   W.combo = 9;
   W.hurtPlayer(2);
@@ -187,7 +167,7 @@ test('escudo bloqueia o dano e preserva o combo', () => {
 });
 
 test('chefe surge na onda 5, muda de fase pela vida e rende melhoria ao cair', () => {
-  const W = createWorld({ ...logicalSize(16 / 9), seed: 3 });
+  const W = createWorld({ w: 360, h: 640, seed: 3 });
   W.player.hp = W.player.maxHp = 1e6;
   W.beginWave(5);
   W.enemies.length = 0;
@@ -210,9 +190,9 @@ test('chefe surge na onda 5, muda de fase pela vida e rende melhoria ao cair', (
 });
 
 test('bomba fere todos os inimigos e limpa os tiros inimigos', () => {
-  const W = createWorld({ ...logicalSize(16 / 9), seed: 4 });
-  for (let i = 0; i < 5; i++) W.enemies.push(makeEnemy(W, 'drone', (i - 2) * 40, 0, 600));
-  W.shots.push({ x: 0, y: 0, z: 400, vx: 0, vy: 0, vz: -100, r: 4, color: '#fff', t: 0 });
+  const W = createWorld({ w: 360, h: 640, seed: 4 });
+  for (let i = 0; i < 5; i++) W.enemies.push(makeEnemy(W, 'drone', 40 + i * 60, 120));
+  W.shots.push({ x: 100, y: 300, vx: 0, vy: 100, r: 4, color: '#fff', t: 0 });
   W.collect('bomb');
   assert.ok(W.enemies.every(e => e.dead));
   assert.equal(W.shots.length, 0);
@@ -220,7 +200,7 @@ test('bomba fere todos os inimigos e limpa os tiros inimigos', () => {
 
 test('tiro duplo, triplo e os dois juntos', () => {
   const count = setup => {
-    const W = createWorld({ ...logicalSize(16 / 9), seed: 5 });
+    const W = createWorld({ w: 360, h: 640, seed: 5 });
     setup(W);
     W.fire();
     return W.bullets.length;
@@ -232,7 +212,7 @@ test('tiro duplo, triplo e os dois juntos', () => {
 });
 
 test('melhorias: opções distintas, requisito do tiro triplo e reparo com vida baixa', () => {
-  const W = createWorld({ ...logicalSize(16 / 9), seed: 6 });
+  const W = createWorld({ w: 360, h: 640, seed: 6 });
   const offer = W.offerUpgrades();
   assert.equal(offer.length, 3);
   assert.equal(new Set(offer).size, 3);
@@ -247,8 +227,8 @@ test('melhorias: opções distintas, requisito do tiro triplo e reparo com vida 
 });
 
 test('dificuldade muda vida e velocidade dos inimigos', () => {
-  const easy = createWorld({ ...logicalSize(16 / 9), difficulty: 'facil', seed: 8 });
-  const hard = createWorld({ ...logicalSize(16 / 9), difficulty: 'dificil', seed: 8 });
+  const easy = createWorld({ w: 360, h: 640, difficulty: 'facil', seed: 8 });
+  const hard = createWorld({ w: 360, h: 640, difficulty: 'dificil', seed: 8 });
   const a = makeEnemy(easy, 'tank', 100, 50), b = makeEnemy(hard, 'tank', 100, 50);
   assert.ok(b.hp > a.hp && b.speed > a.speed);
 });
@@ -267,8 +247,8 @@ test('a vida do chefe anda separada da vida dos inimigos e varia pouco entre os 
   assert.ok(spread('bossHp') < spread('fire'), 'a cadência tem de separar mais que a vida do chefe');
   assert.ok(DIFFICULTIES.facil.invuln > 1 && DIFFICULTIES.dificil.invuln < 1);
 
-  const hard = createWorld({ ...logicalSize(16 / 9), difficulty: 'dificil', seed: 21 });
-  const easy = createWorld({ ...logicalSize(16 / 9), difficulty: 'facil', seed: 21 });
+  const hard = createWorld({ w: 360, h: 640, difficulty: 'dificil', seed: 21 });
+  const easy = createWorld({ w: 360, h: 640, difficulty: 'facil', seed: 21 });
   hard.beginWave(5); easy.beginWave(5);
   const hardBoss = makeBoss(hard, 0), easyBoss = makeBoss(easy, 0);
   assert.equal(hardBoss.maxHp, Math.round(BOSSES[0].hp * DIFFICULTIES.dificil.bossHp));
@@ -277,7 +257,7 @@ test('a vida do chefe anda separada da vida dos inimigos e varia pouco entre os 
 
 test('a carência depois do dano acompanha a dificuldade', () => {
   const take = key => {
-    const W = createWorld({ ...logicalSize(16 / 9), difficulty: key, seed: 12 });
+    const W = createWorld({ w: 360, h: 640, difficulty: key, seed: 12 });
     W.hurtPlayer(1);
     return W.player.invuln;
   };
@@ -287,7 +267,7 @@ test('a carência depois do dano acompanha a dificuldade', () => {
 });
 
 test('cada virada de fase do chefe solta um power-up', () => {
-  const W = createWorld({ ...logicalSize(16 / 9), seed: 31 });
+  const W = createWorld({ w: 360, h: 640, seed: 31 });
   W.player.hp = W.player.maxHp = 1e6;
   W.beginWave(5);
   W.enemies.length = 0;
@@ -331,7 +311,7 @@ test('a onda tardia pesa mais que a inicial: mais orçamento, menos intervalo e 
 
   // A composição tem de migrar para quem atira: é de onde vem quase todo o dano.
   const share = wave => {
-    const W = createWorld({ ...logicalSize(16 / 9), seed: 44 });
+    const W = createWorld({ w: 360, h: 640, seed: 44 });
     W.wave = wave;
     let shooters = 0, total = 0;
     for (let i = 0; i < 400; i++) {
@@ -400,4 +380,3 @@ test('progresso salvo: dados corrompidos viram padrão, conquistas liberam uma v
   assert.equal(saved.games, 2);
   assert.equal(saved.best.dificil.score, 120000);
 });
-
