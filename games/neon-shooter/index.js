@@ -9,7 +9,7 @@ import { cleanSettings, cleanStats, cleanAchievements, liveStats, checkAchieveme
 export const meta = {
   id: 'neon-shooter',
   title: 'NEON<span>SHOOTER</span>',
-  subtitle: 'ARCADE ESPACIAL / ONDAS',
+  subtitle: 'OPERAÇÃO ÓRBITA / COMBATE 3D',
   arenaLabel: 'Área de jogo. Arraste para mover a nave; o tiro é automático.',
   logicalSize,
   stats: [
@@ -45,7 +45,7 @@ export function create(services) {
   const app = hud.arena.closest('.app');
   app.classList.add('sh-app');
   document.body.classList.add('sh-body');
-  theme.setAuto('rosa');
+  theme.setAuto('cyan');
   input.setMode('absolute');
   input.setInverted(false);
 
@@ -73,6 +73,36 @@ export function create(services) {
   const drag = { active: false, dx: 0, dy: 0, lastX: 0, lastY: 0 };
   const joy = { active: false, x: 0, y: 0, kx: 0, ky: 0, radius: 46 };
   let pointerFire = false;
+  const portrait = window.matchMedia('(orientation: portrait)');
+  const rotate = document.createElement('div');
+  rotate.className = 'sh-rotate';
+  rotate.setAttribute('role', 'status');
+  rotate.innerHTML = '<span aria-hidden="true">↻</span><h2>Gire para pilotar</h2><p>Use o celular na horizontal para enxergar todo o campo de batalha.</p><a href="./index.html">Voltar à biblioteca</a>';
+  app.append(rotate);
+  function orientationChanged() {
+    rotate.hidden = !portrait.matches;
+    if (portrait.matches && state === 'playing') pause();
+    resetControls();
+  }
+  portrait.addEventListener('change', orientationChanged, { signal });
+  rotate.hidden = !portrait.matches;
+  const fullscreen = document.createElement('button');
+  fullscreen.className = 'icon-button sh-fullscreen';
+  fullscreen.setAttribute('aria-label', 'Tela cheia');
+  fullscreen.title = 'Tela cheia';
+  fullscreen.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg>';
+  app.querySelector('.tools').prepend(fullscreen);
+  fullscreen.hidden = !document.fullscreenEnabled;
+  fullscreen.addEventListener('click', async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else {
+        await app.requestFullscreen();
+        try { await screen.orientation?.lock?.('landscape'); } catch (_) {}
+      }
+    } catch (_) { hud.toast('Use a opção de tela cheia do navegador.'); }
+  }, { signal });
+
 
   function resetControls() {
     for (const k of Object.keys(keys)) keys[k] = false;
@@ -80,6 +110,7 @@ export function create(services) {
     joy.active = false; joy.kx = joy.ky = 0;
     pointerFire = false;
     input.reset();
+    if (world) { world.player.targetX = world.player.x; world.player.targetY = world.player.y; }
   }
 
   input.on('press', ({ x, y }) => {
@@ -124,7 +155,11 @@ export function create(services) {
     let vx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
     let vy = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
     if (vx && vy) { vx *= Math.SQRT1_2; vy *= Math.SQRT1_2; }
-    if (joy.active) { vx = joy.kx / joy.radius; vy = joy.ky / joy.radius; }
+    if (joy.active) {
+      const magnitude = Math.hypot(joy.kx, joy.ky) / joy.radius;
+      const gain = magnitude > .12 ? (magnitude - .12) / .88 / magnitude : 0;
+      vx = joy.kx / joy.radius * gain; vy = joy.ky / joy.radius * gain;
+    }
     const c = { dx: drag.dx, dy: drag.dy, vx, vy, autofire: settings.autofire,
                 firing: keys.fire || (!settings.autofire && pointerFire) };
     drag.dx = drag.dy = 0;
@@ -153,6 +188,8 @@ export function create(services) {
     }
   }, { signal });
   window.addEventListener('keyup', e => { const key = KEYMAP[e.code]; if (key) keys[key] = false; }, { signal });
+
+  hud.arena.addEventListener('lostpointercapture', resetControls, { signal });
 
   // Sem zoom de pinça nem menu de toque longo durante a partida.
   document.addEventListener('gesturestart', e => e.preventDefault(), { signal });
@@ -196,10 +233,10 @@ export function create(services) {
   function showIntro() {
     const d = DIFFICULTIES[settings.difficulty], best = stats.best[settings.difficulty];
     hud.showOverlay({
-      tag: 'Pronto para decolar',
-      title: 'Desvie. Atire.<br>Evolua.',
-      text: `${coarse ? 'Arraste em qualquer lugar para pilotar.' : 'Use WASD ou as setas para pilotar.'} O tiro é automático e cada onda deixa a nave mais forte.`,
-      action: 'Jogar agora',
+      tag: 'Operação Órbita · 3D',
+      title: 'Assuma o comando.',
+      text: `${coarse ? 'Arraste em qualquer lugar para pilotar.' : 'Use WASD ou as setas para pilotar.'} Alinhe a mira, desvie dos ataques e enfrente as naves capitais. O tiro é automático.`,
+      action: 'Iniciar missão',
       secondary: 'Mudar dificuldade',
       note: `${d.label} · ${best.score ? `recorde ${fmt(best.score)} · onda ${best.wave}` : 'sem recorde ainda'} · ajustes no rodapé`
     });
@@ -260,7 +297,7 @@ export function create(services) {
   }
 
   function startGame() {
-    if (state === 'playing' || hud.dialogOpen) return;
+    if (state === 'playing' || hud.dialogOpen || portrait.matches) return;
     if (world && !runRecorded) finishRun();
     sound.unlock();
     sound.play('select');
@@ -294,7 +331,7 @@ export function create(services) {
   }
 
   function resume() {
-    if (state !== 'paused' || hud.dialogOpen) return;
+    if (state !== 'paused' || hud.dialogOpen || portrait.matches) return;
     state = 'playing';
     hud.hideOverlay();
     resetControls();
@@ -394,6 +431,7 @@ export function create(services) {
     meta,
     update(dt) {
       sound.tick();
+      if (portrait.matches) return;
       if ((state !== 'playing' && state !== 'dying') || hud.dialogOpen) return;
       world.update(dt, state === 'playing' ? controls() : IDLE);
       handleEvents();
@@ -411,13 +449,14 @@ export function create(services) {
       if (state === 'dying' && (dyingTimer -= dt) <= 0) gameOver();
     },
     render(dt) {
-      renderer.draw(world, { dt, hud: !!world && state !== 'over', frozen: state === 'paused' || state === 'upgrade',
+      renderer.draw(world, { dt, hud: !!world && state !== 'over', frozen: portrait.matches || state === 'paused' || state === 'upgrade',
                              joystick: joy, stats: services.stats });
       syncHud();
       hud.flush();
     },
     resize() {
-      if (world) world.resize(view.w, view.h);
+      if (!portrait.matches && world) world.resize(view.w, view.h);
+      resetControls();
       renderer.invalidate();
       // O shell troca a dica depois de create(); a do jogo entra aqui.
       setHint();
@@ -442,6 +481,7 @@ export function create(services) {
     }),
     destroy() {
       lifecycle.abort();
+      rotate.remove(); fullscreen.remove();
       sound.destroy();
       upgrades.destroy();
       input.destroy();
@@ -450,3 +490,4 @@ export function create(services) {
     }
   };
 }
+

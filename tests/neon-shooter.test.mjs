@@ -91,7 +91,7 @@ function dodger(W) {
 }
 
 function simulate(difficulty, seed, seconds) {
-  const W = createWorld({ w: 360, h: 640, difficulty, seed });
+  const W = createWorld({ ...logicalSize(16 / 9), difficulty, seed });
   let upgradeWave = 0;
   for (let t = 0; t < seconds && !W.over; t += STEP) {
     W.update(STEP, dodger(W));
@@ -112,7 +112,7 @@ function simulate(difficulty, seed, seconds) {
 function survival(difficulty, seeds, seconds) {
   let alive = 0, total = 0;
   for (const seed of seeds) {
-    const W = createWorld({ w: 360, h: 640, difficulty, seed });
+    const W = createWorld({ ...logicalSize(16 / 9), difficulty, seed });
     let upgradeWave = 0, t = 0;
     for (; t < seconds && !W.over; t += STEP) {
       W.update(STEP, dodger(W));
@@ -131,16 +131,17 @@ function survival(difficulty, seeds, seconds) {
   return { time: total / seeds.length, alive };
 }
 
-test('campo lógico: retrato com largura fixa e paisagem com altura fixa', () => {
-  assert.deepEqual(logicalSize(0.5), { w: FIELD.w, h: 720 });
-  assert.equal(logicalSize(0.1).h, FIELD.hMax);
-  const wide = logicalSize(16 / 9);
-  assert.equal(wide.h, FIELD.landscapeH);
-  assert.ok(wide.w > FIELD.w && wide.w <= FIELD.wMax && wide.w % FIELD.step === 0);
+test('campo horizontal ocupa a proporção exata sem faixas laterais', () => {
+  for (const aspect of [4 / 3, 16 / 9, 844 / 390, 932 / 430, 21 / 9]) {
+    const size = logicalSize(aspect);
+    assert.equal(size.h, FIELD.landscapeH);
+    assert.ok(Math.abs(size.w / size.h - aspect) < 1e-12);
+  }
+  assert.ok(Number.isFinite(logicalSize(NaN).w));
 });
 
 test('três minutos de partida com tiro automático: sem NaN, limites respeitados e ondas avançando', () => {
-  const W = createWorld({ w: 360, h: 640, difficulty: 'dificil', seed: 7 });
+  const W = createWorld({ ...logicalSize(16 / 9), difficulty: 'dificil', seed: 7 });
   W.player.maxHp = W.player.hp = 1e6;
   let maxShots = 0, maxBullets = 0, bossSeen = false;
   const check = () => {
@@ -164,7 +165,7 @@ test('três minutos de partida com tiro automático: sem NaN, limites respeitado
 });
 
 test('dano deixa a nave invulnerável por um tempo e zera o combo', () => {
-  const W = createWorld({ w: 360, h: 640, seed: 1 });
+  const W = createWorld({ ...logicalSize(16 / 9), seed: 1 });
   W.combo = 12;
   assert.equal(W.hurtPlayer(1), true);
   assert.equal(W.player.hp, PLAYER.maxHp - 1);
@@ -177,7 +178,7 @@ test('dano deixa a nave invulnerável por um tempo e zera o combo', () => {
 });
 
 test('escudo bloqueia o dano e preserva o combo', () => {
-  const W = createWorld({ w: 360, h: 640, seed: 2 });
+  const W = createWorld({ ...logicalSize(16 / 9), seed: 2 });
   W.collect('shield');
   W.combo = 9;
   W.hurtPlayer(2);
@@ -186,7 +187,7 @@ test('escudo bloqueia o dano e preserva o combo', () => {
 });
 
 test('chefe surge na onda 5, muda de fase pela vida e rende melhoria ao cair', () => {
-  const W = createWorld({ w: 360, h: 640, seed: 3 });
+  const W = createWorld({ ...logicalSize(16 / 9), seed: 3 });
   W.player.hp = W.player.maxHp = 1e6;
   W.beginWave(5);
   W.enemies.length = 0;
@@ -209,7 +210,7 @@ test('chefe surge na onda 5, muda de fase pela vida e rende melhoria ao cair', (
 });
 
 test('bomba fere todos os inimigos e limpa os tiros inimigos', () => {
-  const W = createWorld({ w: 360, h: 640, seed: 4 });
+  const W = createWorld({ ...logicalSize(16 / 9), seed: 4 });
   for (let i = 0; i < 5; i++) W.enemies.push(makeEnemy(W, 'drone', (i - 2) * 40, 0, 600));
   W.shots.push({ x: 0, y: 0, z: 400, vx: 0, vy: 0, vz: -100, r: 4, color: '#fff', t: 0 });
   W.collect('bomb');
@@ -219,7 +220,7 @@ test('bomba fere todos os inimigos e limpa os tiros inimigos', () => {
 
 test('tiro duplo, triplo e os dois juntos', () => {
   const count = setup => {
-    const W = createWorld({ w: 360, h: 640, seed: 5 });
+    const W = createWorld({ ...logicalSize(16 / 9), seed: 5 });
     setup(W);
     W.fire();
     return W.bullets.length;
@@ -231,7 +232,7 @@ test('tiro duplo, triplo e os dois juntos', () => {
 });
 
 test('melhorias: opções distintas, requisito do tiro triplo e reparo com vida baixa', () => {
-  const W = createWorld({ w: 360, h: 640, seed: 6 });
+  const W = createWorld({ ...logicalSize(16 / 9), seed: 6 });
   const offer = W.offerUpgrades();
   assert.equal(offer.length, 3);
   assert.equal(new Set(offer).size, 3);
@@ -246,8 +247,8 @@ test('melhorias: opções distintas, requisito do tiro triplo e reparo com vida 
 });
 
 test('dificuldade muda vida e velocidade dos inimigos', () => {
-  const easy = createWorld({ w: 360, h: 640, difficulty: 'facil', seed: 8 });
-  const hard = createWorld({ w: 360, h: 640, difficulty: 'dificil', seed: 8 });
+  const easy = createWorld({ ...logicalSize(16 / 9), difficulty: 'facil', seed: 8 });
+  const hard = createWorld({ ...logicalSize(16 / 9), difficulty: 'dificil', seed: 8 });
   const a = makeEnemy(easy, 'tank', 100, 50), b = makeEnemy(hard, 'tank', 100, 50);
   assert.ok(b.hp > a.hp && b.speed > a.speed);
 });
@@ -266,8 +267,8 @@ test('a vida do chefe anda separada da vida dos inimigos e varia pouco entre os 
   assert.ok(spread('bossHp') < spread('fire'), 'a cadência tem de separar mais que a vida do chefe');
   assert.ok(DIFFICULTIES.facil.invuln > 1 && DIFFICULTIES.dificil.invuln < 1);
 
-  const hard = createWorld({ w: 360, h: 640, difficulty: 'dificil', seed: 21 });
-  const easy = createWorld({ w: 360, h: 640, difficulty: 'facil', seed: 21 });
+  const hard = createWorld({ ...logicalSize(16 / 9), difficulty: 'dificil', seed: 21 });
+  const easy = createWorld({ ...logicalSize(16 / 9), difficulty: 'facil', seed: 21 });
   hard.beginWave(5); easy.beginWave(5);
   const hardBoss = makeBoss(hard, 0), easyBoss = makeBoss(easy, 0);
   assert.equal(hardBoss.maxHp, Math.round(BOSSES[0].hp * DIFFICULTIES.dificil.bossHp));
@@ -276,7 +277,7 @@ test('a vida do chefe anda separada da vida dos inimigos e varia pouco entre os 
 
 test('a carência depois do dano acompanha a dificuldade', () => {
   const take = key => {
-    const W = createWorld({ w: 360, h: 640, difficulty: key, seed: 12 });
+    const W = createWorld({ ...logicalSize(16 / 9), difficulty: key, seed: 12 });
     W.hurtPlayer(1);
     return W.player.invuln;
   };
@@ -286,7 +287,7 @@ test('a carência depois do dano acompanha a dificuldade', () => {
 });
 
 test('cada virada de fase do chefe solta um power-up', () => {
-  const W = createWorld({ w: 360, h: 640, seed: 31 });
+  const W = createWorld({ ...logicalSize(16 / 9), seed: 31 });
   W.player.hp = W.player.maxHp = 1e6;
   W.beginWave(5);
   W.enemies.length = 0;
@@ -330,7 +331,7 @@ test('a onda tardia pesa mais que a inicial: mais orçamento, menos intervalo e 
 
   // A composição tem de migrar para quem atira: é de onde vem quase todo o dano.
   const share = wave => {
-    const W = createWorld({ w: 360, h: 640, seed: 44 });
+    const W = createWorld({ ...logicalSize(16 / 9), seed: 44 });
     W.wave = wave;
     let shooters = 0, total = 0;
     for (let i = 0; i < 400; i++) {
@@ -399,3 +400,4 @@ test('progresso salvo: dados corrompidos viram padrão, conquistas liberam uma v
   assert.equal(saved.games, 2);
   assert.equal(saved.best.dificil.score, 120000);
 });
+

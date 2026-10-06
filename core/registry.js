@@ -74,8 +74,8 @@ export const GAMES = [
   {
     id: 'neon-shooter',
     title: 'Neon Shooter',
-    tagline: 'Tiro espacial em ondas, chefes e melhorias a cada nível.',
-    tags: ['Arcade', 'Chefes', 'Offline'],
+    tagline: 'Combate espacial 3D na horizontal, naves capitais e pilotagem por toque.',
+    tags: ['3D', 'Horizontal', 'Offline'],
     accent: '#ff4fd8',
     status: 'ready',
     entry: './games/neon-shooter/index.js',
@@ -114,3 +114,4 @@ export const GAMES = [
 ];
 
 export const getGame = id => GAMES.find(g => g.id === id) || null;
+

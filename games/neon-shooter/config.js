@@ -3,22 +3,13 @@
 // simulação e os testes leem os mesmos números que o jogo.
 
 export const FIELD = {
-  w: 360,           // largura lógica em retrato
-  hMin: 480,
-  hMax: 780,
-  step: 20,         // quantização: a barra de endereço do celular não muda o campo
-  landscapeH: 460,  // em paisagem a altura fica fixa e a largura acompanha
-  wMax: 820
+  landscapeH: 460 // altura fixa; largura exata da tela, inclusive ultrawide
 };
 
 export function logicalSize(aspect) {
-  const a = Math.max(aspect, 0.0001);
-  if (a >= 0.95) {
-    const w = Math.min(FIELD.wMax, Math.max(FIELD.w, FIELD.landscapeH * a));
-    return { w: Math.round(w / FIELD.step) * FIELD.step, h: FIELD.landscapeH };
-  }
-  const h = Math.min(FIELD.hMax, Math.max(FIELD.hMin, FIELD.w / a));
-  return { w: FIELD.w, h: Math.round(h / FIELD.step) * FIELD.step };
+  // A proporção exata elimina as faixas em celulares 19,5:9 e 21:9.
+  const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 16 / 9;
+  return { w: FIELD.landscapeH * a, h: FIELD.landscapeH };
 }
 
 // ------------------------------------------------------------------- 3D
@@ -35,7 +26,7 @@ export const SPACE = {
   near: 18,
   camBack: 300,      // distância da câmera ao plano da nave
   camLift: 26,       // câmera um pouco acima, para ver o chão do túnel
-  camLook: .08,      // quanto a câmera acompanha o desvio lateral da nave
+  camLook: 0,        // mira e limites estáveis durante a manobra
   spawnZ: 1900,      // onde o inimigo aparece
   killZ: -180,       // passou daqui para trás, saiu da partida
   fogStart: 520,
@@ -43,9 +34,18 @@ export const SPACE = {
   fogFloor: .45,
   // Meia altura do plano de jogo; a meia largura vem da tela lógica, que muda
   // com a orientação do aparelho.
-  halfH: 150,
-  halfW: aspectW => aspectW / 2 * 300 / 460
+  halfH: (FIELD.landscapeH - 116) / 2 * 300 / 460,
+  halfW: width => Math.max(12, (width / 2 - 8) * (300 - 25.5) / 460 - 25.5)
 };
+
+// Folga para o casco e para o HUD, usando exatamente a lente do desenho.
+export function flightBounds(w, h) {
+  // Usa a parte do casco mais próxima da câmera, inclusive durante a rolagem.
+  const radius = PLAYER.size * 1.5, k = (SPACE.camBack - radius) / SPACE.fov;
+  const minY = SPACE.camLift - (h / 2 - 8) * k + radius;
+  const maxY = SPACE.camLift + (h / 2 - 72) * k - radius;
+  return { halfW: SPACE.halfW(w), halfH: Math.max(20, (maxY - minY) / 2), minY, maxY };
+}
 
 export const PLAYER = {
   radius: 7,            // hitbox menor que o desenho, de propósito
@@ -53,6 +53,8 @@ export const PLAYER = {
   bottom: 92,           // distância da base ao começar
   topLimit: 0.36,       // pode subir até 36% da altura do campo
   speed: 290,           // unidades/s no teclado e no joystick
+  response: 24,        // amortecimento da pilotagem; sem salto ao arrastar
+  aimAssist: 32,       // pequena tolerância no plano de voo, sem mirar por toda a tela
   maxHp: 5,
   invuln: 1.3,          // segundos intocável depois de levar dano
   grace: 0.9,           // depois de escolher melhoria

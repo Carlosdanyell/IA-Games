@@ -153,7 +153,7 @@ export function cone(radius, height, sides, color, opts = {}) {
   const faces = [];
   for (let i = 0; i < sides; i++) {
     const b = 1 + i, c = 1 + (i + 1) % sides;
-    faces.push({ idx: [0, c, b], color, ...opts });
+    faces.push({ idx: [0, b, c], color, ...opts });
   }
   const base = [];
   for (let i = sides; i >= 1; i--) base.push(i);
@@ -190,3 +190,4 @@ export function merge(parts) {
   }
   return createMesh(verts, faces);
 }
+

@@ -58,12 +58,14 @@ export function createScene() {
   function cresce(vertsNecessarios, facesNecessarias) {
     if (vertsNecessarios > visivel.length) {
       const n = 1 << Math.ceil(Math.log2(vertsNecessarios));
-      proj = new Float64Array(n * 4); visivel = new Uint8Array(n);
+      const p = new Float64Array(n * 4), v = new Uint8Array(n);
+      p.set(proj); v.set(visivel); proj = p; visivel = v;
     }
     if (facesNecessarias > faceIdx.length) {
       const n = 1 << Math.ceil(Math.log2(facesNecessarias));
-      faceIdx = new Int32Array(n); faceBase = new Int32Array(n);
-      faceZ = new Float64Array(n); faceLuz = new Float64Array(n);
+      const idx = new Int32Array(n), base = new Int32Array(n), z = new Float64Array(n), luz = new Float64Array(n);
+      idx.set(faceIdx); base.set(faceBase); z.set(faceZ); luz.set(faceLuz);
+      faceIdx = idx; faceBase = base; faceZ = z; faceLuz = luz;
     }
   }
 
@@ -119,11 +121,11 @@ export function createScene() {
   // `fogFloor` é o quanto a névoa pode apagar. Sem piso, o inimigo distante
   // some contra o fundo quase preto da arena e o jogador não tem como planejar
   // — e num atirador, alvo invisível é injustiça, não atmosfera.
-  function flush(ctx, { fog = null, fogStart = 600, fogEnd = 2200, fogFloor = .45, edge = .55 } = {}) {
+  function flush(ctx, { fog = null, fogStart = 600, fogEnd = 2200, fogFloor = .45, edge = 1.8 } = {}) {
     if (!nFace) return 0;
-    if (ordem.length < nFace) ordem = new Array(nFace);
+    ordem.length = nFace;
     for (let i = 0; i < nFace; i++) ordem[i] = i;
-    const fatia = ordem.length === nFace ? ordem : ordem.slice(0, nFace);
+    const fatia = ordem;
     fatia.sort((a, b) => faceZ[b] - faceZ[a]);
     ctx.lineJoin = 'round';
     for (let k = 0; k < nFace; k++) {
@@ -149,9 +151,9 @@ export function createScene() {
       // Contorno só nas faces acesas e nas grandes: é o que dá o traço neon sem
       // pagar um caminho a mais em cada placa pequena do casco.
       if (face.glow || (edge && proj[(base + idx[0]) * 4 + 3] > edge)) {
-        ctx.strokeStyle = face.glow ? '#ffffff' : (mesh.edge || '#9fe8ff');
-        ctx.globalAlpha = alfa * (face.glow ? .85 : .3);
-        ctx.lineWidth = face.glow ? 1.4 : .8;
+        ctx.strokeStyle = face.glow ? face.color : (mesh.edge || '#b6c8d4');
+        ctx.globalAlpha = alfa * (face.glow ? .35 : .18);
+        ctx.lineWidth = face.glow ? .8 : .5;
         ctx.stroke();
       }
     }
@@ -163,3 +165,4 @@ export function createScene() {
 
   return { begin, add, flush, get faces() { return nFace; } };
 }
+
