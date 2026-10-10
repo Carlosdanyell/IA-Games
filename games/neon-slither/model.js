@@ -11,6 +11,12 @@ export const angleDelta = a => Math.atan2(Math.sin(a), Math.cos(a));
 // na massa 61038, então o tamanho na tela nunca anda para trás.
 export const radiusOf = s => 7 + Math.min(42, Math.sqrt(s.mass) * .17);
 export const lengthOf = s => 65 + Math.sqrt(s.mass) * 22;
+// O zoom acompanha a espessura, então a cabeça ocupa sempre mais ou menos a
+// mesma fatia da tela e quem encolhe é o mundo em volta — é assim que o
+// slither.io mostra que você cresceu. A curva é assintótica: o antigo
+// `1 - raiz(massa)` batia no piso já na massa 2800 e a partir dali crescer não
+// mudava mais nada na tela.
+export const zoomFor = mass => Math.max(.28, 1 / (1 + Math.sqrt(mass) * .0105));
 // Raio da curva em unidades do mundo. Não depende da velocidade: acelerar não
 // abre a curva e, quanto mais rápida a cobra, menos tempo leva a meia-volta.
 // O valor é largo o bastante para a cabeça deslizar em arco em vez de pivotar.
@@ -87,12 +93,27 @@ export function turnsAround(path, p) {
   return Math.abs(total) / (Math.PI * 2);
 }
 
+// Quanto à frente um rival precisa enxergar para conseguir desviar. Desviar de
+// frente exige um quarto de volta, que avança um raio de curva; antes disso ele
+// já encosta a `meu raio + raio do outro`. Para uma cobra pequena o alcance da
+// dificuldade sobra, e nada muda. Para um gigante não: com o alcance fixo ele
+// encostava num corpo grande a 120 e sobravam 35 unidades para uma curva que
+// pede 73. Medido: 55 a 62% das mortes de rivais acima de 5000 eram batidas em
+// corpo maior, cinco a sete por minuto; com o alcance proporcional, metade.
+//
+// Soma só o que o tamanho pede a mais que uma cobra recém-nascida, para o
+// alcance de cada dificuldade continuar valendo inteiro para os pequenos — a
+// conta não pode deixar o novato do Fácil mais esperto por tabela.
+const desvio = s => turnRadiusOf(s) + radiusOf(s) * 2;
+export const foresightOf = (level, s) =>
+  level.foresight + Math.max(0, desvio(s) - desvio({ mass: ARENA.startMass }));
+
 export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Date.now() } = {}) {
   const level = DIFFICULTIES[difficulty] || DIFFICULTIES.normal, rng = createRng(seed);
   const world = { snakes: [], foods: [], time: 0, started: false, over: false, best: ARENA.startMass, kills: 0, events: [], level,
-    bodyGrid: new SpatialGrid(), foodGrid: new SpatialGrid(), respawns: [], nextId: 0, foodClock: 0 };
+    bodyGrid: new SpatialGrid(), foodGrid: new SpatialGrid(), respawns: [], nextId: 0, foodClock: 0, tierClock: [] };
   // Buffers reaproveitados pelas consultas do passo: nada é alocado por quadro.
-  const risk = new Float64Array(RAYS), seenBody = [], seenFood = [], seenHit = [], seenBite = [];
+  const risk = new Float64Array(RAYS), seenBody = [], seenFood = [], seenHit = [], seenBite = [], seenSpawn = [];
   const point = margin => { const a = rng.next() * TAU, r = Math.sqrt(rng.next()) * (ARENA.radius - margin); return { x: Math.cos(a) * r, y: Math.sin(a) * r }; };
   function food(p, value = ARENA.foodValue, color = Math.floor(rng.next() * 6)) {
     if (world.foods.length >= ARENA.maxFood) return;
@@ -112,28 +133,108 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
     }
   }
   function foodIndex() { world.foodGrid.clear(); for (const f of world.foods) if (!f.eaten) world.foodGrid.insert(f, f.x, f.y); }
+  // Massa de quem renasce. Percorre a pirâmide da dificuldade do topo para a
+  // base e devolve a primeira faixa com gente faltando; sem falta, nasce
+  // novato. A contagem é cumulativa: um gigante também conta como "acima de
+  // 5000", então um rival que cresceu sozinho até lá ocupa a vaga e ninguém
+  // precisa nascer grande para preenchê-la.
+  //
+  // Cada faixa tem um relógio: depois de um nascimento nela, a próxima vaga só
+  // é preenchida passado `refill`. Na largada os relógios estão zerados, então
+  // a pirâmide sai inteira; o intervalo vale para a reposição.
+  function birthMass() {
+    let meta = 0;
+    const faixas = level.population ?? [];
+    for (let i = 0; i < faixas.length; i++) {
+      const faixa = faixas[i];
+      meta += faixa.count;
+      let acima = 0;
+      for (const v of world.snakes) if (v.alive && !v.player && v.mass >= faixa.min) acima++;
+      if (acima >= meta || world.time < (world.tierClock[i] ?? 0)) continue;
+      return { mass: Math.round(faixa.min + rng.next() ** 1.7 * (faixa.max - faixa.min)), tier: i };
+    }
+    return { mass: Math.round(level.mass[0] + rng.next() ** 2.2 * (level.mass[1] - level.mass[0])), tier: -1 };
+  }
+
+  // Rival grande nasce enrolado num círculo, longe do jogador. Esticado ele não
+  // caberia: um corpo de 4000 nascido fora da vista atravessaria a borda da
+  // arena. Enrolado ele ocupa um disco de raio `comprimento / 2π`, e o que se
+  // vê é uma cobra circulando do outro lado do mapa — como quem já estava
+  // jogando antes de você chegar.
+  function coiledSpot(corpo) {
+    const rho = Math.max(140, corpo / TAU);
+    const limite = ARENA.radius - rho - 160;
+    if (limite <= 0) return null;
+    const p = world.player;
+    // Piso de distância e alvo. O alvo é estar fora da vista; o piso é o
+    // mínimo aceitável quando isso não for possível. Com o jogador pequeno a
+    // vista (742) fica abaixo do piso (1120), então o laço não pode parar na
+    // vista: parava no primeiro lugar a 742, que o piso depois recusava, e a
+    // largada perdia até nove rivais.
+    const piso = ARENA.clearPlayer + 600;
+    const alvo = Math.max(piso, p ? ARENA.spawnView / zoomFor(p.mass) : 0);
+    // Distância de um ponto à linha do círculo: o corpo é um anel, não um
+    // disco cheio, então quem está no meio dele não encosta em nada.
+    const anel = (c, q) => Math.abs(Math.hypot(q.x - c.x, q.y - c.y) - rho);
+    let melhor = null, folga = -Infinity;
+    // Os corpos são consultados pelo índice espacial, em pontos ao longo do
+    // círculo. Varrer todos os pontos de todos os corpos para cada lugar
+    // candidato custava até 122 ms num único passo — um travamento de sete
+    // quadros no computador, e várias vezes isso num celular. Os pontos ficam
+    // a 60 de distância: entre dois deles a linha do círculo se afasta no
+    // máximo 30, o que mexe menos de 1% na folga de 245 de um rival.
+    if (!world.started) bodyIndex();
+    const passo = Math.max(1, Math.ceil(TAU * rho / 60));
+    const raioBusca = ARENA.clearPlayer * .72;
+    for (let t = 0; t < 60; t++) {
+      const a = rng.next() * TAU, r = Math.sqrt(rng.next()) * limite;
+      const c = { x: Math.cos(a) * r, y: Math.sin(a) * r };
+      // A distância até o jogador é conta de uma linha; a folga contra os
+      // corpos é a parte cara. Lugar que não supera o melhor já achado, ou que
+      // nem chega ao piso, não precisa passar pelo teste caro.
+      const longe = p ? Math.hypot(p.x - c.x, p.y - c.y) - rho : Infinity;
+      if (longe <= folga || (p && longe < piso)) continue;
+      let cabe = world.snakes.every(v => !v.alive || anel(c, v) > (v.player ? ARENA.clearPlayer : ARENA.clearRival));
+      for (let k = 0; cabe && k < passo; k++) {
+        const ang = k / passo * TAU, q = { x: c.x + Math.cos(ang) * rho, y: c.y + Math.sin(ang) * rho };
+        for (const seg of world.bodyGrid.collect(q.x, q.y, raioBusca, seenSpawn)) {
+          if (!seg.snake.alive) continue;
+          const lim = (seg.snake.player ? ARENA.clearPlayer : ARENA.clearRival) * .72;
+          if (segmentDistance(q, seg.a, seg.b) <= lim) { cabe = false; break; }
+        }
+      }
+      if (!cabe) continue;
+      // Entre os lugares que cabem, fica o mais longe do jogador. Quase sempre
+      // ele já está fora da vista; quando o jogador é enorme e está no meio do
+      // mapa, a vista cobre quase tudo, e o mais longe possível é o que resta.
+      folga = longe; melhor = c;
+      if (longe >= alvo) break;
+    }
+    if (!melhor || (p && folga < piso)) return null;
+    return { c: melhor, rho };
+  }
+
   function spawn(player = false) {
-    // No começo todo rival nasce pequeno, a arena é uma disputa desde o início.
-    // Depois, quem renasce entra numa escala puxada pela mediana dos rivais
-    // vivos: sem isso o rival mediano, que vive só 43 s, nunca alcança ninguém e
-    // o placar vira um gigante cercado de anões. A mediana substituiu o maior
-    // rival, que realimentava a si mesmo. O teto absoluto fecha o laço, porque
-    // nascer com massa cria massa numa economia fechada. Nada disso olha para o
-    // jogador, de propósito: seria um elástico que pune crescer.
-    const vivos = [];
-    for (const v of world.snakes) if (v.alive && !v.player) vivos.push(v.mass);
-    vivos.sort((x, y) => x - y);
-    const meio = vivos.length ? vivos[vivos.length >> 1] : 0;
-    const teto = Math.min(ARENA.respawnCap, Math.max(level.mass[1], meio * ARENA.respawnShare));
-    const mass = player ? ARENA.startMass
-      : Math.round(level.mass[0] + rng.next() ** 2.2 * (teto - level.mass[0]));
+    const nascimento = player ? { mass: ARENA.startMass, tier: -1 } : birthMass();
+    const mass = nascimento.mass;
+    const corpo = lengthOf({ mass });
+    let p = { x: 0, y: 0 }, a = 0, safe = player, espiral = null;
+    // O jogador entra no centro; o rumo dele sai da mesma conta, só sem busca.
+    if (player) a = Math.atan2(-p.y, -p.x) + (rng.next() - .5);
+    // Novato nasce esticado e pode aparecer por perto, como jogador entrando
+    // no servidor. Quem nasce acima da faixa de novato nasce enrolado e longe.
+    if (!player && mass > level.mass[1]) {
+      espiral = coiledSpot(corpo);
+      if (!espiral) return null;
+      const t0 = rng.next() * TAU;
+      p = { x: espiral.c.x + Math.cos(t0) * espiral.rho, y: espiral.c.y + Math.sin(t0) * espiral.rho };
+      a = t0 + Math.PI / 2;
+      espiral.t0 = t0;
+      safe = true;
+    }
     // O corpo nasce esticado para trás da cabeça, então a folga tem de valer
     // para ele inteiro. Conferir só o ponto da cabeça deixava passar um corpo
     // de 1945 de comprimento a 49 unidades do jogador — morte sem aviso.
-    const corpo = lengthOf({ mass });
-    let p = { x: 0, y: 0 }, a = 0, safe = player;
-    // O jogador entra no centro; o rumo dele sai da mesma conta, só sem busca.
-    if (player) a = Math.atan2(-p.y, -p.x) + (rng.next() - .5);
     for (let i = 0; !safe && i < 80; i++) {
       p = point(320);
       a = Math.atan2(-p.y, -p.x) + (rng.next() - .5);
@@ -141,6 +242,14 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
       safe = spawnFits(p, cauda, world.snakes);
     }
     if (!safe) return null;
+    // Nascer também marca o relógio, para dois grandes não nascerem colados
+    // quando duas vagas abrem juntas. Só marca quando o nascimento acontece:
+    // marcado antes, uma espiral sem lugar bloqueava a vaga por 90 s e quem
+    // nascia no lugar era um novato.
+    if (nascimento.tier >= 0 && world.time > 0) {
+      world.tierClock[nascimento.tier] = Math.max(world.tierClock[nascimento.tier] ?? 0,
+        world.time + (level.population[nascimento.tier].refill ?? 0));
+    }
     const id = world.nextId++;
     const s = { id, name: player ? 'Você' : `${NAMES[id % NAMES.length]} ${id}`, player, x: p.x, y: p.y, px: p.x, py: p.y,
       angle: a, target: a, mass, skin: player ? skin : SKINS[id % SKINS.length].id, alive: true, boost: false,
@@ -152,18 +261,31 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
     // `n` numera o ponto na ordem em que a carne foi criada e nunca muda. O
     // índice no array, esse sim, desloca a cada ponto novo na cabeça — e quem
     // pinta a estampa pelo índice vê o desenho saltar 30 vezes por segundo.
-    for (let i = 0; i <= n; i++) s.path.push({ x: p.x - Math.cos(a) * i * ARENA.spacing, y: p.y - Math.sin(a) * i * ARENA.spacing, n: -i });
+    if (espiral) {
+      // Pontos ao longo do círculo, da cabeça para trás: o ângulo recua um
+      // espaçamento por ponto, então o corpo segue a curva que ela já fez.
+      const { c, rho, t0 } = espiral;
+      for (let i = 0; i <= n; i++) {
+        const t = t0 - i * ARENA.spacing / rho;
+        s.path.push({ x: c.x + Math.cos(t) * rho, y: c.y + Math.sin(t) * rho, n: -i });
+      }
+    } else {
+      for (let i = 0; i <= n; i++) s.path.push({ x: p.x - Math.cos(a) * i * ARENA.spacing, y: p.y - Math.sin(a) * i * ARENA.spacing, n: -i });
+    }
     world.snakes.push(s); return s;
   }
   world.player = spawn(true);
-  for (let i = 0; i < level.bots; i++) spawn();
+  // Nascimento que não acha lugar na largada vai para a fila de renascer, em
+  // vez de sumir: com os grandes nascendo enrolados e longe, a arena às vezes
+  // fica sem espaço livre de primeira, e a partida começava com rival a menos.
+  for (let i = 0; i < level.bots; i++) if (!spawn()) world.respawns.push(.5 + i * .05);
   for (let i = 0; i < ARENA.food; i++) food(point(30));
   // Alimento próximo facilita o primeiro contato sem colocar rivais em cima do jogador.
   for (let i = 0; i < 35; i++) { const a = rng.next() * TAU, r = 80 + rng.next() * 300; food({ x: Math.cos(a) * r, y: Math.sin(a) * r }); }
   bodyIndex(); foodIndex();
 
   function think(s) {
-    const eye = level.foresight, myR = radiusOf(s);
+    const eye = foresightOf(level, s), myR = radiusOf(s);
     world.bodyGrid.collect(s.x, s.y, eye, seenBody);
     let goal = null, score = -Infinity;
     for (const f of world.foodGrid.collect(s.x, s.y, 460, seenFood)) {
@@ -183,6 +305,8 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
       let victim = null, gap = Infinity;
       for (const v of world.snakes) {
         if (v === s || !v.alive || v.invulnerable > 0 || v.mass > s.mass * .72) continue;
+        // Presa que não paga o risco não é caçada: gigante não cerca novato.
+        if (v.mass < s.mass * ARENA.preyFloor) continue;
         const d = distance(s, v);
         if (d > 260 || d < 60 || d >= gap) continue;
         victim = v; gap = d;
@@ -238,6 +362,15 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
   function die(s, killer = null) {
     if (!s.alive) return;
     s.alive = false; s.boost = false; s.prey = null;
+    // A morte de um grande abre a vaga dele, e a vaga fica aberta `refill`
+    // segundos. Contar só a partir do último nascimento deixava a primeira
+    // morte da partida ser reposta na hora, porque na largada o relógio está
+    // zerado.
+    if (!s.player) {
+      const faixas = level.population ?? [];
+      const i = faixas.findIndex(f => s.mass >= f.min);
+      if (i >= 0) world.tierClock[i] = Math.max(world.tierClock[i] ?? 0, world.time + (faixas[i].refill ?? 0));
+    }
     // Uma cobra grande vira um rastro de luz. Com o teto antigo de 100 pontos,
     // quanto maior a cobra mais absurdo o valor de cada pelota solta.
     const step = Math.max(1, Math.ceil(s.path.length / 420)), drops = Math.ceil(s.path.length / step);
