@@ -271,6 +271,21 @@ test('rivais nascem na escala do jogador e longe dele', () => {
   }
 });
 
+// Piloto dos testes de nascimento: anda à toa mas foge da borda. A
+// invulnerabilidade não protege dela, e com o jogador morto o mundo congela.
+const longeDaBorda = (world, i) => {
+  const p = world.player;
+  return Math.hypot(p.x, p.y) > ARENA.radius - 600 ? Math.atan2(-p.y, -p.x) : Math.sin(i / 200) * 2;
+};
+// Derruba um rival que satisfaça o critério, mandando-o para fora da arena.
+// Com a IA que antecipa corte os rivais quase não morrem sozinhos, e quem testa
+// nascimento precisa de mortes.
+const derrubar = (world, criterio) => {
+  const alvo = world.snakes.find(s => s.alive && !s.player && criterio(s));
+  if (alvo) alvo.x = alvo.y = ARENA.radius * 2;
+  return alvo;
+};
+
 // Como num servidor online: quando você entra, o placar já tem gente grande.
 // A regra anterior fazia todo rival nascer pequeno, e com 82% deles morrendo em
 // 23 s a arena levava dez minutos para ter um rival de 15 mil.
@@ -302,33 +317,38 @@ test('a pirâmide de tamanhos não olha para o tamanho de ninguém', () => {
   // Jogador no teto de massa e um líder enorme: pela regra que se realimentava,
   // qualquer um dos dois bastaria para empurrar o nascimento para cima.
   world.player.mass = ARENA.maxMass;
-  const campo = world.snakes.filter(s => !s.player);
-  campo[0].mass = 90000;
+  world.snakes.filter(s => !s.player)[0].mass = 90000;
   const conhecidos = new Set(world.snakes);
-  let nascidos = 0, maior = 0, novatosComPiramideCheia = 0, comPiramideCheia = 0;
-  for (let i = 0; i < 60 * 90; i++) {
+  let nascidos = 0, maior = 0, novatos = 0;
+  for (let i = 0; i < 60 * 90 && !world.over; i++) {
     world.player.invulnerable = 1e9;
     world.player.mass = ARENA.maxMass;
-    world.update(1 / 60, { angle: Math.sin(i / 300) * 2 });
-    // Derruba um rival pequeno de tempos em tempos, para ter nascimento.
-    if (i % 90 === 0) {
-      const alvo = world.snakes.find(s => s.alive && !s.player && s.mass < 600);
-      if (alvo) alvo.x = alvo.y = ARENA.radius * 2;
-    }
+    world.update(1 / 60, { angle: longeDaBorda(world, i) });
+    // Derruba um rival pequeno a cada segundo e meio, para ter nascimento: com
+    // a IA que antecipa corte, eles quase não morrem sozinhos.
+    if (i % 90 === 0) derrubar(world, s => s.mass < 600);
     for (const s of world.snakes) {
       if (conhecidos.has(s)) continue;
       conhecidos.add(s); nascidos++; maior = Math.max(maior, s.mass);
-      // Com todas as faixas cheias, quem nasce é novato: a arena não infla.
+      if (s.mass > level.mass[1]) continue;
+      novatos++;
+      // Novato só nasce quando nenhuma faixa está ao mesmo tempo faltando e
+      // com a vaga aberta. É a regra inteira: com a pirâmide cheia, ou com a
+      // faixa que falta ainda esperando o intervalo, quem nasce é novato.
       const vivos = world.snakes.filter(v => v.alive && !v.player && v !== s).map(v => v.mass);
-      let meta = 0, cheia = true;
-      for (const f of level.population) { meta += f.count; if (vivos.filter(m => m >= f.min).length < meta) cheia = false; }
-      if (cheia) { comPiramideCheia++; if (s.mass <= level.mass[1]) novatosComPiramideCheia++; }
+      let meta = 0;
+      level.population.forEach((f, k) => {
+        meta += f.count;
+        const falta = vivos.filter(m => m >= f.min).length < meta;
+        const vagas = world.vacancies[k] ?? [];
+        const aberta = !vagas.length || vagas[0] <= world.time;
+        assert.ok(!(falta && aberta), `novato nasceu com a faixa ${f.min}+ faltando e a vaga aberta`);
+      });
     }
   }
-  assert.ok(nascidos > 20, `o teste precisa ver rivais nascendo para valer (${nascidos})`);
+  assert.ok(!world.over, 'o jogador do teste morreu e o mundo congelou');
+  assert.ok(nascidos > 20 && novatos > 5, `o teste precisa ver nascimentos (${nascidos}, ${novatos} novatos)`);
   assert.ok(maior <= teto, `nasceu com ${Math.round(maior)}, acima do topo da pirâmide (${teto})`);
-  assert.ok(comPiramideCheia > 5, 'o teste precisa ver nascimento com a pirâmide cheia');
-  assert.equal(novatosComPiramideCheia, comPiramideCheia, 'com a pirâmide cheia, todo nascimento tem de ser novato');
 });
 
 // Gigante não perde tempo cercando recém-chegado. Com gigantes desde o
@@ -621,11 +641,12 @@ test('na partida nenhum corpo nasce dentro da folga do jogador', () => {
     // esticado e grande enrolado. Os dois têm de respeitar a folga.
     for (const s of world.snakes) if (!s.player) s.mass = 900;
     const conhecidos = new Set(world.snakes);
-    for (let i = 0; i < 60 * 120; i++) {
+    for (let i = 0; i < 60 * 120 && !world.over; i++) {
       // Imortal por invulnerabilidade, não por ressurreição: assim o jogador
       // não vira parede nem alvo, e o que se mede é só o nascimento.
       world.player.invulnerable = 1e9;
-      world.update(1 / 60, { angle: Math.sin(i / 150) * 3 });
+      world.update(1 / 60, { angle: longeDaBorda(world, i) });
+      if (i % 120 === 0) derrubar(world, () => true);
       for (const s of world.snakes) {
         if (conhecidos.has(s)) continue;
         conhecidos.add(s); nascidos++;
@@ -745,28 +766,75 @@ test('a vaga de gigante espera o intervalo antes de ser reposta', () => {
   const world = createWorld({ difficulty: 'normal', seed: 19 });
   world.started = true;
   const conhecidos = new Set(world.snakes);
-  let derrubadoEm = null, reposto = null;
+  let derrubadoEm = null;
+  const repostos = [];
   for (let i = 0; i < 60 * (topo.refill + 40) && !world.over; i++) {
     world.player.invulnerable = 1e9;
-    // Longe da borda: a invulnerabilidade não protege dela, e com o jogador
-    // morto o mundo congela antes de o intervalo terminar.
-    const p = world.player, perto = Math.hypot(p.x, p.y) > ARENA.radius - 600;
-    world.update(1 / 60, { angle: perto ? Math.atan2(-p.y, -p.x) : Math.sin(i / 200) * 2 });
-    // Aos dez segundos, derruba um gigante: a pirâmide fica pedindo um.
+    world.update(1 / 60, { angle: longeDaBorda(world, i) });
+    // Renascer depende de alguém morrer; sem mortes a vaga nunca seria testada.
+    if (i % 120 === 0 && derrubadoEm !== null) derrubar(world, s => s.mass < 600);
+    // Aos dez segundos, derruba os gigantes: a pirâmide fica pedindo.
     if (derrubadoEm === null && world.time > 10) {
-      const g = world.snakes.find(s => s.alive && !s.player && s.mass >= topo.min);
-      if (g) { g.x = g.y = ARENA.radius * 2; derrubadoEm = world.time; }
+      // Todos de uma vez, a partir de uma lista: o derrubado só morre no passo
+      // seguinte, então procurar de novo acharia o mesmo para sempre.
+      for (const g of world.snakes.filter(s => s.alive && !s.player && s.mass >= topo.min)) g.x = g.y = ARENA.radius * 2;
+      derrubadoEm = world.time;
     }
     for (const s of world.snakes) {
       if (conhecidos.has(s)) continue;
       conhecidos.add(s);
-      if (derrubadoEm !== null && reposto === null && s.mass >= topo.min) reposto = world.time;
+      if (derrubadoEm !== null && s.mass >= topo.min) repostos.push(world.time);
     }
   }
   assert.ok(!world.over, 'o jogador do teste morreu e o mundo congelou');
-  assert.ok(derrubadoEm !== null, 'o teste precisa derrubar um gigante');
-  assert.ok(reposto !== null, 'a vaga de gigante tem de ser reposta depois do intervalo');
-  // A vaga abre na morte e fica aberta o intervalo inteiro.
-  assert.ok(reposto - derrubadoEm >= topo.refill - .5,
-    `gigante reposto ${(reposto - derrubadoEm).toFixed(0)} s depois da morte, antes do intervalo de ${topo.refill} s`);
+  assert.ok(derrubadoEm !== null, 'o teste precisa derrubar os gigantes');
+  // A vaga abre na morte e fica aberta o intervalo inteiro: nenhum gigante
+  // nasce antes disso.
+  for (const t of repostos) {
+    assert.ok(t - derrubadoEm >= topo.refill - .5,
+      `gigante reposto ${(t - derrubadoEm).toFixed(0)} s depois da morte, antes do intervalo de ${topo.refill} s`);
+  }
+  // E depois do intervalo a faixa volta a ficar completa — por nascimento ou
+  // porque outro rival cresceu até ela, que também ocupa a vaga. Cada morte tem
+  // o próprio prazo, então a morte de um grande depois da derrubada não adia
+  // as vagas que já estavam abertas.
+  const gigantes = world.snakes.filter(s => s.alive && !s.player && s.mass >= topo.min).length;
+  assert.ok(gigantes >= topo.count, `${gigantes} gigantes no fim, a pirâmide pede ${topo.count}`);
+});
+
+// Rival grande enxerga o corte vindo. Matar uma cobra grande é cruzar a frente
+// dela para a cabeça bater no seu corpo, e esse corpo ainda não existe quando
+// ela decide o rumo: é a sua cabeça que o deita. A IA anterior só via corpo já
+// deitado e sobrevivia a 35 de 48 destes cortes; com ela, um piloto caçador
+// derrubava 16 gigantes por hora de jogo, cada um valendo 20 a 30 mil.
+test('gigante não é cortado por quem cruza a frente dele', () => {
+  let vivos = 0, total = 0;
+  for (const frente of [110, 140, 170, 200]) for (const lateral of [90, 120, 150]) {
+    for (const lado of [-1, 1]) for (const seed of [2, 5]) {
+      const world = createWorld({ difficulty: 'normal', seed });
+      world.started = true;
+      const g = world.snakes.find(s => !s.player);
+      for (const s of world.snakes) if (s !== g && !s.player) s.alive = false;
+      world.snakes = world.snakes.filter(s => s.alive);
+      // Gigante na origem, indo para +x, com o corpo esticado para trás.
+      Object.assign(g, { x: 0, y: 0, px: 0, py: 0, angle: 0, target: 0, mass: 30000, invulnerable: 0, think: 0, prey: null });
+      g.path.length = 0;
+      for (let i = 0; i < 600; i++) g.path.push({ x: -i * ARENA.spacing, y: 0, n: -i });
+      // Jogador ao lado e à frente da cabeça, cruzando perpendicular e
+      // acelerando no primeiro segundo — o corte de manual. Mortal: rival não
+      // morre no corpo de quem está invulnerável.
+      const p = world.player, rumo = lado > 0 ? -Math.PI / 2 : Math.PI / 2;
+      Object.assign(p, { x: frente, y: lado * lateral, px: frente, py: lado * lateral, angle: rumo, target: rumo, mass: 900, invulnerable: 0 });
+      p.path.length = 0;
+      for (let i = 0; i < 120; i++) p.path.push({ x: frente, y: lado * (lateral + i * ARENA.spacing), n: -i });
+      for (let k = 0; k < 60 * 3 && g.alive && !world.over; k++) world.update(1 / 60, { angle: rumo, boost: k < 60 });
+      total++;
+      if (g.alive) vivos++;
+    }
+  }
+  assert.equal(total, 48);
+  // Folga de três cenários sobre o resultado medido (48 de 48), para o teste
+  // não quebrar por uma mudança de ordem de sorteio — e ainda bem longe dos 35
+  // da IA que não prevê.
+  assert.ok(vivos >= 45, `o gigante foi cortado em ${total - vivos} de ${total} cenários`);
 });

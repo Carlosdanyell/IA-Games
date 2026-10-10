@@ -111,7 +111,7 @@ export const foresightOf = (level, s) =>
 export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Date.now() } = {}) {
   const level = DIFFICULTIES[difficulty] || DIFFICULTIES.normal, rng = createRng(seed);
   const world = { snakes: [], foods: [], time: 0, started: false, over: false, best: ARENA.startMass, kills: 0, events: [], level,
-    bodyGrid: new SpatialGrid(), foodGrid: new SpatialGrid(), respawns: [], nextId: 0, foodClock: 0, tierClock: [] };
+    bodyGrid: new SpatialGrid(), foodGrid: new SpatialGrid(), respawns: [], nextId: 0, foodClock: 0, vacancies: [] };
   // Buffers reaproveitados pelas consultas do passo: nada é alocado por quadro.
   const risk = new Float64Array(RAYS), seenBody = [], seenFood = [], seenHit = [], seenBite = [], seenSpawn = [];
   const point = margin => { const a = rng.next() * TAU, r = Math.sqrt(rng.next()) * (ARENA.radius - margin); return { x: Math.cos(a) * r, y: Math.sin(a) * r }; };
@@ -139,9 +139,12 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
   // 5000", então um rival que cresceu sozinho até lá ocupa a vaga e ninguém
   // precisa nascer grande para preenchê-la.
   //
-  // Cada faixa tem um relógio: depois de um nascimento nela, a próxima vaga só
-  // é preenchida passado `refill`. Na largada os relógios estão zerados, então
-  // a pirâmide sai inteira; o intervalo vale para a reposição.
+  // Cada morte de um grande abre uma vaga com prazo próprio: ela só pode ser
+  // preenchida `refill` segundos depois daquela morte. Um relógio único por
+  // faixa não servia: a morte de um segundo gigante adiava também a vaga que
+  // o primeiro já tinha aberto, e o topo da pirâmide ficava vazio por minutos.
+  // Faixa que falta sem vaga pendente — alguém encolheu, ou é a largada — é
+  // preenchida na hora.
   function birthMass() {
     let meta = 0;
     const faixas = level.population ?? [];
@@ -150,7 +153,10 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
       meta += faixa.count;
       let acima = 0;
       for (const v of world.snakes) if (v.alive && !v.player && v.mass >= faixa.min) acima++;
-      if (acima >= meta || world.time < (world.tierClock[i] ?? 0)) continue;
+      const vagas = world.vacancies[i] ??= [];
+      // Faixa completa: quem cresceu ocupou as vagas, e os prazos caducam.
+      if (acima >= meta) { vagas.length = 0; continue; }
+      if (vagas.length && vagas[0] > world.time) continue;
       return { mass: Math.round(faixa.min + rng.next() ** 1.7 * (faixa.max - faixa.min)), tier: i };
     }
     return { mass: Math.round(level.mass[0] + rng.next() ** 2.2 * (level.mass[1] - level.mass[0])), tier: -1 };
@@ -242,13 +248,12 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
       safe = spawnFits(p, cauda, world.snakes);
     }
     if (!safe) return null;
-    // Nascer também marca o relógio, para dois grandes não nascerem colados
-    // quando duas vagas abrem juntas. Só marca quando o nascimento acontece:
-    // marcado antes, uma espiral sem lugar bloqueava a vaga por 90 s e quem
-    // nascia no lugar era um novato.
-    if (nascimento.tier >= 0 && world.time > 0) {
-      world.tierClock[nascimento.tier] = Math.max(world.tierClock[nascimento.tier] ?? 0,
-        world.time + (level.population[nascimento.tier].refill ?? 0));
+    // O nascimento consome a vaga vencida mais antiga daquela faixa. Só
+    // consome quando o nascimento acontece de fato: uma espiral sem lugar não
+    // pode gastar a vaga e deixar a faixa vazia.
+    if (nascimento.tier >= 0) {
+      const vagas = world.vacancies[nascimento.tier];
+      if (vagas?.length && vagas[0] <= world.time) vagas.shift();
     }
     const id = world.nextId++;
     const s = { id, name: player ? 'Você' : `${NAMES[id % NAMES.length]} ${id}`, player, x: p.x, y: p.y, px: p.x, py: p.y,
@@ -319,8 +324,26 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
     }
     const hunt = !!s.prey;
     if (hunt) {
-      const ahead = 60 + distance(s, s.prey) * .45 * s.skill;
-      desired = Math.atan2(s.prey.y + Math.sin(s.prey.angle) * ahead - s.y, s.prey.x + Math.cos(s.prey.angle) * ahead - s.x);
+      // Caça por interceptação: onde a presa vai estar quando eu chegar
+      // acelerando. Perseguir mirando um ponto fixo à frente dela só seguia o
+      // rabo; matar alguém é chegar antes e deitar o corpo no caminho dele.
+      const q = s.prey, vq = q.boost ? ARENA.boost : ARENA.speed;
+      const ux = Math.cos(q.angle) * vq, uy = Math.sin(q.angle) * vq;
+      const rx = q.x - s.x, ry = q.y - s.y;
+      // |q + u·t − s| = boost·t, uma equação do segundo grau em t.
+      const a = ux * ux + uy * uy - ARENA.boost * ARENA.boost, b = 2 * (rx * ux + ry * uy), c = rx * rx + ry * ry;
+      const delta = b * b - 4 * a * c;
+      let t = Math.hypot(rx, ry) / ARENA.boost;
+      if (delta >= 0 && a !== 0) {
+        const t1 = (-b - Math.sqrt(delta)) / (2 * a), t2 = (-b + Math.sqrt(delta)) / (2 * a);
+        const tt = [t1, t2].filter(v => v > 0).sort((x, y) => x - y)[0];
+        if (tt !== undefined) t = tt;
+      }
+      // Um pouco além do ponto de encontro, na proporção da habilidade: é o
+      // que põe o corpo atravessado no caminho em vez da cabeça contra a dela.
+      const alem = (radiusOf(q) + myR) * 2.2 * s.skill;
+      const ix = q.x + ux * t + Math.cos(q.angle) * alem, iy = q.y + uy * t + Math.sin(q.angle) * alem;
+      desired = Math.atan2(iy - s.y, ix - s.x);
     }
     // Mão trêmula: quanto menor a habilidade, mais o rumo escolhido erra.
     desired += (rng.next() - .5) * (1 - s.skill) * 1.4;
@@ -340,6 +363,39 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
       for (let i = 0; i < RAYS; i++) {
         const off = Math.abs(angleDelta((i - RAY_MID) * RAY_STEP - rel));
         if (off < half) risk[i] += weight * (1 - off / half);
+      }
+    }
+    // Antecipação de corte. O corpo que mata um rival quase nunca existe no
+    // instante em que ele decide: é a cabeça de outro cruzando à frente que o
+    // deita. Sem enxergar isso, um gigante — que precisa de 73 unidades para
+    // curvar — era cortado com facilidade por qualquer um que chegasse antes.
+    // Cada cabeça por perto projeta o rumo dela; só conta o trecho em que ela
+    // chega primeiro, porque onde eu chego antes quem bate é ela. A presa da
+    // própria caçada fica de fora: atravessar a frente dela é o objetivo.
+    const vMeu = s.boost ? ARENA.boost : ARENA.speed;
+    for (const v of world.snakes) {
+      if (v === s || !v.alive || v === s.prey) continue;
+      const d0 = Math.hypot(v.x - s.x, v.y - s.y);
+      if (d0 > eye + 220) continue;
+      const vOutro = v.boost ? ARENA.boost : ARENA.speed;
+      // Alcance da previsão: o quanto a cabeça alheia anda em algumas decisões
+      // minhas, mais longe para quem tem mais habilidade.
+      const horizonte = vOutro * level.reaction * (1.2 + s.skill * 2);
+      const passos = Math.min(16, Math.ceil(horizonte / 18));
+      const rv = radiusOf(v), cx = Math.cos(v.angle), cy = Math.sin(v.angle);
+      for (let j = 1; j <= passos; j++) {
+        const qx = v.x + cx * j * 18, qy = v.y + cy * j * 18;
+        const dx = qx - s.x, dy = qy - s.y, d = Math.sqrt(dx * dx + dy * dy);
+        if (d > eye) continue;
+        if (j * 18 / vOutro > d / vMeu + .15) continue;
+        const rel = angleDelta(Math.atan2(dy, dx) - s.angle);
+        const clear = myR + rv + 22;
+        const half = Math.atan2(clear, Math.max(clear, d));
+        const weight = (1 - d / eye) ** 2 * ARENA.avoidWeight * ARENA.predictWeight;
+        for (let i = 0; i < RAYS; i++) {
+          const off = Math.abs(angleDelta((i - RAY_MID) * RAY_STEP - rel));
+          if (off < half) risk[i] += weight * (1 - off / half);
+        }
       }
     }
     const margin = ARENA.radius - Math.hypot(s.x, s.y);
@@ -362,14 +418,17 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
   function die(s, killer = null) {
     if (!s.alive) return;
     s.alive = false; s.boost = false; s.prey = null;
-    // A morte de um grande abre a vaga dele, e a vaga fica aberta `refill`
-    // segundos. Contar só a partir do último nascimento deixava a primeira
-    // morte da partida ser reposta na hora, porque na largada o relógio está
-    // zerado.
+    // A morte de um grande abre a vaga dele, com prazo próprio de `refill`
+    // segundos. É ela, e não o último nascimento, que conta: medido a partir
+    // do nascimento, a primeira morte da partida era reposta na hora.
     if (!s.player) {
       const faixas = level.population ?? [];
       const i = faixas.findIndex(f => s.mass >= f.min);
-      if (i >= 0) world.tierClock[i] = Math.max(world.tierClock[i] ?? 0, world.time + (faixas[i].refill ?? 0));
+      if (i >= 0) {
+        const vagas = world.vacancies[i] ??= [];
+        vagas.push(world.time + (faixas[i].refill ?? 0));
+        vagas.sort((a, b) => a - b);
+      }
     }
     // Uma cobra grande vira um rastro de luz. Com o teto antigo de 100 pontos,
     // quanto maior a cobra mais absurdo o valor de cada pelota solta.

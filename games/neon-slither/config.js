@@ -35,6 +35,9 @@ export const ARENA = {
   // Peso que a IA dá a desviar de um corpo. É autopreservação, não caça: mexer
   // aqui muda quanto tempo um rival sobrevive sem mudar o quanto ele persegue.
   avoidWeight: 520,
+  // Peso do corpo que uma cabeça alheia ainda vai deitar, relativo ao corpo que
+  // já existe. Menor que 1 porque é previsão: a outra cobra pode virar.
+  predictWeight: .85,
   // Quem nasce grande nasce fora da vista do jogador. A tela lógica do jogo tem
   // 600 de largura e, num celular em retrato, perto de 1400 de altura; 700 é a
   // metade do lado maior com folga. Dividido pelo zoom, vira o raio do mundo
