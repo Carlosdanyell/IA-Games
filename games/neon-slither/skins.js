@@ -151,17 +151,38 @@ const visto = (ax, ay, bx, by, m) => !VISTA
 // cada trecho já conferida. Toda camada percorre esta lista curta. Refazer a
 // amostragem e a conta da vista ponto a ponto em cada uma das camadas dobrava
 // o custo do desenho.
-let AX = new Float64Array(512), AY = new Float64Array(512), AD = new Float64Array(512), AV = new Uint8Array(512);
-let M = 0;
-function amostrar(k0, passo, m) {
+//
+// `AG` marca os vértices do traço grosso, um sim e um não, que as camadas
+// macias usam: sombra e degradê não têm borda nítida que denuncie a corda mais
+// longa, e com metade dos vértices custam metade. A escolha é pelo número de
+// série, e não pela posição na lista, para os vértices não trocarem de um
+// quadro para o outro quando nasce um ponto na cabeça.
+let AX = new Float64Array(512), AY = new Float64Array(512), AD = new Float64Array(512);
+let AV = new Uint8Array(512), AG = new Uint8Array(512), M = 0;
+function amostrar(path, k0, passo, m) {
   if (AX.length < N + 2) {
     const n = (N + 2) * 2;
-    AX = new Float64Array(n); AY = new Float64Array(n); AD = new Float64Array(n); AV = new Uint8Array(n);
+    AX = new Float64Array(n); AY = new Float64Array(n); AD = new Float64Array(n); AV = new Uint8Array(n); AG = new Uint8Array(n);
   }
-  AX[0] = CX[0]; AY[0] = CY[0]; AD[0] = 0; M = 1;
-  for (let j = k0; j < N - 1; j += passo) { AX[M] = CX[j]; AY[M] = CY[j]; AD[M] = CD[j]; M++; }
-  if (N > 1) { AX[M] = CX[N - 1]; AY[M] = CY[N - 1]; AD[M] = CD[N - 1]; M++; }
+  AX[0] = CX[0]; AY[0] = CY[0]; AD[0] = 0; AG[0] = 1; M = 1;
+  for (let j = k0; j < N - 1; j += passo) {
+    AX[M] = CX[j]; AY[M] = CY[j]; AD[M] = CD[j];
+    AG[M] = (Math.round((path[j].n ?? -j) / passo) & 1) === 0 ? 1 : 0; M++;
+  }
+  if (N > 1) { AX[M] = CX[N - 1]; AY[M] = CY[N - 1]; AD[M] = CD[N - 1]; AG[M] = 1; M++; }
   for (let s = 0; s < M - 1; s++) AV[s] = visto(AX[s], AY[s], AX[s + 1], AY[s + 1], m) ? 1 : 0;
+}
+// O corpo inteiro pelo traço grosso, deslocado de `ox`/`oy`. Um trecho grosso
+// aparece se algum dos finos que ele cobre aparece.
+function grosso(c, ox, oy) {
+  let a = 0, pen = false;
+  for (let i = 1; i < M; i++) {
+    if (!AG[i]) continue;
+    let v = 0;
+    for (let s = a; s < i; s++) v |= AV[s];
+    if (v) { if (!pen) c.moveTo(AX[a] + ox, AY[a] + oy); c.lineTo(AX[i] + ox, AY[i] + oy); pen = true; } else pen = false;
+    a = i;
+  }
 }
 // Põe no caminho atual o corpo entre as distâncias `d0` e `d1`, deslocado de
 // `ox`/`oy`. As pontas são interpoladas: a borda de uma faixa cai no lugar exato
@@ -190,10 +211,10 @@ function trecho(c, d0, d1, ox, oy) {
 function sombra(c, { r, L, forca }) {
   c.strokeStyle = '#02060c';
   c.globalAlpha = .16 * forca; c.lineWidth = r * 2 + Math.max(3, r * .45);
-  c.beginPath(); trecho(c, 0, L, -LUZ_X * r * .12, -LUZ_Y * r * .12); c.stroke();
+  c.beginPath(); grosso(c, -LUZ_X * r * .12, -LUZ_Y * r * .12); c.stroke();
   const longe = r * .34 + 1.5;
   c.globalAlpha = .28 * forca; c.lineWidth = r * 2;
-  c.beginPath(); trecho(c, 0, L, -LUZ_X * longe, -LUZ_Y * longe); c.stroke();
+  c.beginPath(); grosso(c, -LUZ_X * longe, -LUZ_Y * longe); c.stroke();
 }
 
 // Volume do tubo, por cima da pele: a luz cai sobre a pele toda, estampa
@@ -204,14 +225,14 @@ function sombra(c, { r, L, forca }) {
 function volume(c, { r, L, escala, escuro, claro }) {
   c.strokeStyle = '#02070e';
   c.globalAlpha = .2 * escuro; c.lineWidth = r * .9;
-  c.beginPath(); trecho(c, 0, L, -LUZ_X * r * .52, -LUZ_Y * r * .52); c.stroke();
+  c.beginPath(); grosso(c, -LUZ_X * r * .52, -LUZ_Y * r * .52); c.stroke();
   c.globalAlpha = .18 * escuro; c.lineWidth = r * .46;
-  c.beginPath(); trecho(c, 0, L, -LUZ_X * r * .74, -LUZ_Y * r * .74); c.stroke();
+  c.beginPath(); grosso(c, -LUZ_X * r * .74, -LUZ_Y * r * .74); c.stroke();
   c.strokeStyle = '#ffffff';
   // O claro largo só aparece com o corpo grosso na tela; fino, o reflexo basta.
   if (r * escala >= 6) {
     c.globalAlpha = .1 * claro; c.lineWidth = r * .8;
-    c.beginPath(); trecho(c, 0, L, LUZ_X * r * .3, LUZ_Y * r * .3); c.stroke();
+    c.beginPath(); grosso(c, LUZ_X * r * .3, LUZ_Y * r * .3); c.stroke();
   }
   c.globalAlpha = .3 * claro; c.lineWidth = Math.max(1, r * .2);
   c.beginPath(); trecho(c, 0, L, LUZ_X * r * .46, LUZ_Y * r * .46); c.stroke();
@@ -371,7 +392,7 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
   // várias vezes, uma por faixa de cor e uma por camada de luz.
   const passo = Math.max(1, Math.round(5 / Math.max(.001, pointSpacing * scale)));
   // A folga da vista de cada trecho cobre a camada mais larga: halo aceso.
-  amostrar(primeiro(path, passo, 1), passo, r * 1.5 + 16);
+  amostrar(path, primeiro(path, passo, 1), passo, r * 1.5 + 16);
   c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
   // Brilho abaixo de uns poucos pixels na tela não aparece, só custa.
   const aceso = details && r * scale >= 4;
