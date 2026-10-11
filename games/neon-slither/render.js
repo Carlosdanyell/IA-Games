@@ -1,14 +1,13 @@
 import { ARENA, skinFor } from './config.js';
-import { radiusOf } from './model.js';
+import { radiusOf, zoomFor } from './model.js';
 import { drawSnake } from './skins.js';
 
+// O zoom mora no modelo: o nascimento precisa saber o que o jogador enxerga
+// para pôr rival grande fora da vista dele. Reexportado aqui para quem já o
+// importava do renderizador.
+export { zoomFor };
+
 const COLORS = ['#78efd0', '#c4a0ff', '#ff99bf', '#ffd887', '#7dcfff', '#b8ef81'];
-// O zoom acompanha a espessura, então a cabeça ocupa sempre mais ou menos a
-// mesma fatia da tela e quem encolhe é o mundo em volta — é assim que o
-// slither.io mostra que você cresceu. A curva é assintótica: o antigo
-// `1 - raiz(massa)` batia no piso já na massa 2800 e a partir dali crescer não
-// mudava mais nada na tela.
-export const zoomFor = mass => Math.max(.28, 1 / (1 + Math.sqrt(mass) * .0105));
 export function createRenderer(viewport, theme) {
   const v = viewport.view, c = v.ctx;
   const camera = { x: 0, y: 0, zoom: 1 };

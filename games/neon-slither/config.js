@@ -35,21 +35,20 @@ export const ARENA = {
   // Peso que a IA dá a desviar de um corpo. É autopreservação, não caça: mexer
   // aqui muda quanto tempo um rival sobrevive sem mudar o quanto ele persegue.
   avoidWeight: 520,
-  // Classe média: fração da mediana dos rivais vivos que serve de teto para
-  // quem renasce, limitada por `respawnCap`. Ancorava no maior rival, e isso
-  // realimentava a si mesmo — nascer grande, morrer, virar luz, alguém comer e
-  // virar um líder maior ainda, que puxava o próximo nascimento para cima. Em
-  // vinte e cinco minutos a mediana de nascimento ia de 81 para 3214 e a maior
-  // chegava a 18568, com 3063 de comprimento: quase metade do diâmetro da
-  // arena, já formado. A mediana não tem esse efeito, porque um único gigante
-  // não a move. Ancorar no jogador seria pior: um elástico que pune crescer.
-  respawnShare: 1,
-  // Teto absoluto do nascimento. É o que fecha o laço: `respawnShare` cria
-  // massa do nada numa economia fechada (a luz ambiente para de repor em
-  // `food`), então sem teto a arena infla sozinha. O valor vem do que cabe na
-  // tela: com o zoom no piso o celular mostra cerca de 1400 unidades, e 900 de
-  // massa dá 725 de comprimento — meia tela. Ninguém nasce maior que isso.
-  respawnCap: 900,
+  // Peso do corpo que uma cabeça alheia ainda vai deitar, relativo ao corpo que
+  // já existe. Menor que 1 porque é previsão: a outra cobra pode virar.
+  predictWeight: .85,
+  // Quem nasce grande nasce fora da vista do jogador. A tela lógica do jogo tem
+  // 600 de largura e, num celular em retrato, perto de 1400 de altura; 700 é a
+  // metade do lado maior com folga. Dividido pelo zoom, vira o raio do mundo
+  // que o jogador enxerga — no piso do zoom, 2500 unidades. Rival grande
+  // aparecendo dentro disso é o "corpo enorme surgindo na minha frente".
+  spawnView: 700,
+  // Presa precisa valer pelo menos esta fração da massa de quem caça. No
+  // online, cobra grande não perde tempo cercando recém-chegado: o ganho não
+  // paga o risco. Sem isso, os gigantes que agora existem desde o começo
+  // passariam a partida perseguindo o jogador de 32 de massa.
+  preyFloor: .04,
   // Folga mínima entre quem nasce e quem já está na arena. Valia só para a
   // cabeça do recém-nascido; o corpo dele, criado depois esticado para trás,
   // não era conferido, e aparecia a 49 unidades do jogador com 1945 de
@@ -62,12 +61,31 @@ export const ARENA = {
 // bots: quantos rivais; reaction: intervalo entre decisões; foresight: alcance
 // da leitura de perigo; aggression: chance de caçar quem já está em desvantagem;
 // skill: precisão do rumo escolhido; mass: faixa de massa no nascimento.
+// `population` é a pirâmide de tamanhos que a arena mantém, como a de um
+// servidor online: quando você entra, o placar já tem gente grande. Cada faixa
+// diz quantos rivais, no mínimo, ficam acima de `min`, e a contagem é
+// cumulativa — dois gigantes também contam como acima de 5000. Quando falta
+// alguém numa faixa, o próximo a renascer nasce nela, entre `min` e `max`.
+// `refill` é o intervalo mínimo, em segundos, entre dois nascimentos na mesma
+// faixa: quando o primeiro do placar morre, a vaga fica aberta um tempo, como
+// num servidor de verdade. Sem isso, morria um gigante por minuto e outro
+// nascia em cinco segundos — o corpo dele virava uma esteira de luz.
+//
+// As faixas são absolutas de propósito. Já houve duas regras relativas: uma
+// ancorada no maior rival, que se realimentava até a mediana de nascimento ir
+// de 81 a 3214 em 25 minutos; outra na mediana com teto de 900, que acabou com
+// a inflação mas também com os grandes — 82% dos rivais morriam pequenos em
+// 23 s e aos 15 minutos o maior mal passava de 20 mil. Número fixo não olha
+// para o tamanho de ninguém, então não tem como se realimentar.
 export const DIFFICULTIES = {
   easy: { name: 'Fácil', bots: 20, reaction: .30, foresight: 120, aggression: .05, skill: .55, mass: [24, 70],
-    note: 'Rivais pequenos e distraídos, quase sempre atrás de alimento.' },
+    population: [{ min: 12000, max: 30000, count: 1, refill: 90 }, { min: 4000, max: 12000, count: 2, refill: 30 }, { min: 800, max: 4000, count: 5, refill: 0 }],
+    note: 'Poucos grandes na arena e rivais distraídos, quase sempre atrás de alimento.' },
   normal: { name: 'Normal', bots: 28, reaction: .22, foresight: 155, aggression: .20, skill: .78, mass: [26, 120],
+    population: [{ min: 15000, max: 45000, count: 2, refill: 90 }, { min: 5000, max: 15000, count: 3, refill: 30 }, { min: 1000, max: 5000, count: 6, refill: 0 }],
     note: 'Rivais disputam alimento e cortam caminho de quem está menor que eles.' },
   hard: { name: 'Difícil', bots: 32, reaction: .14, foresight: 195, aggression: .36, skill: 1, mass: [28, 170],
+    population: [{ min: 18000, max: 60000, count: 3, refill: 90 }, { min: 6000, max: 18000, count: 4, refill: 30 }, { min: 1200, max: 6000, count: 7, refill: 0 }],
     note: 'Rivais antecipam curvas e aceleram para interceptar presas menores.' }
 };
 export const SKINS = [
