@@ -92,9 +92,9 @@ const LUZ_X = -.47, LUZ_Y = -.88;
 // por baixo delas — o rastro de pincel. Medida a partir da cabeça, a pele é a
 // mesma em todo quadro, e o que o crescimento acrescenta aparece na cauda.
 // Os buffers são reaproveitados: uma cobra termina de ser desenhada antes de a
-// próxima começar.
+// próxima começar. `XMIN`…`YMAX` é a caixa do corpo.
 let CX = new Float64Array(1024), CY = new Float64Array(1024), CD = new Float64Array(1024);
-let N = 0, K0 = 1, PASSO = 1, VISTA = null, TRILHA = null, PASSO_FINO = 1;
+let N = 0, VISTA = null, XMIN = 0, XMAX = 0, YMIN = 0, YMAX = 0;
 const PONTO = { x: 0, y: 0, tx: 1, ty: 0 };
 
 function medir(path, hx, hy) {
@@ -103,12 +103,15 @@ function medir(path, hx, hy) {
     CX = new Float64Array(n); CY = new Float64Array(n); CD = new Float64Array(n);
   }
   CX[0] = hx; CY[0] = hy; CD[0] = 0; N = 1;
+  XMIN = XMAX = hx; YMIN = YMAX = hy;
   let d = 0, ax = hx, ay = hy;
   for (let i = 1; i < path.length; i++) {
-    const p = path[i];
-    d += Math.hypot(p.x - ax, p.y - ay);
-    CX[N] = p.x; CY[N] = p.y; CD[N] = d; N++;
-    ax = p.x; ay = p.y;
+    const p = path[i], x = p.x, y = p.y;
+    d += Math.hypot(x - ax, y - ay);
+    CX[N] = x; CY[N] = y; CD[N] = d; N++;
+    if (x < XMIN) XMIN = x; else if (x > XMAX) XMAX = x;
+    if (y < YMIN) YMIN = y; else if (y > YMAX) YMAX = y;
+    ax = x; ay = y;
   }
 }
 // Último vértice que está a no máximo `d` da cabeça.
@@ -142,32 +145,39 @@ function em(d) {
 const visto = (ax, ay, bx, by, m) => !VISTA
   || Math.max(ax, bx) >= VISTA.left - m && Math.min(ax, bx) <= VISTA.right + m
   && Math.max(ay, by) >= VISTA.top - m && Math.min(ay, by) <= VISTA.bottom + m;
-// Troca o espaçamento dos vértices do traço. As camadas macias — sombra e
-// degradê — não têm borda nítida que denuncie a corda, e com o dobro do passo
-// custam metade da montagem do traço. O passo segue ancorado no número de
-// série, então os vértices escolhidos não mudam de um quadro para o outro.
-function espacar(fator) { PASSO = PASSO_FINO * fator; K0 = primeiro(TRILHA, PASSO, 1); }
-// Vértices por onde o traço passa: a cabeça, um a cada `PASSO` desde `K0`, e a
-// ponta da cauda.
-function proximo(k) {
-  if (k < K0) return Math.min(K0, N - 1);
-  return Math.min(K0 + (Math.floor((k - K0) / PASSO) + 1) * PASSO, N - 1);
+
+// Vértices do traço, amostrados uma vez por quadro: a cabeça, um a cada
+// `passo` pontos a partir de `k0` e a ponta da cauda, com a visibilidade de
+// cada trecho já conferida. Toda camada percorre esta lista curta. Refazer a
+// amostragem e a conta da vista ponto a ponto em cada uma das camadas dobrava
+// o custo do desenho.
+let AX = new Float64Array(512), AY = new Float64Array(512), AD = new Float64Array(512), AV = new Uint8Array(512);
+let M = 0;
+function amostrar(k0, passo, m) {
+  if (AX.length < N + 2) {
+    const n = (N + 2) * 2;
+    AX = new Float64Array(n); AY = new Float64Array(n); AD = new Float64Array(n); AV = new Uint8Array(n);
+  }
+  AX[0] = CX[0]; AY[0] = CY[0]; AD[0] = 0; M = 1;
+  for (let j = k0; j < N - 1; j += passo) { AX[M] = CX[j]; AY[M] = CY[j]; AD[M] = CD[j]; M++; }
+  if (N > 1) { AX[M] = CX[N - 1]; AY[M] = CY[N - 1]; AD[M] = CD[N - 1]; M++; }
+  for (let s = 0; s < M - 1; s++) AV[s] = visto(AX[s], AY[s], AX[s + 1], AY[s + 1], m) ? 1 : 0;
 }
 // Põe no caminho atual o corpo entre as distâncias `d0` e `d1`, deslocado de
 // `ox`/`oy`. As pontas são interpoladas: a borda de uma faixa cai no lugar exato
 // da carne, e não no vértice mais próximo, que é o que a faria tremer ao andar.
-// `m` é a folga da vista, do tamanho do traço.
-function trecho(c, d0, d1, ox, oy, m) {
-  if (d1 > CD[N - 1]) d1 = CD[N - 1];
+function trecho(c, d0, d1, ox, oy) {
+  if (d1 > AD[M - 1]) d1 = AD[M - 1];
   if (d1 <= d0) return;
-  const k = indice(d0);
-  em(d0);
-  let ax = PONTO.x, ay = PONTO.y, pen = false;
-  for (let j = proximo(k); ; j = proximo(j)) {
-    const fim = j >= N - 1 || CD[j] >= d1;
-    let bx = CX[j], by = CY[j];
-    if (fim) { em(d1); bx = PONTO.x; by = PONTO.y; }
-    if (visto(ax, ay, bx, by, m)) { if (!pen) c.moveTo(ax + ox, ay + oy); c.lineTo(bx + ox, by + oy); pen = true; } else pen = false;
+  let lo = 0, hi = M - 2;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (AD[m] <= d0) lo = m; else hi = m - 1; }
+  let s = lo, t = (d0 - AD[s]) / (AD[s + 1] - AD[s] || 1);
+  let ax = AX[s] + (AX[s + 1] - AX[s]) * t, ay = AY[s] + (AY[s + 1] - AY[s]) * t, pen = false;
+  for (; s < M - 1; s++) {
+    const fim = AD[s + 1] >= d1;
+    let bx = AX[s + 1], by = AY[s + 1];
+    if (fim) { t = (d1 - AD[s]) / (AD[s + 1] - AD[s] || 1); bx = AX[s] + (AX[s + 1] - AX[s]) * t; by = AY[s] + (AY[s + 1] - AY[s]) * t; }
+    if (AV[s]) { if (!pen) c.moveTo(ax + ox, ay + oy); c.lineTo(bx + ox, by + oy); pen = true; } else pen = false;
     if (fim) return;
     ax = bx; ay = by;
   }
@@ -177,15 +187,13 @@ function trecho(c, d0, d1, ox, oy, m) {
 // o que assenta a cobra na arena, e a sombra projetada para o lado oposto ao da
 // luz, encostada nele. Juntas, leem como um corpo deitado deslizando sobre o
 // piso, em vez de uma tinta aplicada nele.
-function sombra(c, { r, L, forca, m }) {
-  espacar(2);
+function sombra(c, { r, L, forca }) {
   c.strokeStyle = '#02060c';
   c.globalAlpha = .16 * forca; c.lineWidth = r * 2 + Math.max(3, r * .45);
-  c.beginPath(); trecho(c, 0, L, -LUZ_X * r * .12, -LUZ_Y * r * .12, m); c.stroke();
+  c.beginPath(); trecho(c, 0, L, -LUZ_X * r * .12, -LUZ_Y * r * .12); c.stroke();
   const longe = r * .34 + 1.5;
   c.globalAlpha = .28 * forca; c.lineWidth = r * 2;
-  c.beginPath(); trecho(c, 0, L, -LUZ_X * longe, -LUZ_Y * longe, m); c.stroke();
-  espacar(1);
+  c.beginPath(); trecho(c, 0, L, -LUZ_X * longe, -LUZ_Y * longe); c.stroke();
 }
 
 // Volume do tubo, por cima da pele: a luz cai sobre a pele toda, estampa
@@ -193,22 +201,20 @@ function sombra(c, { r, L, forca, m }) {
 // sombra; um claro largo e um reflexo fino, o lado aceso. Um traço deslocado de
 // `o` com largura `w` não vaza do corpo enquanto `o + w/2` fica abaixo do raio,
 // e todos aqui param em 0,97 dele — inclusive nas pontas arredondadas.
-function volume(c, { r, L, escala, escuro, claro, m }) {
-  espacar(2);
+function volume(c, { r, L, escala, escuro, claro }) {
   c.strokeStyle = '#02070e';
   c.globalAlpha = .2 * escuro; c.lineWidth = r * .9;
-  c.beginPath(); trecho(c, 0, L, -LUZ_X * r * .52, -LUZ_Y * r * .52, m); c.stroke();
+  c.beginPath(); trecho(c, 0, L, -LUZ_X * r * .52, -LUZ_Y * r * .52); c.stroke();
   c.globalAlpha = .18 * escuro; c.lineWidth = r * .46;
-  c.beginPath(); trecho(c, 0, L, -LUZ_X * r * .74, -LUZ_Y * r * .74, m); c.stroke();
-  espacar(1);
+  c.beginPath(); trecho(c, 0, L, -LUZ_X * r * .74, -LUZ_Y * r * .74); c.stroke();
   c.strokeStyle = '#ffffff';
   // O claro largo só aparece com o corpo grosso na tela; fino, o reflexo basta.
   if (r * escala >= 6) {
     c.globalAlpha = .1 * claro; c.lineWidth = r * .8;
-    c.beginPath(); trecho(c, 0, L, LUZ_X * r * .3, LUZ_Y * r * .3, m); c.stroke();
+    c.beginPath(); trecho(c, 0, L, LUZ_X * r * .3, LUZ_Y * r * .3); c.stroke();
   }
   c.globalAlpha = .3 * claro; c.lineWidth = Math.max(1, r * .2);
-  c.beginPath(); trecho(c, 0, L, LUZ_X * r * .46, LUZ_Y * r * .46, m); c.stroke();
+  c.beginPath(); trecho(c, 0, L, LUZ_X * r * .46, LUZ_Y * r * .46); c.stroke();
 }
 
 // Fileiras de escamas atravessando o corpo. Cada fileira é desenhada no
@@ -231,9 +237,13 @@ function scales(c, { r, L, scale }) {
   const ultima = L - r * .7;
   for (const [tom, espessura, recuo] of camadas) {
     c.strokeStyle = tom; c.lineWidth = espessura; c.beginPath();
-    for (let k = 1; k * step < ultima; k++) {
-      const p = em(k * step);
-      if (!visto(p.x, p.y, p.x, p.y, r + 8)) continue;
+    // As fileiras andam em ordem da cabeça para a cauda, e o trecho amostrado
+    // que contém cada uma diz se ela está na tela antes de qualquer conta.
+    for (let k = 1, s = 0; k * step < ultima; k++) {
+      const d = k * step;
+      while (s < M - 2 && AD[s + 1] < d) s++;
+      if (!AV[s]) continue;
+      const p = em(d);
       const tx = p.tx, ty = p.ty, nx = -ty, ny = tx;
       // Fileiras ímpares deslocadas meia escama: o encaixe é o que lê como pele.
       const desloca = k % 2 ? largura : 0;
@@ -258,20 +268,18 @@ function scales(c, { r, L, scale }) {
 // de cada trecho, então a listra acompanha a curva em vez de ficar reta. Não
 // forma bico nas curvas fechadas porque o deslocamento é no máximo o raio e o
 // raio de curva é sempre `24 + raio`, maior que ele.
-function longitudinal(c, offset, m) {
+function longitudinal(c, offset) {
   c.beginPath();
-  let ax = CX[0], ay = CY[0], pen = false;
-  for (let j = proximo(0); ; j = proximo(j)) {
-    const bx = CX[j], by = CY[j];
+  let pen = false;
+  for (let s = 0; s < M - 1; s++) {
+    const ax = AX[s], ay = AY[s], bx = AX[s + 1], by = AY[s + 1];
     let tx = bx - ax, ty = by - ay;
     const comp = Math.hypot(tx, ty) || 1; tx /= comp; ty /= comp;
     const nx = -ty * offset, ny = tx * offset;
-    if (visto(ax, ay, bx, by, m)) {
+    if (AV[s]) {
       if (!pen) c.moveTo(ax + nx, ay + ny);
       c.lineTo(bx + nx, by + ny); pen = true;
     } else pen = false;
-    if (j >= N - 1) break;
-    ax = bx; ay = by;
   }
   c.stroke();
 }
@@ -287,7 +295,7 @@ function halo(c, { r, L, cor, forca, boost }) {
   c.save(); c.globalCompositeOperation = 'lighter'; c.strokeStyle = cor;
   for (const [largura, alfa] of camadas) {
     c.globalAlpha = alfa; c.lineWidth = largura;
-    c.beginPath(); trecho(c, 0, L, 0, 0, largura); c.stroke();
+    c.beginPath(); trecho(c, 0, L, 0, 0); c.stroke();
   }
   c.restore();
 }
@@ -342,18 +350,28 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
   const hy = (snake.py ?? snake.y) + (snake.y - (snake.py ?? snake.y)) * alpha;
   const r = radius, colors = skin.colors;
   VISTA = bounds;
+  // Cobra fora da tela não custa nada. Primeiro pela cabeça: o corpo nunca vai
+  // além de um ponto por espaçamento dela. Depois pela caixa do corpo medido.
+  // Folga de três raios, que cobre halo, sombra e cabeça.
+  const folga = r * 3 + 30;
+  if (bounds && points) {
+    const alcance = (points + 1) * pointSpacing + folga;
+    if (hx < bounds.left - alcance || hx > bounds.right + alcance || hy < bounds.top - alcance || hy > bounds.bottom + alcance) return;
+  }
   medir(path, hx, hy);
+  if (bounds && (XMAX < bounds.left - folga || XMIN > bounds.right + folga || YMAX < bounds.top - folga || YMIN > bounds.bottom + folga)) return;
   if (points > 2 && N > 2) cortar(Math.min(length, (points - 2) * (CD[N - 1] - CD[1]) / (N - 2)));
   else cortar(length);
-  const L = CD[N - 1], corpo = N > 1 && L > 0, margem = r + 8;
+  const L = CD[N - 1], corpo = N > 1 && L > 0;
   // Quantos pontos do corpo o traço precisa de fato. No piso do zoom os pontos
   // ficam a 1,7 px um do outro, e vértice mais junto que isso não muda a
   // silhueta: o desvio de uma corda de `d` px num arco de raio `R` é d²/8R, o
   // que aqui dá fração de pixel. É o que mantém a cobra gigante dentro do
   // quadro — o corpo dela tem milhares de pontos e o traço passa por ele
   // várias vezes, uma por faixa de cor e uma por camada de luz.
-  PASSO_FINO = Math.max(1, Math.round(5 / Math.max(.001, pointSpacing * scale)));
-  TRILHA = path; espacar(1);
+  const passo = Math.max(1, Math.round(5 / Math.max(.001, pointSpacing * scale)));
+  // A folga da vista de cada trecho cobre a camada mais larga: halo aceso.
+  amostrar(primeiro(path, passo, 1), passo, r * 1.5 + 16);
   c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
   // Brilho abaixo de uns poucos pixels na tela não aparece, só custa.
   const aceso = details && r * scale >= 4;
@@ -367,7 +385,7 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
   // tela: ali eles só custariam. O vidro deixa passar parte da luz, e a sombra
   // dele no chão é mais fraca.
   const relevo = details && r * scale >= 2.5;
-  if (corpo && relevo) sombra(c, { r, L, forca: opaco * (skin.glass ? .55 : 1), m: r * 1.6 + 8 });
+  if (corpo && relevo) sombra(c, { r, L, forca: opaco * (skin.glass ? .55 : 1) });
   if (corpo && aceso && (skin.glow || snake.boost)) {
     // Acelerar acende qualquer skin; as de identidade neon já vêm acesas.
     let forca = Math.max(skin.glow ?? 0, snake.boost ? .85 : 0);
@@ -385,16 +403,18 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
       else if (band === -1) { c.strokeStyle = colors[1]; c.lineWidth = r * 2; }
       else { c.strokeStyle = colors[band]; c.lineWidth = r * 1.82; }
       c.beginPath();
-      if (band < 0) trecho(c, 0, L, 0, 0, margem);
-      else for (let j = band; j * faixa < L; j += colors.length) trecho(c, j * faixa, (j + 1) * faixa, 0, 0, margem);
+      if (band < 0) trecho(c, 0, L, 0, 0);
+      else for (let j = band; j * faixa < L; j += colors.length) trecho(c, j * faixa, (j + 1) * faixa, 0, 0);
       c.stroke();
     }
     if (details) scales(c, { r, L, scale });
     if (details && skin.pattern) {
       const stamp = stampFor(skin), gap = r * (skin.pattern === 'ribbon' ? 1.4 : 2);
-      for (let k = 1; k * gap < L - r * .8; k++) {
-        const p = em(k * gap);
-        if (!visto(p.x, p.y, p.x, p.y, r * 1.3)) continue;
+      for (let k = 1, s = 0; k * gap < L - r * .8; k++) {
+        const d = k * gap;
+        while (s < M - 2 && AD[s + 1] < d) s++;
+        if (!AV[s]) continue;
+        const p = em(d);
         c.save(); c.translate(p.x, p.y); c.rotate(Math.atan2(p.ty, p.tx));
         c.drawImage(stamp, -r * 1.2, -r * 1.2, r * 2.4, r * 2.4); c.restore();
       }
@@ -409,11 +429,11 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
       if (skin.glass) for (const lado of [-1, 1]) faixas.push([lado * .86, skin.detail, .17]);
       for (const [frac, cor, largura] of faixas) {
         c.strokeStyle = cor; c.lineWidth = Math.max(1, r * largura);
-        longitudinal(c, r * frac, margem);
+        longitudinal(c, r * frac);
       }
     }
     // No vidro o lado escuro também é translúcido; o reflexo, não: vidro brilha.
-    if (relevo) volume(c, { r, L, escala: scale, escuro: opaco * vidro, claro: opaco, m: margem });
+    if (relevo) volume(c, { r, L, escala: scale, escuro: opaco * vidro, claro: opaco });
     if (aceso && snake.boost) rastro(c, path, { r, cor: skin.detail });
   }
   if (visto(hx, hy, hx, hy, r * 3)) {
