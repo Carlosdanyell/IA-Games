@@ -177,7 +177,7 @@ function amostrar(path, k0, passo, m) {
 // O corpo medido, do jeito que as partículas o leem: o ponto a uma distância
 // da cabeça e se ele está na tela. Um objeto só, reaproveitado.
 const CORPO = {
-  r: 0, L: 0, hx: 0, hy: 0, angle: 0, vel: 0, tempo: 0, boost: false, fracao: 1,
+  r: 0, L: 0, hx: 0, hy: 0, angle: 0, vel: 0, tempo: 0, boost: false, fracao: 1, taxa: 1,
   em,
   aparece(d) {
     let lo = 0, hi = M - 2;
@@ -379,10 +379,11 @@ function tom(cor, alvo, k) {
 // onde está e a carne nova aparece por ela.
 //
 // `effects` recebe as partículas da skin, soltas em `dt` segundos por uma cobra
-// que anda `speed` por segundo; `owner` identifica quem solta. Com `emitOnly`,
+// que anda `speed` por segundo, na proporção `effectsRate`; `owner` identifica
+// quem solta. Com `emitOnly`,
 // a cobra só solta partículas e não é desenhada: é como a prévia aquece.
 export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, details = true, pointSpacing = ARENA.spacing, scale = 1, time = 0, length = Infinity, points = 0,
-  effects = null, dt = 0, speed = 0, owner = snake.id ?? -1, emitOnly = false } = {}) {
+  effects = null, effectsRate = 1, dt = 0, speed = 0, owner = snake.id ?? -1, emitOnly = false } = {}) {
   const skin = skinFor(snake.skin), path = snake.path;
   if (!path?.length) return;
   const hx = (snake.px ?? snake.x) + (snake.x - (snake.px ?? snake.x)) * alpha;
@@ -416,6 +417,7 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
   if (effects && corpo && details && r * scale >= 3) {
     CORPO.r = r; CORPO.L = L; CORPO.hx = hx; CORPO.hy = hy; CORPO.angle = snake.angle ?? 0;
     CORPO.vel = speed; CORPO.tempo = time; CORPO.boost = !!snake.boost; CORPO.fracao = M > 1 ? VISIVEIS / (M - 1) : 1;
+    CORPO.taxa = effectsRate;
     effects.emitir(owner, skin.id, CORPO, dt);
   }
   if (emitOnly) return;

@@ -255,11 +255,12 @@ export function createEffects(capacidade = 300) {
 
   // `corpo` é a cobra medida pelo desenho: raio, comprimento, cabeça, rumo, o
   // ponto a uma distância da cabeça (`em`) e se ele está na tela (`aparece`).
-  // `vel` é quanto a cobra anda por segundo, e `tempo` o relógio do desenho.
+  // `vel` é quanto a cobra anda por segundo, `tempo` o relógio do desenho e
+  // `taxa` multiplica o quanto ela solta.
   function emitir(chave, skinId, corpo, dt) {
     const lista = EFEITOS[skinId];
     if (!lista || dt <= 0) return;
-    const { r, L, hx, hy, angle, vel, tempo, boost, fracao } = corpo;
+    const { r, L, hx, hy, angle, vel, tempo, boost, fracao, taxa = 1 } = corpo;
     const dono = donoDe(chave, lista.length);
     dono.x = hx; dono.y = hy; dono.visto = agora;
     const fx = Math.cos(angle), fy = Math.sin(angle);
@@ -296,7 +297,7 @@ export function createEffects(capacidade = 300) {
       // Emissão contínua: o resto fracionário fica guardado, então uma taxa
       // baixa solta no ritmo certo em vez de piscar ao acaso.
       const fator = em.onde === 'corpo' ? Math.min(3, Math.max(.35, L * fracao / 400)) : 1;
-      dono.resto[e] += em.taxa * fator * dt;
+      dono.resto[e] += em.taxa * fator * taxa * dt;
       let quantas = Math.min(8, Math.floor(dono.resto[e]));
       dono.resto[e] -= Math.floor(dono.resto[e]);
       while (quantas-- > 0) {

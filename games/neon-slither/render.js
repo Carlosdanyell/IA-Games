@@ -16,9 +16,12 @@ export function createRenderer(viewport, theme) {
   const sparks = [], fantasmas = []; let eventTime = -1, backdrop = null, backdropKey = '';
   // Relógio do renderizador: só a skin de pulso o usa, para o brilho respirar.
   let clock = 0;
-  // Partículas das skins, com teto: a arena inteira divide trezentas. Com o
-  // movimento reduzido pedido pelo sistema, nenhuma é solta.
-  const efeitos = createEffects(300);
+  // Partículas das skins, com teto: a arena inteira divide duzentas, e cada
+  // rival solta menos da metade do que o jogador solta — o efeito que se olha
+  // é o da própria cobra. Medido com a CPU seis vezes mais lenta e uma arena
+  // cheia, trezentas custavam 4 ms por quadro, quase tudo em carimbar imagem.
+  // Com o movimento reduzido pedido pelo sistema, nenhuma é solta.
+  const efeitos = createEffects(200);
   let tempoDoMundo = -1;
 
   const sprites = COLORS.map(color => {
@@ -102,7 +105,8 @@ export function createRenderer(viewport, theme) {
       // isso para a ponta da cauda andar lisa.
       drawSnake(c,s,{radius:r,alpha,bounds:vista,scale:camera.zoom,time:clock,
         points:Math.ceil(lengthOf(s) / ARENA.spacing) + 1,
-        effects:reduced.matches ? null : efeitos, dt:andando ? passo : 0, speed:s.boost ? ARENA.boost : ARENA.speed});
+        effects:reduced.matches ? null : efeitos, effectsRate:s.player ? 1 : .45,
+        dt:andando ? passo : 0, speed:s.boost ? ARENA.boost : ARENA.speed});
       if (s.player) {
         c.save(); c.translate(hx, hy); c.rotate(s.target); c.strokeStyle = theme.dark ? '#ffffffaa' : '#263449aa'; c.lineWidth = 2;
         const arrow = Math.max(33, r + 14); c.beginPath(); c.moveTo(arrow, -5); c.lineTo(arrow + 7, 0); c.lineTo(arrow, 5); c.stroke(); c.restore();
