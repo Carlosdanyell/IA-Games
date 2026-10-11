@@ -115,9 +115,11 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
   // Buffers reaproveitados pelas consultas do passo: nada é alocado por quadro.
   const risk = new Float64Array(RAYS), seenBody = [], seenFood = [], seenHit = [], seenBite = [], seenSpawn = [];
   const point = margin => { const a = rng.next() * TAU, r = Math.sqrt(rng.next()) * (ARENA.radius - margin); return { x: Math.cos(a) * r, y: Math.sin(a) * r }; };
-  function food(p, value = ARENA.foodValue, color = Math.floor(rng.next() * 6)) {
+  // `size` é o raio de quem deixou a luz ao morrer, e o desenho o usa no tamanho
+  // do brilho; a luz comum fica com zero.
+  function food(p, value = ARENA.foodValue, color = Math.floor(rng.next() * 6), size = 0) {
     if (world.foods.length >= ARENA.maxFood) return;
-    world.foods.push({ x: p.x, y: p.y, value, color, eaten: false, mark: 0 });
+    world.foods.push({ x: p.x, y: p.y, value, color, eaten: false, mark: 0, size });
   }
   function bodyIndex() {
     world.bodyGrid.clear();
@@ -432,9 +434,28 @@ export function createWorld({ difficulty = 'normal', skin = 'aurora', seed = Dat
     }
     // Uma cobra grande vira um rastro de luz. Com o teto antigo de 100 pontos,
     // quanto maior a cobra mais absurdo o valor de cada pelota solta.
-    const step = Math.max(1, Math.ceil(s.path.length / 420)), drops = Math.ceil(s.path.length / step);
-    for (let i = 0; i < s.path.length; i += step) food(s.path[i], Math.max(1, s.mass * .75 / drops), s.id % 6);
-    world.events.push({ type: 'death', x: s.x, y: s.y, player: s.player });
+    //
+    // O rastro tem a largura do corpo. Era uma fileira de brilhos iguais pelo
+    // meio dele, e um gigante de 98 de largura deixava o mesmo risco fino que um
+    // novato. Agora cada pelota guarda o raio de quem morreu, que o desenho usa
+    // no tamanho do brilho, e cai deslocada de través, de borda a borda.
+    const r = radiusOf(s), step = Math.max(1, Math.ceil(s.path.length / 420)), drops = Math.ceil(s.path.length / step);
+    const valor = Math.max(1, s.mass * .75 / drops), limite = ARENA.radius - 12;
+    for (let i = 0, k = 0; i < s.path.length; i += step, k++) {
+      const a = s.path[i], b = s.path[Math.min(s.path.length - 1, i + 1)];
+      const tx = b.x - a.x, ty = b.y - a.y, comp = Math.hypot(tx, ty) || 1;
+      // Espalhamento sem sorteio: a sequência áurea cobre a largura por igual e
+      // não gasta o gerador, que decide o resto da partida.
+      const lado = ((k * .6180339887) % 1 - .5) * 1.2 * r;
+      let x = a.x - ty / comp * lado, y = a.y + tx / comp * lado;
+      // Luz que cairia além da borda volta para dentro: lá ninguém a alcança.
+      const fora = Math.hypot(x, y);
+      if (fora > limite) { x *= limite / fora; y *= limite / fora; }
+      food({ x, y }, valor, s.id % 6, r);
+    }
+    // O corpo vai junto no aviso: o desenho o acende por um instante antes de
+    // ele virar luz, na largura dele.
+    world.events.push({ type: 'death', x: s.x, y: s.y, player: s.player, r, skin: s.skin, path: s.path });
     if (killer?.player) world.kills++;
     if (s.player) { world.over = true; world.reason = killer ? `Sua cabeça encostou em ${killer.name}.` : 'Você cruzou o limite da arena.'; }
     else world.respawns.push(3 + rng.next() * 4);
