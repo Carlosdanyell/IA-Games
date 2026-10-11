@@ -1,5 +1,5 @@
 import { ARENA, skinFor } from './config.js';
-import { radiusOf, zoomFor } from './model.js';
+import { lengthOf, radiusOf, zoomFor } from './model.js';
 import { drawSnake } from './skins.js';
 
 // O zoom mora no modelo: o nascimento precisa saber o que o jogador enxerga
@@ -12,7 +12,7 @@ export function createRenderer(viewport, theme) {
   const v = viewport.view, c = v.ctx;
   const camera = { x: 0, y: 0, zoom: 1 };
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const sparks = []; let eventTime = -1, backdrop = null, backdropKey = '';
+  const sparks = [], fantasmas = []; let eventTime = -1, backdrop = null, backdropKey = '';
   // Relógio do renderizador: só a skin de pulso o usa, para o brilho respirar.
   let clock = 0;
 
@@ -53,11 +53,32 @@ export function createRenderer(viewport, theme) {
     c.strokeStyle = '#fa6c88'; c.lineWidth = 8; c.beginPath(); c.arc(0, 0, ARENA.radius, 0, Math.PI * 2); c.stroke();
     c.strokeStyle = '#fa6c8820'; c.lineWidth = 35; c.stroke();
     for (const f of world.foods) {
-      if (f.eaten || f.x < left - 20 || f.x > right + 20 || f.y < top - 20 || f.y > bottom + 20) continue;
-      const size = 16 + Math.min(20, f.value * 2);
-      c.drawImage(sprites[f.color % COLORS.length], f.x - size / 2, f.y - size / 2, size, size);
+      // A luz deixada por quem morreu brilha na largura do corpo dele.
+      const corpo = f.size || 0, size = Math.max(16 + Math.min(20, f.value * 2), corpo * 2), meio = size / 2;
+      if (f.eaten || f.x < left - meio || f.x > right + meio || f.y < top - meio || f.y > bottom + meio) continue;
+      c.drawImage(sprites[f.color % COLORS.length], f.x - meio, f.y - meio, size, size);
       c.fillStyle = theme.dark ? '#f4ffed' : COLORS[f.color % COLORS.length];
-      c.beginPath(); c.arc(f.x,f.y,Math.min(3,1.3+f.value*.14),0,Math.PI*2); c.fill();
+      c.beginPath(); c.arc(f.x,f.y,Math.max(Math.min(3,1.3+f.value*.14),corpo*.18),0,Math.PI*2); c.fill();
+    }
+    // O corpo que acabou de morrer acende e se abre por meio segundo antes de
+    // sumir, deixando a luz para trás. O clarão é o traço do próprio corpo, então
+    // o tamanho dele é o da cobra: o gigante explode largo, o novato, fino.
+    const passoFantasma = Math.max(1, Math.round(5 / (ARENA.spacing * camera.zoom)));
+    for (let i = fantasmas.length - 1; i >= 0; i--) {
+      const g = fantasmas[i]; g.vida -= Math.min(dt, .05);
+      if (g.vida <= 0) { fantasmas.splice(i, 1); continue; }
+      const k = g.vida / .5, largura = g.r * 2 * (1.7 - .7 * k), folga = largura;
+      c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = .5 * k * k; c.lineCap = 'round'; c.lineJoin = 'round';
+      c.strokeStyle = g.cor; c.lineWidth = largura; c.beginPath();
+      let a = g.path[0], pen = false;
+      for (let j = passoFantasma; j < g.path.length + passoFantasma - 1; j += passoFantasma) {
+        const b = g.path[Math.min(j, g.path.length - 1)];
+        if (Math.max(a.x,b.x) >= left-folga && Math.min(a.x,b.x) <= right+folga && Math.max(a.y,b.y) >= top-folga && Math.min(a.y,b.y) <= bottom+folga) {
+          if (!pen) c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); pen = true;
+        } else pen = false;
+        a = b;
+      }
+      c.stroke(); c.restore();
     }
     const ordered = [...world.snakes.filter(s => !s.player), p];
     c.lineCap = 'round'; c.lineJoin = 'round';
@@ -65,7 +86,10 @@ export function createRenderer(viewport, theme) {
       if (!s.alive) continue;
       const r = radiusOf(s);
       const hx = s.px + (s.x - s.px) * alpha, hy = s.py + (s.y - s.py) * alpha;
-      drawSnake(c,s,{radius:r,alpha,bounds:{left,top,right,bottom},scale:camera.zoom,time:clock});
+      // `points` é quantos pontos o modelo guarda com o corpo cheio: a pele usa
+      // isso para a ponta da cauda andar lisa.
+      drawSnake(c,s,{radius:r,alpha,bounds:{left,top,right,bottom},scale:camera.zoom,time:clock,
+        points:Math.ceil(lengthOf(s) / ARENA.spacing) + 1});
       if (s.player) {
         c.save(); c.translate(hx, hy); c.rotate(s.target); c.strokeStyle = theme.dark ? '#ffffffaa' : '#263449aa'; c.lineWidth = 2;
         const arrow = Math.max(33, r + 14); c.beginPath(); c.moveTo(arrow, -5); c.lineTo(arrow + 7, 0); c.lineTo(arrow, 5); c.stroke(); c.restore();
@@ -77,10 +101,16 @@ export function createRenderer(viewport, theme) {
       eventTime = world.time;
       if (!reduced.matches) for (const event of world.events) {
         if (event.type !== 'death' && event.type !== 'eat') continue;
-        const count = event.type === 'death' ? 12 : 3;
-        for (let i=0;i<count && sparks.length<60;i++) {
+        // A faísca da morte tem a cor de quem morreu e se abre na proporção do
+        // tamanho dele; a de comer é do jogador, que é quem come.
+        const morte = event.type === 'death', r = morte ? event.r ?? 10 : 0;
+        const cor = skinFor(morte ? event.skin ?? p.skin : p.skin).detail;
+        if (morte && event.path?.length) fantasmas.push({ path: event.path, r, cor, vida: .5 });
+        const count = morte ? Math.round(10 + Math.min(14, r * .3)) : 3;
+        const rapidez = morte ? 45 + r * 2.2 : 45, tamanho = morte ? 2 + r * .05 : 2;
+        for (let i=0;i<count && sparks.length<90;i++) {
           const a=i/count*Math.PI*2 + world.time;
-          sparks.push({x:event.x ?? p.x,y:event.y ?? p.y,vx:Math.cos(a)*45,vy:Math.sin(a)*45,life:.45,color:skinFor(p.skin).detail});
+          sparks.push({x:event.x ?? p.x,y:event.y ?? p.y,vx:Math.cos(a)*rapidez,vy:Math.sin(a)*rapidez,life:.45,color:cor,size:tamanho});
         }
       }
     }
@@ -89,7 +119,7 @@ export function createRenderer(viewport, theme) {
       if (spark.life<=0) { sparks.splice(i,1); continue; }
       spark.x+=spark.vx*dt; spark.y+=spark.vy*dt;
       c.globalAlpha=spark.life/.45; c.fillStyle=spark.color;
-      c.beginPath(); c.arc(spark.x,spark.y,2,0,Math.PI*2); c.fill();
+      c.beginPath(); c.arc(spark.x,spark.y,spark.size,0,Math.PI*2); c.fill();
     }
     c.globalAlpha = 1; c.restore();
     if (joy?.active) {
@@ -107,5 +137,5 @@ export function createRenderer(viewport, theme) {
     // mesmo no mapa não pode depender de distinguir matizes parecidas.
     for (const s of world.snakes) if (s.alive) { g.fillStyle = s.player ? '#b4ffda' : '#afc6d988'; g.beginPath(); g.arc(size / 2 + s.x * k, size / 2 + s.y * k, s.player ? 4.5 : 2, 0, Math.PI * 2); g.fill(); }
   }
-  return { draw, minimap, camera, reset(world) { camera.x = world.player.x; camera.y = world.player.y; camera.zoom = 1; sparks.length=0; eventTime=-1; } };
+  return { draw, minimap, camera, reset(world) { camera.x = world.player.x; camera.y = world.player.y; camera.zoom = 1; sparks.length=0; fantasmas.length=0; eventTime=-1; } };
 }

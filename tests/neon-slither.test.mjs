@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createWorld, radiusOf, lengthOf, turnRadiusOf, turnsAround, angleDelta, segmentDistance, spawnFits, foresightOf, SpatialGrid } from '../games/neon-slither/model.js';
 import { ARENA, cleanProfile, SKINS, DIFFICULTIES } from '../games/neon-slither/config.js';
 import { zoomFor } from '../games/neon-slither/render.js';
-import { previewPath } from '../games/neon-slither/skins.js';
+import { previewPath, drawSnake } from '../games/neon-slither/skins.js';
 
 const arena = (options = {}) => {
   const world = createWorld({ difficulty: 'easy', seed: 9, ...options });
@@ -108,24 +108,24 @@ test('crescer continua visível muito além do teto antigo', () => {
   assert.ok(campoPara(ARENA.maxMass) / (ARENA.radius * 2) < .4, 'no tamanho máximo ainda tem de sobrar mapa fora da tela');
 });
 
-test('o ponto do corpo guarda um número estável, para a estampa não tremer', () => {
+test('o ponto do corpo guarda um número estável, para a silhueta não tremer', () => {
   const world = arena();
   const s = world.player;
   s.mass = 400; s.invulnerable = 1e9;
   for (let i = 0; i < 120; i++) world.update(1 / 60, { angle: 0 });
 
-  // O índice no array desloca a cada ponto novo na cabeça. Quem pinta a skin
-  // pelo índice vê o desenho escorregar um espaçamento inteiro trinta vezes por
-  // segundo, e é isso que aparece como corpo tremendo.
+  // O índice no array desloca a cada ponto novo na cabeça. O desenho só usa um
+  // ponto a cada tantos, e escolhê-los pelo índice trocaria os vértices do
+  // traço trinta vezes por segundo: a silhueta tremeria nas curvas.
   assert.ok(world.snakes.every(v => v.path.every(q => Number.isFinite(q.n))),
     'todo ponto do corpo precisa de número de série');
   const numeros = s.path.map(q => q.n);
   assert.equal(new Set(numeros).size, numeros.length, 'número de série repetido no mesmo corpo');
-  // Cresce em direção à cabeça: a skin usa isso para saber a ordem da carne.
+  // Cresce em direção à cabeça: é a ordem dos pontos ao longo do corpo.
   for (let i = 1; i < numeros.length; i++)
     assert.ok(numeros[i] < numeros[i - 1], `os números precisam decrescer da cabeça à cauda (índice ${i})`);
 
-  // O ponto identificado pelo número não anda: a carne fica onde foi criada.
+  // O ponto identificado pelo número não anda: ele fica onde a cabeça passou.
   const alvo = s.path[10].n;
   const antes = { ...s.path.find(q => q.n === alvo) };
   let maior = 0;
@@ -277,12 +277,20 @@ const longeDaBorda = (world, i) => {
   const p = world.player;
   return Math.hypot(p.x, p.y) > ARENA.radius - 600 ? Math.atan2(-p.y, -p.x) : Math.sin(i / 200) * 2;
 };
+// Manda a cobra inteira para fora da arena: ela morre na borda no passo
+// seguinte, pelo caminho normal da morte. O corpo vai junto. Só a cabeça lá
+// fora deixava, naquele passo, um trecho do corpo atravessando o mapa da cabeça
+// expulsa até o resto dela, e quem cruzasse essa linha morria sem motivo.
+const expulsar = s => {
+  s.x = s.y = s.px = s.py = ARENA.radius * 2;
+  for (const q of s.path) q.x = q.y = ARENA.radius * 2;
+};
 // Derruba um rival que satisfaça o critério, mandando-o para fora da arena.
 // Com a IA que antecipa corte os rivais quase não morrem sozinhos, e quem testa
 // nascimento precisa de mortes.
 const derrubar = (world, criterio) => {
   const alvo = world.snakes.find(s => s.alive && !s.player && criterio(s));
-  if (alvo) alvo.x = alvo.y = ARENA.radius * 2;
+  if (alvo) expulsar(alvo);
   return alvo;
 };
 
@@ -531,9 +539,10 @@ test('perfil saneia dados corrompidos e trava skin não liberada', () => {
   assert.ok(Math.max(...metas) >= 25000, 'a maior meta precisa passar de uma sessão longa');
 });
 
-// A prévia da skin é uma cobra com a cabeça presa na direita. Quem anda é o
-// corpo: o rastro escorre para a cauda. Se escorrer para a cabeça, a leitura é
-// de uma cobra de ré — foi o primeiro defeito que este teste tranca.
+// A prévia da skin é uma cobra com a cabeça presa na direita, nadando por uma
+// pista parada: a pista é o chão e escorre para a cauda. Se escorrer para a
+// cabeça, a leitura é de uma cobra de ré — foi o primeiro defeito que este teste
+// tranca. A pele não vai com a pista: ela é presa à cabeça, como na arena.
 test('a prévia escorre da cabeça para a cauda', () => {
   const { path: inicio } = previewPath(0);
   // A cabeça é o primeiro ponto e é a ponta mais à direita: quem olha vê o
@@ -541,21 +550,20 @@ test('a prévia escorre da cabeça para a cauda', () => {
   assert.equal(inicio[0].x, Math.max(...inicio.map(p => p.x)), 'a cabeça precisa ser a ponta direita');
   assert.ok(inicio[0].x > inicio[2].x, 'a cabeça precisa olhar para +x');
   assert.ok(Math.abs(previewPath(0).angle) < Math.PI / 2, 'o rumo precisa apontar para +x');
-  // Índice maior é mais perto da cauda. A crista da onda e a carne (o ponto de
-  // número de série fixo) têm de caminhar os dois nesse sentido.
+  // Índice maior é mais perto da cauda. A crista da onda e o chão (o ponto de
+  // número de série fixo na pista) têm de caminhar os dois nesse sentido.
   const crista = path => path.reduce((melhor, p, i) => p.y > path[melhor].y ? i : melhor, 1);
-  const carne = (path, n) => path.findIndex(p => p.n === n);
+  const chao = (path, n) => path.findIndex(p => p.n === n);
   const alvo = inicio[20].n;
   const { path: depois } = previewPath(.2);
   const andouCrista = crista(depois) - crista(inicio);
-  const andouCarne = carne(depois, alvo) - carne(inicio, alvo);
+  const andouChao = chao(depois, alvo) - chao(inicio, alvo);
   assert.ok(andouCrista > 0, `a onda foi para a cabeça (${andouCrista} pontos)`);
-  assert.ok(andouCarne > 0, `a estampa foi para a cabeça (${andouCarne} pontos)`);
-  // E no mesmo ritmo: onda mais rápida que a carne faria a pele deslizar sobre
-  // o corpo. Um ponto de folga é o arredondamento do número de série.
-  assert.ok(Math.abs(andouCrista - andouCarne) <= 1, `onda e estampa em ritmos diferentes (${andouCrista} vs ${andouCarne})`);
-  // O número de série da cabeça cresce, como no jogo: é o que faz a estampa
-  // nascer na cabeça e morrer na cauda em vez de ficar congelada.
+  assert.ok(andouChao > 0, `o chão foi para a cabeça (${andouChao} pontos)`);
+  // E no mesmo ritmo: onda mais rápida que o chão seria a cobra derrapando.
+  // Um ponto de folga é o arredondamento do número de série.
+  assert.ok(Math.abs(andouCrista - andouChao) <= 1, `onda e chão em ritmos diferentes (${andouCrista} vs ${andouChao})`);
+  // O número de série da cabeça cresce, como no jogo: a cabeça deita pista nova.
   assert.ok(depois[0].n > inicio[0].n, 'a cabeça precisa gerar série nova');
 });
 
@@ -565,23 +573,23 @@ test('a prévia escorre da cabeça para a cauda', () => {
 // geometria escorre junto com a série, e o que mede isso não é a distância por
 // quadro — é a regularidade dela.
 test('a prévia escorre sem degrau', () => {
-  // Uma carne perto da cabeça, seguida por um tempo curto: no ritmo do jogo ela
-  // chega à cauda em pouco mais de dois segundos.
+  // Um ponto da pista perto da cabeça, seguido por um tempo curto: no ritmo do
+  // jogo ele chega à cauda em pouco mais de dois segundos.
   const quadro = 1 / 30, passos = 45;
   const alvo = previewPath(0).path[5].n;
   const onde = t => previewPath(t).path.find(p => p.n === alvo);
   let antes = onde(0), menor = Infinity, maior = 0;
   for (let k = 1; k <= passos; k++) {
     const agora = onde(k * quadro);
-    assert.ok(agora, 'a carne saiu do corpo antes da hora');
+    assert.ok(agora, 'o ponto saiu do corpo antes da hora');
     const andou = Math.hypot(agora.x - antes.x, agora.y - antes.y);
     menor = Math.min(menor, andou); maior = Math.max(maior, andou);
     antes = agora;
   }
-  assert.ok(menor > 0, 'a carne precisa andar em todo quadro, não só de vez em quando');
+  assert.ok(menor > 0, 'o chão precisa andar em todo quadro, não só de vez em quando');
   // Antes disto o mínimo era zero e o máximo, um espaçamento: a razão explodia.
   assert.ok(maior / menor < 1.2, `andar irregular: ${menor.toFixed(2)} a ${maior.toFixed(2)} por quadro`);
-  // E a cabeça não sai do lugar enquanto o corpo escorre por baixo dela.
+  // E a cabeça não sai do lugar enquanto o chão escorre por baixo dela.
   const cabeca = t => previewPath(t).path[0].x;
   for (let k = 0; k <= passos; k++) assert.ok(Math.abs(cabeca(k * quadro) - cabeca(0)) < 1e-9, 'a cabeça saiu do lugar');
 });
@@ -590,10 +598,174 @@ test('a prévia escorre sem degrau', () => {
 // não como uma cobra parada tremendo.
 test('a prévia anda no ritmo do jogo', () => {
   const andou = previewPath(1).path[1].n - previewPath(0).path[1].n;
-  assert.ok(andou >= ARENA.speed / ARENA.spacing - 1, `a carne anda ${andou} pontos por segundo, menos que o cruzeiro`);
+  assert.ok(andou >= ARENA.speed / ARENA.spacing - 1, `o chão anda ${andou} pontos por segundo, menos que o cruzeiro`);
   // O corpo inteiro passa em poucos segundos, não em dez: era o que fazia a
   // prévia antiga parecer travada.
   assert.ok(66 / andou < 4, 'a cobra demora demais para passar o corpo todo');
+});
+
+// Contexto de canvas que só anota. O desenho da cobra roda aqui no Node e o
+// teste lê de volta o que foi traçado, com a cor e a espessura de cada traço.
+function gravador() {
+  const ops = [], estado = { strokeStyle: '', lineWidth: 1 };
+  const ctx = new Proxy(estado, {
+    get: (alvo, chave) => chave in alvo ? alvo[chave]
+      : chave === 'createLinearGradient' || chave === 'createRadialGradient' ? () => ({ addColorStop() {} })
+      : (...args) => { ops.push({ op: chave, args, cor: alvo.strokeStyle, largura: alvo.lineWidth }); },
+    set: (alvo, chave, valor) => { alvo[chave] = valor; return true; }
+  });
+  return { ctx, ops };
+}
+// Desenha como a arena desenha, numa skin sem estampa: a estampa precisa de um
+// canvas de verdade para ser rasterizada.
+function tracar(s) {
+  const { ctx, ops } = gravador();
+  drawSnake(ctx, { ...s, skin: 'quimera' }, { radius: radiusOf(s), points: Math.ceil(lengthOf(s) / ARENA.spacing) + 1 });
+  return ops;
+}
+// Arena sem luz: quem come engorda, e a escama cresce junto com a espessura.
+// O teste de pele precisa do corpo com o mesmo raio do começo ao fim.
+const semLuz = world => { world.foods.length = 0; world.foodGrid.clear(); world.foodClock = -Infinity; };
+// Fileiras de escama vistas da cabeça: o ponto de controle de cada arco do sulco.
+const fileiras = s => tracar(s).filter(o => o.op === 'quadraticCurveTo' && o.cor === '#0a141e40')
+  .map(o => [o.args[0] - s.x, o.args[1] - s.y]);
+// Ponta da cauda: onde termina o traço de base, que tem a largura do corpo.
+function cauda(s) {
+  const base = SKINS.find(k => k.id === 'quimera').colors[1];
+  const fim = tracar(s).filter(o => o.op === 'lineTo' && o.cor === base && o.largura === radiusOf(s) * 2).at(-1);
+  return { x: fim.args[0], y: fim.args[1] };
+}
+
+// A pele é da cobra, não do chão. Presa aos pontos do caminho, que ficam onde a
+// cabeça passou, a escama ficava parada no mundo e o corpo deslizava por baixo
+// dela — o rastro de pincel. Presa à distância até a cabeça, ela anda junto.
+test('a escama anda com o corpo, em vez de ficar pintada no chão', () => {
+  const world = arena();
+  semLuz(world);
+  const s = world.player;
+  s.mass = 3000; s.invulnerable = 1e9;
+  // Dez segundos em linha reta: o corpo fica todo reto e cheio.
+  for (let i = 0; i < 600; i++) world.update(1 / 60, { angle: 0 });
+  const antes = fileiras(s), cabeca = s.x;
+  for (let i = 0; i < 7; i++) world.update(1 / 60, { angle: 0 });
+  const depois = fileiras(s);
+  assert.ok(s.x - cabeca > 15, 'a cobra precisa ter andado');
+  assert.ok(antes.length > 100, `o teste precisa de escamas de verdade (${antes.length})`);
+  // Vista da cabeça, cada escama está no mesmo lugar: andou no chão o mesmo que
+  // a cabeça andou. As últimas ficam de fora porque a ponta da cauda arredonda.
+  for (let i = 0; i < Math.min(antes.length, depois.length) - 6; i++) {
+    const erro = Math.hypot(depois[i][0] - antes[i][0], depois[i][1] - antes[i][1]);
+    assert.ok(erro < 1e-6, `a escama ${i} escorregou ${erro.toFixed(3)} pelo corpo`);
+  }
+});
+
+// O modelo solta o último ponto da cauda de uma vez, quando nasce um na cabeça.
+// A ponta desenhada até ele ficava parada um quadro ou dois e pulava um
+// espaçamento inteiro no seguinte.
+test('a ponta da cauda anda junto com a cabeça, sem saltos', () => {
+  const world = arena();
+  semLuz(world);
+  const s = world.player;
+  s.mass = 3000; s.invulnerable = 1e9;
+  for (let i = 0; i < 600; i++) world.update(1 / 60, { angle: 0 });
+  let anterior = cauda(s), menor = Infinity, maior = 0;
+  for (let i = 0; i < 90; i++) {
+    world.update(1 / 60, { angle: 0 });
+    const agora = cauda(s), andou = agora.x - anterior.x;
+    menor = Math.min(menor, andou); maior = Math.max(maior, andou);
+    anterior = agora;
+  }
+  const cabeca = ARENA.speed / 60;
+  assert.ok(menor > cabeca * .6 && maior < cabeca * 1.4,
+    `a cauda andou de ${menor.toFixed(2)} a ${maior.toFixed(2)} por quadro, e a cabeça anda ${cabeca.toFixed(2)}`);
+});
+
+// Crescer alonga o corpo pela cauda: ela fica parada no chão enquanto a cabeça
+// segue, e a pele que já existia continua onde estava. A espessura satura na
+// massa 61038; acima dela nem o tamanho da escama muda e a conta é exata.
+test('crescer acrescenta corpo pela cauda e deixa a pele onde estava', () => {
+  const world = arena();
+  semLuz(world);
+  const s = world.player;
+  s.mass = 62000; s.invulnerable = 1e9;
+  assert.equal(radiusOf(s), radiusOf({ mass: 70000 }), 'a espessura precisa estar saturada');
+  // Corpo cheio e reto, montado à mão: esticado andando, ele não caberia na arena.
+  const pontos = Math.ceil(lengthOf(s) / ARENA.spacing) + 1;
+  Object.assign(s, { x: -2500, y: 0, px: -2500, py: 0, angle: 0, target: 0 });
+  s.path = Array.from({ length: pontos }, (_, i) => ({ x: -2500 - i * 5, y: 0, n: s.headSeq - i }));
+  for (let i = 0; i < 30; i++) world.update(1 / 60, { angle: 0 });
+  const antes = fileiras(s), pontaCheia = cauda(s), cabeca = s.x;
+  s.mass = 70000;
+  world.update(1 / 60, { angle: 0 });
+  const pontaCrescendo = cauda(s);
+  // Ao começar a crescer a ponta encosta no último ponto, que está no máximo um
+  // espaçamento atrás dela. Dali em diante ela não sai do lugar.
+  assert.ok(Math.abs(pontaCrescendo.x - pontaCheia.x) <= ARENA.spacing, 'a ponta saltou ao começar a crescer');
+  for (let i = 0; i < 20; i++) {
+    world.update(1 / 60, { angle: 0 });
+    const agora = cauda(s);
+    assert.ok(Math.hypot(agora.x - pontaCrescendo.x, agora.y - pontaCrescendo.y) < 1e-9, 'a cauda andou enquanto o corpo crescia');
+  }
+  assert.ok(s.x - cabeca > 50, 'a cabeça precisa ter seguido em frente');
+  // Mais escamas, todas acrescentadas no fim; as de antes, no mesmo lugar do corpo.
+  const depois = fileiras(s);
+  assert.ok(depois.length > antes.length, 'crescer precisa acrescentar escama');
+  for (let i = 0; i < antes.length - 6; i++) {
+    const erro = Math.hypot(depois[i][0] - antes[i][0], depois[i][1] - antes[i][1]);
+    assert.ok(erro < 1e-6, `a escama ${i} saiu do lugar ao crescer (${erro.toFixed(3)})`);
+  }
+});
+
+// A ponta da prévia também anda lisa: o comprimento vai até a mesma posição da
+// pista atrás da cabeça, e não até o último ponto, que some aos saltos.
+test('a ponta da prévia anda lisa', () => {
+  const ponta = t => {
+    const { path, length } = previewPath(t);
+    let falta = length;
+    for (let i = 1; i < path.length; i++) {
+      const a = path[i - 1], b = path[i], seg = Math.hypot(b.x - a.x, b.y - a.y);
+      // A folga é do arredondamento da soma: no começo o comprimento é a pista inteira.
+      if (falta <= seg + 1e-9) return { x: a.x + (b.x - a.x) * falta / seg, y: a.y + (b.y - a.y) * falta / seg };
+      falta -= seg;
+    }
+    assert.fail('o comprimento passou do fim da pista');
+  };
+  let antes = ponta(0), maior = 0;
+  for (let k = 1; k <= 60; k++) {
+    const agora = ponta(k / 60);
+    maior = Math.max(maior, Math.hypot(agora.x - antes.x, agora.y - antes.y));
+    antes = agora;
+  }
+  // A pista anda uns 1,8 por quadro; um ponto inteiro seria mais de 3,7.
+  assert.ok(maior < 2.6, `a ponta saltou ${maior.toFixed(2)} num quadro`);
+});
+
+// Quem morre vira um rastro de luz da largura do corpo. Era uma fileira de
+// brilhos iguais pelo meio dele, e o gigante de 98 de largura deixava o mesmo
+// risco fino que um novato.
+test('o rastro de quem morre tem a largura do corpo dele', () => {
+  for (const massa of [120, 30000]) {
+    const world = arena();
+    world.player.invulnerable = 1e9;
+    const v = world.snakes.find(s => !s.player);
+    for (const s of world.snakes) if (s !== v && !s.player) s.alive = false;
+    v.mass = massa; v.invulnerable = 0; v.think = 1e9;
+    const r = radiusOf(v), pontos = Math.ceil(lengthOf(v) / ARENA.spacing) + 1;
+    // Corpo reto sobre o eixo x, com a cabeça já cruzando a borda.
+    const x0 = ARENA.radius - r + 2;
+    Object.assign(v, { x: x0, y: 0, px: x0, py: 0, angle: 0, target: 0 });
+    v.path = Array.from({ length: pontos }, (_, i) => ({ x: x0 - i * 5, y: 0, n: -i }));
+    world.update(1 / 60, {});
+    assert.equal(v.alive, false, 'a cobra precisa morrer na borda');
+    const luz = world.foods.filter(f => f.size > 0);
+    assert.ok(luz.length > 20, 'a morte precisa deixar luz');
+    assert.ok(luz.every(f => f.size === r), 'cada luz guarda o raio de quem morreu');
+    // De borda a borda: a luz se espalha de través até 60% do raio.
+    const largura = Math.max(...luz.map(f => Math.abs(f.y)));
+    assert.ok(largura > r * .5 && largura <= r * .61, `a luz vai até ${largura.toFixed(1)} do eixo num corpo de raio ${r.toFixed(1)}`);
+    const aviso = world.events.find(e => e.type === 'death');
+    assert.equal(aviso?.r, r, 'o aviso de morte leva o raio, para o clarão ter o tamanho do corpo');
+  }
 });
 
 // O corpo de quem nasce é criado esticado para trás da cabeça. A folga valia só
@@ -679,8 +851,7 @@ test('rival grande nasce fora da vista do jogador', () => {
       world.update(1 / 60, { angle: Math.sin(i / 150) * 3 });
       // Derruba um grande de tempos em tempos, para a pirâmide pedir reposição.
       if (i % 600 === 300) {
-        const alvo = world.snakes.find(s => s.alive && !s.player && s.mass > 1000);
-        if (alvo) alvo.x = alvo.y = ARENA.radius * 2;
+        derrubar(world, s => s.mass > 1000);
       }
       for (const s of world.snakes) {
         if (conhecidos.has(s)) continue;
@@ -777,7 +948,7 @@ test('a vaga de gigante espera o intervalo antes de ser reposta', () => {
     if (derrubadoEm === null && world.time > 10) {
       // Todos de uma vez, a partir de uma lista: o derrubado só morre no passo
       // seguinte, então procurar de novo acharia o mesmo para sempre.
-      for (const g of world.snakes.filter(s => s.alive && !s.player && s.mass >= topo.min)) g.x = g.y = ARENA.radius * 2;
+      for (const g of world.snakes.filter(s => s.alive && !s.player && s.mass >= topo.min)) expulsar(g);
       derrubadoEm = world.time;
     }
     for (const s of world.snakes) {
@@ -797,9 +968,12 @@ test('a vaga de gigante espera o intervalo antes de ser reposta', () => {
   // E depois do intervalo a faixa volta a ficar completa — por nascimento ou
   // porque outro rival cresceu até ela, que também ocupa a vaga. Cada morte tem
   // o próprio prazo, então a morte de um grande depois da derrubada não adia
-  // as vagas que já estavam abertas.
+  // as vagas que já estavam abertas. Gigante que falta no fim só pode ser um
+  // que morreu sozinho há menos de um intervalo: a vaga dele ainda está no prazo.
   const gigantes = world.snakes.filter(s => s.alive && !s.player && s.mass >= topo.min).length;
-  assert.ok(gigantes >= topo.count, `${gigantes} gigantes no fim, a pirâmide pede ${topo.count}`);
+  const noPrazo = (world.vacancies[0] ?? []).filter(t => t > world.time).length;
+  assert.ok(gigantes + noPrazo >= topo.count,
+    `${gigantes} gigantes e ${noPrazo} vagas no prazo no fim, a pirâmide pede ${topo.count}`);
 });
 
 // Rival grande enxerga o corte vindo. Matar uma cobra grande é cruzar a frente
