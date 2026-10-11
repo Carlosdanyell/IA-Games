@@ -9,7 +9,7 @@
 // HTTP cache do navegador.
 //
 // Ao adicionar um jogo, inclua os arquivos dele em ASSETS e suba VERSION.
-const VERSION = 'ia-games-v72';
+const VERSION = 'ia-games-v73';
 const DOC_TIMEOUT = 3500;   // HTML: vale esperar um pouco mais
 const ASSET_TIMEOUT = 1200; // módulos e CSS: rédea curta, cache logo atrás
 const ASSETS = [
@@ -108,6 +108,7 @@ const ASSETS = [
   './games/neon-slither/model.js',
   './games/neon-slither/render.js',
   './games/neon-slither/skins.js',
+  './games/neon-slither/effects.js',
   './games/neon-slither/style.css',
   './games/neon-memo/index.js',
   './games/neon-memo/figures.js',
