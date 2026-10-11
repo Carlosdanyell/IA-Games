@@ -1,6 +1,7 @@
 import { ARENA, skinFor } from './config.js';
 import { lengthOf, radiusOf, zoomFor } from './model.js';
 import { drawSnake } from './skins.js';
+import { createEffects } from './effects.js';
 
 // O zoom mora no modelo: o nascimento precisa saber o que o jogador enxerga
 // para pôr rival grande fora da vista dele. Reexportado aqui para quem já o
@@ -15,6 +16,10 @@ export function createRenderer(viewport, theme) {
   const sparks = [], fantasmas = []; let eventTime = -1, backdrop = null, backdropKey = '';
   // Relógio do renderizador: só a skin de pulso o usa, para o brilho respirar.
   let clock = 0;
+  // Partículas das skins, com teto: a arena inteira divide trezentas. Com o
+  // movimento reduzido pedido pelo sistema, nenhuma é solta.
+  const efeitos = createEffects(300);
+  let tempoDoMundo = -1;
 
   const sprites = COLORS.map(color => {
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = 32;
@@ -25,6 +30,11 @@ export function createRenderer(viewport, theme) {
   function draw(world, dt = 0, joy = null, alpha = 1) {
     const p = world.player;
     clock += Math.min(dt, .1);
+    // Com o mundo parado (pausa, fim de partida) as partículas que existem
+    // terminam de viver, mas ninguém solta novas.
+    const passo = Math.min(dt, .1), andando = world.time !== tempoDoMundo;
+    tempoDoMundo = world.time;
+    if (reduced.matches) efeitos.limpar(); else efeitos.atualizar(passo);
     const factor = 1 - Math.exp(-Math.min(dt, .1) * 9);
     camera.x += (p.x - camera.x) * factor; camera.y += (p.y - camera.y) * factor;
     const targetZoom = zoomFor(p.mass);
@@ -80,6 +90,8 @@ export function createRenderer(viewport, theme) {
       }
       c.stroke(); c.restore();
     }
+    const vista = { left, top, right, bottom };
+    efeitos.desenhar(c, 'chao', { escuro: theme.dark, vista });
     const ordered = [...world.snakes.filter(s => !s.player), p];
     c.lineCap = 'round'; c.lineJoin = 'round';
     for (const s of ordered) {
@@ -88,8 +100,9 @@ export function createRenderer(viewport, theme) {
       const hx = s.px + (s.x - s.px) * alpha, hy = s.py + (s.y - s.py) * alpha;
       // `points` é quantos pontos o modelo guarda com o corpo cheio: a pele usa
       // isso para a ponta da cauda andar lisa.
-      drawSnake(c,s,{radius:r,alpha,bounds:{left,top,right,bottom},scale:camera.zoom,time:clock,
-        points:Math.ceil(lengthOf(s) / ARENA.spacing) + 1});
+      drawSnake(c,s,{radius:r,alpha,bounds:vista,scale:camera.zoom,time:clock,
+        points:Math.ceil(lengthOf(s) / ARENA.spacing) + 1,
+        effects:reduced.matches ? null : efeitos, dt:andando ? passo : 0, speed:s.boost ? ARENA.boost : ARENA.speed});
       if (s.player) {
         c.save(); c.translate(hx, hy); c.rotate(s.target); c.strokeStyle = theme.dark ? '#ffffffaa' : '#263449aa'; c.lineWidth = 2;
         const arrow = Math.max(33, r + 14); c.beginPath(); c.moveTo(arrow, -5); c.lineTo(arrow + 7, 0); c.lineTo(arrow, 5); c.stroke(); c.restore();
@@ -97,6 +110,7 @@ export function createRenderer(viewport, theme) {
         c.fillStyle = theme.dark ? '#c1cee0' : '#34445b'; c.textAlign = 'center'; c.font = '600 13px system-ui'; c.fillText(s.name, s.x, s.y - r - 12);
       }
     }
+    efeitos.desenhar(c, 'ar', { escuro: theme.dark, vista });
     if (eventTime !== world.time) {
       eventTime = world.time;
       if (!reduced.matches) for (const event of world.events) {
@@ -137,5 +151,5 @@ export function createRenderer(viewport, theme) {
     // mesmo no mapa não pode depender de distinguir matizes parecidas.
     for (const s of world.snakes) if (s.alive) { g.fillStyle = s.player ? '#b4ffda' : '#afc6d988'; g.beginPath(); g.arc(size / 2 + s.x * k, size / 2 + s.y * k, s.player ? 4.5 : 2, 0, Math.PI * 2); g.fill(); }
   }
-  return { draw, minimap, camera, reset(world) { camera.x = world.player.x; camera.y = world.player.y; camera.zoom = 1; sparks.length=0; fantasmas.length=0; eventTime=-1; } };
+  return { draw, minimap, camera, reset(world) { camera.x = world.player.x; camera.y = world.player.y; camera.zoom = 1; sparks.length=0; fantasmas.length=0; efeitos.limpar(); eventTime=-1; } };
 }

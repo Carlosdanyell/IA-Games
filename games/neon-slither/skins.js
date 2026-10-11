@@ -1,4 +1,5 @@
 import { ARENA, skinFor } from './config.js';
+import { createEffects } from './effects.js';
 
 const TAU = Math.PI * 2;
 // A mesma pintura serve à arena e às prévias. Cada estampa é rasterizada uma
@@ -158,7 +159,7 @@ const visto = (ax, ay, bx, by, m) => !VISTA
 // série, e não pela posição na lista, para os vértices não trocarem de um
 // quadro para o outro quando nasce um ponto na cabeça.
 let AX = new Float64Array(512), AY = new Float64Array(512), AD = new Float64Array(512);
-let AV = new Uint8Array(512), AG = new Uint8Array(512), M = 0;
+let AV = new Uint8Array(512), AG = new Uint8Array(512), M = 0, VISIVEIS = 0;
 function amostrar(path, k0, passo, m) {
   if (AX.length < N + 2) {
     const n = (N + 2) * 2;
@@ -170,8 +171,20 @@ function amostrar(path, k0, passo, m) {
     AG[M] = (Math.round((path[j].n ?? -j) / passo) & 1) === 0 ? 1 : 0; M++;
   }
   if (N > 1) { AX[M] = CX[N - 1]; AY[M] = CY[N - 1]; AD[M] = CD[N - 1]; AG[M] = 1; M++; }
-  for (let s = 0; s < M - 1; s++) AV[s] = visto(AX[s], AY[s], AX[s + 1], AY[s + 1], m) ? 1 : 0;
+  VISIVEIS = 0;
+  for (let s = 0; s < M - 1; s++) { AV[s] = visto(AX[s], AY[s], AX[s + 1], AY[s + 1], m) ? 1 : 0; VISIVEIS += AV[s]; }
 }
+// O corpo medido, do jeito que as partículas o leem: o ponto a uma distância
+// da cabeça e se ele está na tela. Um objeto só, reaproveitado.
+const CORPO = {
+  r: 0, L: 0, hx: 0, hy: 0, angle: 0, vel: 0, tempo: 0, boost: false, fracao: 1,
+  em,
+  aparece(d) {
+    let lo = 0, hi = M - 2;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (AD[m] <= d) lo = m; else hi = m - 1; }
+    return AV[Math.max(0, lo)] === 1;
+  }
+};
 // O corpo inteiro pelo traço grosso, deslocado de `ox`/`oy`. Um trecho grosso
 // aparece se algum dos finos que ele cobre aparece.
 function grosso(c, ox, oy) {
@@ -364,7 +377,12 @@ function tom(cor, alvo, k) {
 // cabeça, que cresce e zera a cada ponto novo —, e a ponta escorre junto com a
 // cabeça. Crescendo, o corpo ainda não chegou a esse tanto: a cauda fica parada
 // onde está e a carne nova aparece por ela.
-export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, details = true, pointSpacing = ARENA.spacing, scale = 1, time = 0, length = Infinity, points = 0 } = {}) {
+//
+// `effects` recebe as partículas da skin, soltas em `dt` segundos por uma cobra
+// que anda `speed` por segundo; `owner` identifica quem solta. Com `emitOnly`,
+// a cobra só solta partículas e não é desenhada: é como a prévia aquece.
+export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, details = true, pointSpacing = ARENA.spacing, scale = 1, time = 0, length = Infinity, points = 0,
+  effects = null, dt = 0, speed = 0, owner = snake.id ?? -1, emitOnly = false } = {}) {
   const skin = skinFor(snake.skin), path = snake.path;
   if (!path?.length) return;
   const hx = (snake.px ?? snake.x) + (snake.x - (snake.px ?? snake.x)) * alpha;
@@ -393,6 +411,14 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
   const passo = Math.max(1, Math.round(5 / Math.max(.001, pointSpacing * scale)));
   // A folga da vista de cada trecho cobre a camada mais larga: halo aceso.
   amostrar(path, primeiro(path, passo, 1), passo, r * 1.5 + 16);
+  // Partículas só de quem aparece com espessura legível: uma cobra de dois
+  // pixels na tela soltaria pó que ninguém vê e que ainda custa.
+  if (effects && corpo && details && r * scale >= 3) {
+    CORPO.r = r; CORPO.L = L; CORPO.hx = hx; CORPO.hy = hy; CORPO.angle = snake.angle ?? 0;
+    CORPO.vel = speed; CORPO.tempo = time; CORPO.boost = !!snake.boost; CORPO.fracao = M > 1 ? VISIVEIS / (M - 1) : 1;
+    effects.emitir(owner, skin.id, CORPO, dt);
+  }
+  if (emitOnly) return;
   c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
   // Brilho abaixo de uns poucos pixels na tela não aparece, só custa.
   const aceso = details && r * scale >= 4;
@@ -483,6 +509,21 @@ export function drawSnake(c, snake, { radius = 10, alpha = 1, bounds = null, det
       // O reflexo do olho também vem da lâmpada da arena.
       c.fillStyle = '#ffffff'; c.beginPath(); c.arc(r * .48 + lx * r * .1, side * r * .52 + ly * r * .1, r * .065, 0, TAU); c.fill();
     }
+    if (aceso && skin.pulse) {
+      // Os feixes do pulsar: dois cones de luz saindo da cabeça em sentidos
+      // opostos, girando, mais fortes no pico do pulso. São só dois
+      // triângulos por quadro; o anel que se abre no pico vem das partículas.
+      const pico = .5 + .5 * Math.sin(time * 2.4), alcance = r * 7;
+      c.save(); c.globalCompositeOperation = 'lighter'; c.rotate(time * 1.3 - snake.angle);
+      const feixe = c.createLinearGradient(0, 0, alcance, 0);
+      feixe.addColorStop(0, skin.detail); feixe.addColorStop(1, skin.detail + '00');
+      c.fillStyle = feixe; c.globalAlpha = opaco * (.1 + .3 * pico);
+      for (let lado = 0; lado < 2; lado++) {
+        c.beginPath(); c.moveTo(0, -r * .22); c.lineTo(alcance, -r * .8); c.lineTo(alcance, r * .8); c.lineTo(0, r * .22); c.fill();
+        c.rotate(Math.PI);
+      }
+      c.restore();
+    }
     if (snake.invulnerable > 0) {
       c.strokeStyle = skin.detail; c.lineWidth = 1.6; c.setLineDash([5, 5]);
       c.beginPath(); c.arc(0, 0, r + 7, 0, TAU); c.stroke();
@@ -525,18 +566,44 @@ export function previewPath(time = 0) {
   return { path, angle, length };
 }
 
+// Cada canvas de prévia tem as próprias partículas. Quando nasce, ou quando a
+// skin muda, ele aquece um segundo de partículas sem desenhar: assim a miniatura
+// parada da coleção já mostra o efeito, e a prévia animada não começa vazia.
+const previas = new WeakMap();
+const PISO = RITMO * PASSO_X;
+const cobraDaPrevia = (id, t) => {
+  const { path, angle, length } = previewPath(t), head = path[0];
+  return { cobra: { ...head, px: head.x, py: head.y, path, skin: id, angle }, length };
+};
+
 export function drawSkinPreview(canvas, id, time = 0) {
   const c=canvas.getContext('2d'), w=canvas.width, h=canvas.height;
+  let estado = previas.get(canvas);
+  if (!estado || estado.id !== id) {
+    estado = { id, fx: estado?.fx ?? createEffects(90), t: time };
+    estado.fx.limpar(); previas.set(canvas, estado);
+    for (let k = 30; k > 0; k--) {
+      const { cobra, length } = cobraDaPrevia(id, time - k / 30);
+      drawSnake(null, cobra, { radius: 14, pointSpacing: 5, length, effects: estado.fx, dt: 1 / 30, speed: PISO, time: time - k / 30, owner: -1, emitOnly: true });
+      estado.fx.atualizar(1 / 30, -PISO, 0);
+    }
+  }
+  const dt = Math.min(.1, Math.max(0, time - estado.t)); estado.t = time;
+  // O chão escorre para trás, e o que foi solto nele escorre junto.
+  estado.fx.atualizar(dt, -PISO, 0);
+  const escuro = typeof document === 'undefined' || document.documentElement.dataset.theme !== 'light';
   c.clearRect(0,0,w,h); c.save(); c.scale(w/360,h/160);
   const skin=skinFor(id), halo=c.createRadialGradient(180,90,4,180,90,175);
   halo.addColorStop(0,skin.colors[0]+'22'); halo.addColorStop(1,skin.colors[0]+'00');
   c.fillStyle=halo; c.fillRect(0,0,360,160);
   // Chão: pontos presos à pista, escorrendo para trás no ritmo da cobra. Com a
   // pele presa ao corpo, é o chão que mostra que ela anda para a frente.
-  const recuo = (time * RITMO * PASSO_X) % 40;
+  const recuo = (time * PISO) % 40;
   c.fillStyle = '#6fd2c430';
   for (let x = 340 - recuo; x > 0; x -= 40) for (let y = 20; y < 160; y += 40) c.fillRect(x - 1, y - 1, 2, 2);
-  const { path, angle, length } = previewPath(time), head = path[0];
-  drawSnake(c,{...head,px:head.x,py:head.y,path,skin:id,angle}, {radius:14,pointSpacing:5,length});
+  estado.fx.desenhar(c, 'chao', { escuro });
+  const { cobra, length } = cobraDaPrevia(id, time);
+  drawSnake(c, cobra, { radius: 14, pointSpacing: 5, length, effects: estado.fx, dt, speed: PISO, time, owner: -1 });
+  estado.fx.desenhar(c, 'ar', { escuro });
   c.restore();
 }
